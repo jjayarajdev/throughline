@@ -1,0 +1,34 @@
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+
+# .NET
+bin/
+obj/
+*.user
+*.swp
+Logs/
+Uploads/
+EpiCenterV2Documents/
+
+# Real secrets kept locally, never committed
+EpiCenter-backend-main/appsettings.Development.json
+EpiCenter-backend-main/.secrets/
+
+# Generated during local setup
+scripts/.migrate.sql
+scripts/.schema.utf8.sql
+
+# Legacy data export — contains personal data (candidates, employees). Never commit.
+Migrated Data*.xlsx
+*.xlsx

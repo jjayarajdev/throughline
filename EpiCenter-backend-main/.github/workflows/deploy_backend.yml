@@ -1,0 +1,28 @@
+name: Deploy backend
+
+on:
+  push:
+    branches:
+      - master
+      - Development
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Start SSH agent
+        uses: webfactory/ssh-agent@v0.7.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Run deployment script on server
+        run: |
+          if [[ "${GITHUB_REF##*/}" == "master" ]]; then
+            ssh -o StrictHostKeyChecking=no azureuser@52.159.149.78 "bash ~/dbackend.sh"
+          elif [[ "${GITHUB_REF##*/}" == "Development" ]]; then
+            ssh -o StrictHostKeyChecking=no azureuser@52.159.149.78 "bash ~/development_backend.sh"
+          fi

@@ -1,0 +1,17 @@
+{
+  "apps": [
+    {
+      "name": "epicenter",
+      "script": "node_modules/next/dist/bin/next",
+      "args": "start",
+      "exec_mode": "fork",
+      "instances": 1,
+      "interpreter": "node",
+      "env": {
+        "PORT": "8080",
+        "NODE_ENV": "production"
+      },
+      "pmx": false
+    }
+  ]
+}
