@@ -71,7 +71,7 @@ import RoundDropdown from "../form-fields/Dropdown";
 import { dropdownApi } from "@/services/api/master";
 import { MasterTypes } from "@/constants/masterTypes";
 import { AddPositionSheet } from "./SheetDrawer/AddPositionSheet";
-import { DateRange } from "react-day-picker";
+import type { DateRange } from "@/components/form-fields/DateRangePicker";
 
 import api from "@/lib/axiosInstance";
 import MultiSelectDropdown from "../form-fields/MultiDropdownCheckbox";

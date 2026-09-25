@@ -38,7 +38,7 @@ import SearchFilter from "../common/SearchFilter";
 import { useUserStore } from "@/store/userStore";
 import { useRouter } from "next/navigation";
 import { SplitNames } from "../common/SplitNames";
-import { DateRange } from "react-day-picker";
+import type { DateRange } from "@/components/form-fields/DateRangePicker";
 import { DateRangePicker } from "../form-fields/DateRangePicker";
 
 export default function InterviewListPagination({

@@ -1,53 +1,31 @@
-"use client"
+"use client";
+import * as React from "react";
+import { Avatar as AntAvatar } from "antd";
+import { cn } from "@/lib/utils";
+import { findChild } from "./_internal";
 
-import * as React from "react"
-import * as AvatarPrimitive from "@radix-ui/react-avatar"
+function AvatarImage(_props: React.ComponentProps<"img">) {
+  return null; // read by <Avatar>
+}
+function AvatarFallback(_props: React.ComponentProps<"span"> & { delayMs?: number }) {
+  return null; // read by <Avatar>
+}
 
-import { cn } from "@/lib/utils"
-
-function Avatar({
-  className,
-  ...props
-}: React.ComponentProps<typeof AvatarPrimitive.Root>) {
+/** Avatar on Ant Design; `AvatarImage` supplies `src`, `AvatarFallback` supplies the fallback content. */
+function Avatar({ className, children, ...props }: React.ComponentProps<"span">) {
+  const image = findChild<React.ComponentProps<"img">>(children, AvatarImage);
+  const fallback = findChild<React.ComponentProps<"span">>(children, AvatarFallback);
   return (
-    <AvatarPrimitive.Root
+    <AntAvatar
       data-slot="avatar"
-      className={cn(
-        "relative flex size-8 shrink-0 overflow-hidden rounded-full",
-        className
-      )}
-      {...props}
-    />
-  )
+      src={image?.props.src}
+      alt={image?.props.alt}
+      className={cn("shrink-0 select-none", fallback?.props.className, className)}
+      {...(props as any)}
+    >
+      {fallback?.props.children}
+    </AntAvatar>
+  );
 }
 
-function AvatarImage({
-  className,
-  ...props
-}: React.ComponentProps<typeof AvatarPrimitive.Image>) {
-  return (
-    <AvatarPrimitive.Image
-      data-slot="avatar-image"
-      className={cn("aspect-square size-full", className)}
-      {...props}
-    />
-  )
-}
-
-function AvatarFallback({
-  className,
-  ...props
-}: React.ComponentProps<typeof AvatarPrimitive.Fallback>) {
-  return (
-    <AvatarPrimitive.Fallback
-      data-slot="avatar-fallback"
-      className={cn(
-        "bg-muted flex size-full items-center justify-center rounded-full",
-        className
-      )}
-      {...props}
-    />
-  )
-}
-
-export { Avatar, AvatarImage, AvatarFallback }
+export { Avatar, AvatarImage, AvatarFallback };

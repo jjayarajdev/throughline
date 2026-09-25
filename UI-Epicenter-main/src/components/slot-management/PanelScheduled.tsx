@@ -45,7 +45,7 @@ import { FilterTypeEnum, SlotAllocationType } from "@/constants/FilterTypeEnum";
 import { useUserStore } from "@/store/userStore";
 import { useRouter } from "next/navigation";
 import { PartnerConfirmsheet } from "./sheets/ParnterConfirmsheet";
-import { DateRange } from "react-day-picker";
+import type { DateRange } from "@/components/form-fields/DateRangePicker";
 import { DateRangePicker } from "../form-fields/DateRangePicker";
 
 export default function PanelScheduled() {

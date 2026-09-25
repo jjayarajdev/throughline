@@ -1,31 +1,35 @@
-"use client"
+"use client";
+import * as React from "react";
+import { Switch as AntSwitch } from "antd";
+import { cn } from "@/lib/utils";
 
-import * as React from "react"
-import * as SwitchPrimitive from "@radix-ui/react-switch"
+export type SwitchProps = Omit<React.ComponentProps<"button">, "onChange" | "value"> & {
+  checked?: boolean;
+  defaultChecked?: boolean;
+  onCheckedChange?: (checked: boolean) => void;
+  value?: string;
+  required?: boolean;
+  size?: "small" | "default";
+};
 
-import { cn } from "@/lib/utils"
-
-function Switch({
-  className,
-  ...props
-}: React.ComponentProps<typeof SwitchPrimitive.Root>) {
+const Switch = React.forwardRef<HTMLButtonElement, SwitchProps>(function Switch(
+  { className, checked, defaultChecked, onCheckedChange, disabled, id, size, ...props },
+  ref
+) {
+  const controlled = checked !== undefined;
   return (
-    <SwitchPrimitive.Root
+    <AntSwitch
+      ref={ref as any}
       data-slot="switch"
-      className={cn(
-        "peer data-[state=checked]:bg-primary data-[state=unchecked]:bg-input focus-visible:border-ring focus-visible:ring-ring/50 dark:data-[state=unchecked]:bg-input/80 inline-flex h-[1.15rem] w-8 shrink-0 items-center rounded-full border border-transparent shadow-xs transition-all outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 hover:cursor-pointer",
-        className
-      )}
-      {...props}
-    >
-      <SwitchPrimitive.Thumb
-        data-slot="switch-thumb"
-        className={cn(
-          "bg-background dark:data-[state=unchecked]:bg-foreground dark:data-[state=checked]:bg-primary-foreground pointer-events-none block size-4 rounded-full ring-0 transition-transform data-[state=checked]:translate-x-[calc(100%-2px)] data-[state=unchecked]:translate-x-0"
-        )}
-      />
-    </SwitchPrimitive.Root>
-  )
-}
+      id={id}
+      size={size}
+      disabled={disabled}
+      {...(controlled ? { checked } : { defaultChecked })}
+      onChange={(next) => onCheckedChange?.(next)}
+      className={cn(className)}
+      {...(props as any)}
+    />
+  );
+});
 
-export { Switch }
+export { Switch };

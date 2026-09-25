@@ -1,139 +1,92 @@
-"use client"
+"use client";
+import * as React from "react";
+import { Button, Drawer } from "antd";
+import { CloseOutlined } from "@ant-design/icons";
+import { cn } from "@/lib/utils";
+import { renderTrigger, useOpenState } from "./_internal";
 
-import * as React from "react"
-import * as SheetPrimitive from "@radix-ui/react-dialog"
-import { XIcon } from "lucide-react"
+type SheetCtx = { open: boolean; setOpen: (o: boolean) => void };
+const Ctx = React.createContext<SheetCtx>({ open: false, setOpen: () => {} });
 
-import { cn } from "@/lib/utils"
+type SheetProps = { children?: React.ReactNode; open?: boolean; defaultOpen?: boolean; onOpenChange?: (open: boolean) => void; modal?: boolean };
 
-function Sheet({ ...props }: React.ComponentProps<typeof SheetPrimitive.Root>) {
-  return <SheetPrimitive.Root data-slot="sheet" {...props} />
+/** Sheet on Ant Design's Drawer, keeping the Radix compound API. */
+function Sheet({ children, ...state }: SheetProps) {
+  const [open, setOpen] = useOpenState(state);
+  const value = React.useMemo(() => ({ open, setOpen }), [open, setOpen]);
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
-function SheetTrigger({
-  ...props
-}: React.ComponentProps<typeof SheetPrimitive.Trigger>) {
-  return <SheetPrimitive.Trigger data-slot="sheet-trigger" {...props} />
+const SheetTrigger = React.forwardRef<HTMLElement, React.ComponentProps<"button"> & { asChild?: boolean }>(function SheetTrigger(props, ref) {
+  const { setOpen } = React.useContext(Ctx);
+  return renderTrigger(props as any, () => setOpen(true), ref);
+});
+
+const SheetClose = React.forwardRef<HTMLElement, React.ComponentProps<"button"> & { asChild?: boolean }>(function SheetClose(props, ref) {
+  const { setOpen } = React.useContext(Ctx);
+  return renderTrigger(props as any, () => setOpen(false), ref);
+});
+
+function SheetPortal({ children }: { children?: React.ReactNode }) {
+  return <>{children}</>;
+}
+function SheetOverlay(_props: React.ComponentProps<"div">) {
+  return null;
 }
 
-function SheetClose({
-  ...props
-}: React.ComponentProps<typeof SheetPrimitive.Close>) {
-  return <SheetPrimitive.Close data-slot="sheet-close" {...props} />
+/** Derive the drawer size from the Tailwind width classes consumers pass (w-[800px], sm:max-w-xl, …). */
+function widthFromClassName(className?: string, side: string = "right"): string | number {
+  const px = className?.match(/(?:^|\s)(?:sm:|md:|lg:)?(?:max-)?w-\[(\d+)px\]/);
+  if (px) return Number(px[1]);
+  const named = className?.match(/(?:^|\s)(?:sm:|md:|lg:)?max-w-(sm|md|lg|xl|2xl|3xl|4xl|5xl|6xl|7xl)(?:\s|$)/);
+  const rem: Record<string, number> = { sm: 24, md: 28, lg: 32, xl: 36, "2xl": 42, "3xl": 48, "4xl": 56, "5xl": 64, "6xl": 72, "7xl": 80 };
+  if (named) return `${rem[named[1]]}rem`;
+  return side === "left" ? "24rem" : "36rem";
 }
 
-function SheetPortal({
-  ...props
-}: React.ComponentProps<typeof SheetPrimitive.Portal>) {
-  return <SheetPrimitive.Portal data-slot="sheet-portal" {...props} />
-}
+type ContentProps = React.ComponentProps<"div"> & { side?: "top" | "right" | "bottom" | "left"; showCloseButton?: boolean };
 
-function SheetOverlay({
-  className,
-  ...props
-}: React.ComponentProps<typeof SheetPrimitive.Overlay>) {
+function SheetContent({ className, children, side = "right", showCloseButton = true, ...props }: ContentProps) {
+  const { open, setOpen } = React.useContext(Ctx);
+  const vertical = side === "top" || side === "bottom";
   return (
-    <SheetPrimitive.Overlay
-      data-slot="sheet-overlay"
-      className={cn(
-        "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/50",
-        className
-      )}
-      {...props}
-    />
-  )
-}
-
-function SheetContent({
-  className,
-  children,
-  side = "right",
-  ...props
-}: React.ComponentProps<typeof SheetPrimitive.Content> & {
-  side?: "top" | "right" | "bottom" | "left"
-}) {
-  return (
-    <SheetPortal>
-      <SheetOverlay />
-      <SheetPrimitive.Content
-        data-slot="sheet-content"
-        className={cn(
-          "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out fixed z-50 flex flex-col gap-4 shadow-lg transition ease-in-out data-[state=closed]:duration-300 data-[state=open]:duration-500",
-          side === "right" &&
-            "data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right inset-y-0 right-0 h-full w-full border-l sm:max-w-xl",
-          side === "left" &&
-            "data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left inset-y-0 left-0 h-full w-3/4 border-r sm:max-w-sm",
-          side === "top" &&
-            "data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top inset-x-0 top-0 h-auto border-b",
-          side === "bottom" &&
-            "data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom inset-x-0 bottom-0 h-auto border-t",
-          className
-        )}
-        {...props}
-      >
+    <Drawer
+      open={open}
+      onClose={() => setOpen(false)}
+      placement={side}
+      closable={false}
+      destroyOnHidden
+      {...(vertical ? { height: "auto" } : { width: widthFromClassName(className, side) })}
+      styles={{ body: { padding: 0, display: "flex", flexDirection: "column" }, wrapper: { maxWidth: "100vw" } }}
+    >
+      <div data-slot="sheet-content" className={cn("relative flex h-full min-h-0 flex-1 flex-col gap-4 text-[var(--ant-color-text)]", className)} {...props}>
         {children}
-        <SheetPrimitive.Close className="ring-offset-background focus:ring-ring data-[state=open]:bg-secondary absolute top-4 right-4 rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none">
-          <XIcon className="size-4" />
-          <span className="sr-only">Close</span>
-        </SheetPrimitive.Close>
-      </SheetPrimitive.Content>
-    </SheetPortal>
-  )
+        {showCloseButton && (
+          <Button
+            type="text"
+            size="small"
+            aria-label="Close"
+            icon={<CloseOutlined />}
+            onClick={() => setOpen(false)}
+            style={{ position: "absolute", top: 12, right: 12, zIndex: 1 }}
+          />
+        )}
+      </div>
+    </Drawer>
+  );
 }
 
 function SheetHeader({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="sheet-header"
-      className={cn("flex flex-col gap-1.5 p-4", className)}
-      {...props}
-    />
-  )
+  return <div data-slot="sheet-header" className={cn("flex flex-col gap-1.5 p-4", className)} {...props} />;
 }
-
 function SheetFooter({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="sheet-footer"
-      className={cn("mt-auto flex flex-col gap-2 p-4", className)}
-      {...props}
-    />
-  )
+  return <div data-slot="sheet-footer" className={cn("mt-auto flex flex-col gap-2 p-4", className)} {...props} />;
+}
+function SheetTitle({ className, ...props }: React.ComponentProps<"h2">) {
+  return <h2 data-slot="sheet-title" className={cn("font-semibold", className)} {...props} />;
+}
+function SheetDescription({ className, ...props }: React.ComponentProps<"p">) {
+  return <p data-slot="sheet-description" className={cn("text-sm text-[var(--ant-color-text-secondary)]", className)} {...props} />;
 }
 
-function SheetTitle({
-  className,
-  ...props
-}: React.ComponentProps<typeof SheetPrimitive.Title>) {
-  return (
-    <SheetPrimitive.Title
-      data-slot="sheet-title"
-      className={cn("text-foreground font-semibold", className)}
-      {...props}
-    />
-  )
-}
-
-function SheetDescription({
-  className,
-  ...props
-}: React.ComponentProps<typeof SheetPrimitive.Description>) {
-  return (
-    <SheetPrimitive.Description
-      data-slot="sheet-description"
-      className={cn("text-muted-foreground text-sm", className)}
-      {...props}
-    />
-  )
-}
-
-export {
-  Sheet,
-  SheetTrigger,
-  SheetClose,
-  SheetContent,
-  SheetHeader,
-  SheetFooter,
-  SheetTitle,
-  SheetDescription,
-}
+export { Sheet, SheetTrigger, SheetClose, SheetContent, SheetHeader, SheetFooter, SheetTitle, SheetDescription, SheetOverlay, SheetPortal };

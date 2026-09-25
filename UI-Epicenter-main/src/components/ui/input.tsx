@@ -1,21 +1,67 @@
-import * as React from "react"
+"use client";
+import * as React from "react";
+import { Input as AntInput } from "antd";
+import type { InputRef } from "antd";
+import { cn } from "@/lib/utils";
 
-import { cn } from "@/lib/utils"
+const NATIVE_TYPES = new Set(["file", "checkbox", "radio", "range", "color", "hidden", "submit", "reset", "button", "image"]);
 
-function Input({ className, type, ...props }: React.ComponentProps<"input">) {
+export type InputProps = Omit<React.ComponentProps<"input">, "size" | "prefix"> & {
+  size?: "small" | "middle" | "large";
+  prefix?: React.ReactNode;
+  suffix?: React.ReactNode;
+  allowClear?: boolean;
+};
+
+/** Text input on Ant Design. Types Ant cannot render (file, checkbox, …) fall back to the native element. */
+const Input = React.forwardRef<HTMLInputElement, InputProps>(function Input(
+  { className, type = "text", size, prefix, suffix, allowClear, ...props },
+  ref
+) {
+  const antRef = React.useRef<InputRef>(null);
+  React.useImperativeHandle(ref, () => antRef.current?.input as HTMLInputElement, []);
+
+  if (NATIVE_TYPES.has(type)) {
+    return (
+      <input
+        ref={ref}
+        type={type}
+        data-slot="input"
+        className={cn(
+          "flex h-9 w-full min-w-0 rounded-md border border-[var(--ant-color-border)] bg-[var(--ant-color-bg-container)] px-3 py-1 text-sm file:mr-3 file:rounded file:border-0 file:bg-[var(--ant-color-fill-secondary)] file:px-2 file:py-1 file:text-sm",
+          className
+        )}
+        {...props}
+      />
+    );
+  }
+
+  if (type === "password") {
+    return (
+      <AntInput.Password
+        ref={antRef}
+        data-slot="input"
+        size={size}
+        prefix={prefix}
+        className={cn("w-full", className)}
+        {...(props as any)}
+      />
+    );
+  }
+
   return (
-    <input
+    <AntInput
+      ref={antRef}
       type={type}
       data-slot="input"
-      className={cn(
-        "file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input flex h-9 w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
-        "focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]",
-        "aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
-        className
-      )}
-      {...props}
+      size={size}
+      prefix={prefix}
+      suffix={suffix}
+      allowClear={allowClear}
+      className={cn("w-full", className)}
+      {...(props as any)}
     />
-  )
-}
+  );
+});
 
-export { Input }
+export { Input };

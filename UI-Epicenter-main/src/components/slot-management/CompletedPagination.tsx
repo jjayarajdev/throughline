@@ -32,7 +32,7 @@ import { useRouter } from "next/navigation";
 import { useUserStore } from "@/store/userStore";
 import { SplitNames } from "../common/SplitNames";
 import RoundDropdown from "../form-fields/Dropdown";
-import { DateRange } from "react-day-picker";
+import type { DateRange } from "@/components/form-fields/DateRangePicker";
 import { DateRangePicker } from "../form-fields/DateRangePicker";
 import MultiSelectDropdown from "../form-fields/MultiDropdownCheckbox";
 

@@ -1,66 +1,82 @@
-"use client"
+"use client";
+import * as React from "react";
+import { Tabs as AntTabs } from "antd";
+import { cn } from "@/lib/utils";
+import { findChildren } from "./_internal";
 
-import * as React from "react"
-import * as TabsPrimitive from "@radix-ui/react-tabs"
+type TabsCtx = { value: string; setValue: (v: string) => void };
+const Ctx = React.createContext<TabsCtx>({ value: "", setValue: () => {} });
 
-import { cn } from "@/lib/utils"
+type TabsProps = Omit<React.ComponentProps<"div">, "defaultValue" | "onChange"> & {
+  value?: string;
+  defaultValue?: string;
+  onValueChange?: (value: string) => void;
+  orientation?: "horizontal" | "vertical";
+  activationMode?: "automatic" | "manual";
+};
 
-function Tabs({
-  className,
-  ...props
-}: React.ComponentProps<typeof TabsPrimitive.Root>) {
+/**
+ * Tabs on Ant Design, keeping the Radix compound API. <TabsList> renders the Ant tab bar
+ * from its <TabsTrigger> children; <TabsContent> renders wherever it sits in the tree.
+ */
+function Tabs({ className, value, defaultValue, onValueChange, children, orientation: _o, activationMode: _a, ...props }: TabsProps) {
+  const [inner, setInner] = React.useState(defaultValue ?? "");
+  const controlled = value !== undefined;
+  const current = controlled ? value! : inner;
+  const setValue = React.useCallback(
+    (v: string) => {
+      if (!controlled) setInner(v);
+      onValueChange?.(v);
+    },
+    [controlled, onValueChange]
+  );
+  const ctx = React.useMemo(() => ({ value: current, setValue }), [current, setValue]);
   return (
-    <TabsPrimitive.Root
-      data-slot="tabs"
-      className={cn("flex flex-col gap-2", className)}
-      {...props}
-    />
-  )
+    <Ctx.Provider value={ctx}>
+      <div data-slot="tabs" className={cn("flex flex-col gap-2", className)} {...props}>
+        {children}
+      </div>
+    </Ctx.Provider>
+  );
 }
 
-function TabsList({
-  className,
-  ...props
-}: React.ComponentProps<typeof TabsPrimitive.List>) {
-  return (
-    <TabsPrimitive.List
-      data-slot="tabs-list"
-      className={cn(
-        "bg-muted text-muted-foreground inline-flex h-9 w-fit items-center justify-center rounded-lg p-[3px]",
-        className
-      )}
-      {...props}
-    />
-  )
+type TriggerProps = React.ComponentProps<"button"> & { value: string };
+
+function TabsTrigger(_props: TriggerProps) {
+  return null; // read by <TabsList>
 }
 
-function TabsTrigger({
-  className,
-  ...props
-}: React.ComponentProps<typeof TabsPrimitive.Trigger>) {
+function TabsList({ className, children, ...props }: React.ComponentProps<"div">) {
+  const { value, setValue } = React.useContext(Ctx);
+  const triggers = findChildren<TriggerProps>(children, TabsTrigger);
+  const items = triggers.map((t) => ({
+    key: t.props.value,
+    label: <span className={cn("inline-flex items-center gap-1.5", t.props.className)}>{t.props.children}</span>,
+    disabled: t.props.disabled,
+  }));
   return (
-    <TabsPrimitive.Trigger
-      data-slot="tabs-trigger"
-      className={cn(
-        "data-[state=active]:bg-background dark:data-[state=active]:text-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:outline-ring dark:data-[state=active]:border-input dark:data-[state=active]:bg-input/30 text-foreground dark:text-muted-foreground inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-2 py-1 text-sm font-medium whitespace-nowrap transition-[color,box-shadow] focus-visible:ring-[3px] focus-visible:outline-1 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:shadow-sm [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
-        className
-      )}
-      {...props}
-    />
-  )
+    <div data-slot="tabs-list" className={cn("w-fit max-w-full", className)} {...props}>
+      <AntTabs
+        activeKey={value}
+        onChange={setValue}
+        items={items}
+        size="middle"
+        tabBarStyle={{ marginBottom: 0 }}
+        renderTabBar={(barProps, DefaultBar) => <DefaultBar {...barProps} />}
+      />
+    </div>
+  );
 }
 
-function TabsContent({
-  className,
-  ...props
-}: React.ComponentProps<typeof TabsPrimitive.Content>) {
+function TabsContent({ className, value, children, forceMount, ...props }: React.ComponentProps<"div"> & { value: string; forceMount?: boolean }) {
+  const ctx = React.useContext(Ctx);
+  const active = ctx.value === value;
+  if (!active && !forceMount) return null;
   return (
-    <TabsPrimitive.Content
-      data-slot="tabs-content"
-      className={cn("flex-1 outline-none", className)}
-      {...props}
-    />
-  )
+    <div data-slot="tabs-content" role="tabpanel" hidden={!active} className={cn("flex-1 outline-none", className)} {...props}>
+      {children}
+    </div>
+  );
 }
 
-export { Tabs, TabsList, TabsTrigger, TabsContent }
+export { Tabs, TabsList, TabsTrigger, TabsContent };

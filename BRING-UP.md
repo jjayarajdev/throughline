@@ -361,11 +361,32 @@ What changed in `UI-Epicenter-main`:
   `AppHeader.tsx`, `UserDropdown.tsx`, `theme-toggler.tsx`; the login page is an antd `Form`.
 - Fixed: `SidebarContext` hard-coded "mobile", so the sider could never expand.
 
-**Still on shadcn/Radix + Tailwind (migrate page by page)**: every feature page and the
-`src/components/ui/*` primitives (tables, dialogs, tabs, selects, forms, sheets). They render
-correctly inside the Ant shell and use the Ant palette via CSS tokens, but they are not antd
-components yet. Suggested order: shared primitives (`button`, `input`, `select`, `dialog`,
-`tabs`, `table`) → grids (`HiringTable`, candidate tables) → forms → onboarding.
+**Shared primitives migrated to Ant Design (25 Sep 2026).** Every file in
+`src/components/ui/*` is now a thin wrapper over an Ant component that keeps the shadcn/Radix
+API the ~260 consumer files were written against, so no page had to change:
+
+| Primitive | Ant component | Notes |
+|---|---|---|
+| Button, Badge | Button (`color`/`variant`), Tag | `variant="hpButton"` = primary, `hpReject` = danger, `hpPending` = orange; `asChild` still supported |
+| Input, Textarea, Checkbox, Switch, RadioGroup, Label | Input / Input.Password / TextArea, Checkbox, Switch, Radio.Group | `onCheckedChange` / `onValueChange` contracts kept; `type="file"` stays native |
+| Select, DropdownMenu, Tabs, Accordion, Alert, Avatar, Tooltip, Popover | Select, Dropdown, Tabs, Collapse, Alert, Avatar, Tooltip, Popover | Compound JSX (`<SelectItem>`, `<DropdownMenuItem>`, `<TabsTrigger>` …) is read by the parent and turned into Ant `options` / `items`; `TabsContent` still renders where it sits |
+| Dialog, Sheet | Modal, Drawer | `open` / `onOpenChange` / `DialogTrigger asChild` kept; Drawer width is derived from the `w-[…px]` / `max-w-*` class the consumer passes |
+| Card, Table, Separator, Progress, Skeleton, ScrollArea | Card, semantic table styled by `.tl-table` (globals.css), Divider, Progress, div | Table stays composable for @tanstack/react-table |
+| Form | react-hook-form bindings, Ant error tokens | unchanged API (`FormField`, `FormControl`, `useFormField`) |
+
+The date and multi-select field wrappers moved to Ant directly: `DatePickerField`,
+`DayMonthPickerField` (DatePicker), `DateRangePicker` (RangePicker, keeps `{ from, to }`),
+`MultiSelectField` and `searchable-dropdown` (Select). `calendar`, `command`, `multiselect`,
+`chart` and `sonner` primitives were deleted; `react-day-picker`, `cmdk` and the unused
+Radix packages were removed. `@radix-ui/react-slot`, `-dialog`, `-radio-group`, `-label`
+remain because four feature files import them directly.
+
+Helpers for the compound pattern live in `src/components/ui/_internal.tsx`. Type check is
+at the pre-migration baseline (`npx tsc --noEmit`: 251 errors, all pre-existing).
+
+**Still shadcn-styled (Tailwind) but on Ant primitives**: the feature pages themselves. Next
+candidates for a native Ant rewrite: the grids (`HiringTable`, candidate tables → Ant `Table`),
+then forms (→ Ant `Form`), then onboarding.
 Field labels that said "HPE Email ID" now read "Company Email ID"; the API field name
 `hpeEmailId` is unchanged (backend contract).
 

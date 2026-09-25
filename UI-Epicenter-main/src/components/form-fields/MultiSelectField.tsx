@@ -1,21 +1,8 @@
 "use client";
-
-import {
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import {
-  MultiSelector,
-  MultiSelectorContent,
-  MultiSelectorInput,
-  MultiSelectorItem,
-  MultiSelectorList,
-  MultiSelectorTrigger,
-} from "@/components/ui/multiselect";
+import { Select, Tag } from "antd";
 import { Control } from "react-hook-form";
+import { cn } from "@/lib/utils";
+import { FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 
 interface Option {
   id?: number;
@@ -36,6 +23,7 @@ interface MultiSelectFieldProps {
   className?: string;
 }
 
+/** Multi-select on Ant Design's Select (mode="multiple"); the form value stays `[{ id, name, isRecommended }]`. */
 export const MultiSelectField = ({
   control,
   name,
@@ -50,27 +38,16 @@ export const MultiSelectField = ({
     <FormField
       control={control}
       name={name}
-      render={({ field: { onChange, value, ...field } }) => {
-        const currentValues = value?.map((v: Option) => v.name || "") || [];
-
-        const handleValuesChange = (selectedNames: string[]) => {
-          // Transform back to the expected format using names
-          const newValue = selectedNames
-            .map((selectedName) => {
-              const originalOption = options.find(
-                (option) => option.name === selectedName
-              );
-              return {
-                id: originalOption?.id,
-                name: originalOption?.name,
-                isRecommended: originalOption?.isRecommended,
-              };
-            })
-            .filter(Boolean); // Remove any undefined values
-
-          onChange(newValue);
+      render={({ field: { onChange, value, onBlur } }) => {
+        const currentValues: string[] = value?.map((v: Option) => v.name || "") || [];
+        const handleChange = (selectedNames: string[]) => {
+          onChange(
+            selectedNames
+              .map((selectedName) => options.find((o) => o.name === selectedName))
+              .filter(Boolean)
+              .map((o) => ({ id: o!.id, name: o!.name, isRecommended: o!.isRecommended }))
+          );
         };
-
         return (
           <FormItem>
             <FormLabel className="text-sm font-medium">
@@ -78,42 +55,32 @@ export const MultiSelectField = ({
               {required && <span className="text-red-500">*</span>}
             </FormLabel>
             <FormControl>
-               <div className={disabled ? "opacity-60 cursor-not-allowed" : ""}>
-              <MultiSelector
-                values={currentValues}
-                onValuesChange={disabled ? () => {} : handleValuesChange}
-                loop
-                className={className}
+              <Select
+                mode="multiple"
+                value={currentValues}
+                onChange={handleChange}
+                onBlur={onBlur}
                 disabled={disabled}
-              >
-                <MultiSelectorTrigger className={disabled ? "cursor-not-allowed" : ""}>
-                  <MultiSelectorInput disabled={disabled} placeholder={placeholder} />
-                </MultiSelectorTrigger>
-                {!disabled && (
-                  <MultiSelectorContent>
-                    <MultiSelectorList
-                      className={`${
-                        disabled ? "pointer-events-none opacity-50" : ""
-                      } max-h-[200px] overflow-y-auto`}
-                    >
-                      {options.map((option) => (
-                        <MultiSelectorItem
-                          key={option.id}
-                          value={option.name || ""}
-                        >
-                          {option.name}
-                          {option.isRecommended && (
-                            <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-1 rounded">
-                              Recommended
-                            </span>
-                          )}
-                        </MultiSelectorItem>
-                      ))}
-                    </MultiSelectorList>
-                  </MultiSelectorContent>
-                )}
-              </MultiSelector>
-              </div>
+                placeholder={placeholder}
+                allowClear
+                showSearch
+                optionFilterProp="label"
+                maxTagCount="responsive"
+                className={cn("w-full", className)}
+                options={options.map((o) => ({
+                  value: o.name || "",
+                  label: (
+                    <span className="inline-flex items-center gap-2">
+                      {o.name}
+                      {o.isRecommended && (
+                        <Tag color="blue" variant="filled" className="m-0 text-xs">
+                          Recommended
+                        </Tag>
+                      )}
+                    </span>
+                  ),
+                }))}
+              />
             </FormControl>
             <FormMessage />
           </FormItem>

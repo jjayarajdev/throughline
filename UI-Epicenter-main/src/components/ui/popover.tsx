@@ -1,46 +1,58 @@
-"use client"
+"use client";
+import * as React from "react";
+import { Popover as AntPopover } from "antd";
+import { cn } from "@/lib/utils";
+import { findChild, otherChildren, toPlacement, useOpenState } from "./_internal";
 
-import * as React from "react"
-import * as PopoverPrimitive from "@radix-ui/react-popover"
-
-import { cn } from "@/lib/utils"
-
-function Popover({
-  ...props
-}: React.ComponentProps<typeof PopoverPrimitive.Root>) {
-  return <PopoverPrimitive.Root data-slot="popover" {...props} />
+function PopoverTrigger(_props: React.ComponentProps<"button"> & { asChild?: boolean }) {
+  return null; // read by <Popover>
 }
 
-function PopoverTrigger({
-  ...props
-}: React.ComponentProps<typeof PopoverPrimitive.Trigger>) {
-  return <PopoverPrimitive.Trigger data-slot="popover-trigger" {...props} />
+function PopoverAnchor({ children }: { children?: React.ReactNode; asChild?: boolean }) {
+  return <>{children}</>;
 }
 
-function PopoverContent({
-  className,
-  align = "center",
-  sideOffset = 4,
-  ...props
-}: React.ComponentProps<typeof PopoverPrimitive.Content>) {
+function PopoverContent(
+  _props: React.ComponentProps<"div"> & { side?: "top" | "right" | "bottom" | "left"; align?: "start" | "center" | "end"; sideOffset?: number }
+) {
+  return null; // read by <Popover>
+}
+
+type PopoverProps = { children?: React.ReactNode; open?: boolean; defaultOpen?: boolean; onOpenChange?: (open: boolean) => void; modal?: boolean };
+
+/** Popover on Ant Design (click trigger). PopoverContent's className styles the panel body. */
+function Popover({ children, ...state }: PopoverProps) {
+  const [open, setOpen] = useOpenState(state);
+  const trigger = findChild<React.ComponentProps<"button"> & { asChild?: boolean }>(children, PopoverTrigger);
+  const content = findChild<React.ComponentProps<typeof PopoverContent>>(children, PopoverContent);
+  const rest = otherChildren(children, PopoverTrigger, PopoverContent);
+
+  const target =
+    trigger?.props.asChild && React.isValidElement(trigger.props.children)
+      ? (trigger.props.children as React.ReactElement)
+      : trigger
+        ? <button type="button" className={trigger.props.className}>{trigger.props.children}</button>
+        : rest[0] ?? <span />;
+
+  const { className, children: body, side, align, sideOffset: _s, ...bodyProps } = content?.props ?? {};
+
   return (
-    <PopoverPrimitive.Content
-      data-slot="popover-content"
-      align={align}
-      sideOffset={sideOffset}
-      className={cn(
-        "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-99 w-72 origin-(--radix-popover-content-transform-origin) rounded-md border p-4 shadow-md outline-hidden",
-        className
-      )}
-      {...props}
-    />
-  )
+    <AntPopover
+      open={open}
+      onOpenChange={setOpen}
+      trigger="click"
+      placement={toPlacement(side ?? "bottom", align ?? "center")}
+      arrow={false}
+      styles={{ content: { padding: 0 } }}
+      content={
+        <div data-slot="popover-content" className={cn("w-72 p-4", className)} {...(bodyProps as any)}>
+          {body}
+        </div>
+      }
+    >
+      {target}
+    </AntPopover>
+  );
 }
 
-function PopoverAnchor({
-  ...props
-}: React.ComponentProps<typeof PopoverPrimitive.Anchor>) {
-  return <PopoverPrimitive.Anchor data-slot="popover-anchor" {...props} />
-}
-
-export { Popover, PopoverTrigger, PopoverContent, PopoverAnchor }
+export { Popover, PopoverTrigger, PopoverContent, PopoverAnchor };

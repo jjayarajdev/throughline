@@ -1,43 +1,15 @@
 "use client";
-
 import * as React from "react";
-import { format, parse, parseISO, isValid } from "date-fns";
-import { Calendar as CalendarIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
-import {
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { DatePicker } from "antd";
+import dayjs, { type Dayjs } from "dayjs";
+import customParseFormat from "dayjs/plugin/customParseFormat";
 import { Control } from "react-hook-form";
-import {
-  DateAfter,
-  DateBefore,
-  DateInterval,
-  DateRange,
-  DayOfWeek,
-} from "react-day-picker";
+import { cn } from "@/lib/utils";
+import { FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { isDateDisabledBy, type Matcher } from "./DatePickerField";
 
-// === Types ===
-export type Matcher =
-  | boolean
-  | ((date: Date) => boolean)
-  | Date
-  | Date[]
-  | DateRange
-  | DateBefore
-  | DateAfter
-  | DateInterval
-  | DayOfWeek;
+dayjs.extend(customParseFormat);
+export type { Matcher };
 
 interface DatePickerFieldProps {
   control: Control<any>;
@@ -49,21 +21,14 @@ interface DatePickerFieldProps {
   disabledDates?: Matcher[];
 }
 
-// === Convert any supported value to Date ===
-const toValidDate = (value: string | undefined): Date | undefined => {
-  if (!value) return undefined;
-
-  let parsed: Date | undefined = undefined;
-
-  if (value.includes("/")) {
-    parsed = parse(value, "dd/MM", new Date());
-  } else if (value.includes("T")) {
-    parsed = parseISO(value);
-  }
-
-  return isValid(parsed) ? parsed : undefined;
+/** Accepts "DD/MM" or an ISO date-time string, as the API returns both. */
+const toDayjs = (value: string | undefined): Dayjs | null => {
+  if (!value) return null;
+  const d = value.includes("/") ? dayjs(value, "DD/MM", true) : dayjs(value);
+  return d.isValid() ? d : null;
 };
 
+/** Day/month field (e.g. a recurring date) on Ant Design's DatePicker; the form value stays a `DD/MM` string. */
 export function DayMonthPickerField({
   control,
   name,
@@ -73,8 +38,6 @@ export function DayMonthPickerField({
   disabledDates = [],
   placeholder = "DD/MM",
 }: DatePickerFieldProps) {
-  const [open, setOpen] = React.useState(false);
-
   return (
     <FormField
       control={control}
@@ -85,60 +48,20 @@ export function DayMonthPickerField({
             {label}
             {required && <span className="text-red-500">*</span>}
           </FormLabel>
-          <Popover open={open} onOpenChange={setOpen}>
-            <PopoverTrigger asChild>
-              <FormControl>
-                <Button
-                  variant={"outline"}
-                  disabled={disabled}
-                  className={cn(
-                    "w-full pl-3 text-left font-normal",
-                    !field.value && "text-muted-foreground"
-                  )}
-                >
-                  {field.value ? (
-                    format(toValidDate(field.value)!, "dd/MM")
-                  ) : (
-                    <span>{placeholder}</span>
-                  )}
-                  <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                </Button>
-              </FormControl>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              {/* <Calendar
-                mode="single"
-                selected={toValidDate(field.value)}
-                onSelect={(date) => {
-                  if (date) {
-                    const formatted = format(date, "dd/MM");
-                    field.onChange(formatted);
-                  }
-                  setOpen(false);
-                }}
-                disabled={disabledDates}
-                
-                initialFocus
-              /> */}
-              <Calendar
-                mode="single"
-                selected={toValidDate(field.value)}
-                onSelect={(date) => {
-                  if (date) {
-                    const formatted = format(date, "dd/MM");
-                    field.onChange(formatted);
-                  }
-                  setOpen(false);
-                }}
-                disabled={disabledDates}
-                initialFocus
-                captionLayout="dropdown"
-                formatters={{
-                  formatCaption: (month) => format(month, "MMMM"),
-                }}
-              />
-            </PopoverContent>
-          </Popover>
+          <FormControl>
+            <DatePicker
+              value={toDayjs(field.value)}
+              onChange={(d: Dayjs | null) => {
+                if (d) field.onChange(d.format("DD/MM"));
+              }}
+              onBlur={field.onBlur}
+              disabled={disabled}
+              placeholder={placeholder}
+              format="DD/MM"
+              disabledDate={(d) => isDateDisabledBy(disabledDates, d.toDate())}
+              className={cn("w-full")}
+            />
+          </FormControl>
           <FormMessage />
         </FormItem>
       )}
