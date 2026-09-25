@@ -24,7 +24,7 @@ import openpyxl
 XLSX = sys.argv[1]
 OUT = sys.argv[2]
 ROOT = Path(__file__).resolve().parent.parent
-ENUMS = ROOT / "EpiCenter-backend-main/Domain/Enums/MasterType.cs"
+ENUMS = ROOT / "apps/throughline-api/Domain/Enums/MasterType.cs"
 ADMIN_EMAIL = "jjayaraj@gmail.com"
 NOW = dt.datetime(2025, 6, 23, 12, 0, 0)   # "data till 23 June 2025"
 SYS = 1                                    # CreatedBy for migrated rows (Migration Services user)

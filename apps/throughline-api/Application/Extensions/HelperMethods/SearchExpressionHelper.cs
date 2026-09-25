@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 ﻿using System.Linq.Expressions;
 using System.Reflection;
 
@@ -14,6 +15,8 @@ namespace EpicenterX.Application.Extensions.HelperMethods
             Expression body = BuildNestedExpression(parameter, typeof(T), searchColumn.Split('.'), 0, searchText);
             return Expression.Lambda<Func<T, bool>>(body, parameter);
         }
+
+        private static string EscapeLike(string text) => text.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_");
 
         private static Expression BuildNestedExpression(Expression currentExpression, Type currentType, string[] pathParts, int index, string searchText)
         {
@@ -55,9 +58,11 @@ namespace EpicenterX.Application.Extensions.HelperMethods
                 if (nextType != typeof(string))
                     throw new Exception($"Search target property '{propName}' must be a string.");
 
-                var searchConst = Expression.Constant(searchText, typeof(string));
-                var containsMethod = typeof(string).GetMethod(nameof(string.Contains), new[] { typeof(string) })!;
-                return Expression.Call(nextExpression, containsMethod, searchConst);
+                // Case-insensitive contains, translated to PostgreSQL ILIKE (SQL Server was case-insensitive by collation).
+                // Only used on IQueryable (GenericRepository), so EF translates it; never evaluate this in memory.
+                var pattern = Expression.Constant("%" + EscapeLike(searchText) + "%", typeof(string));
+                var ilikeMethod = typeof(NpgsqlDbFunctionsExtensions).GetMethod(nameof(NpgsqlDbFunctionsExtensions.ILike), new[] { typeof(DbFunctions), typeof(string), typeof(string) })!;
+                return Expression.Call(null, ilikeMethod, Expression.Constant(EF.Functions), nextExpression, pattern);
             }
 
             // Otherwise, go deeper

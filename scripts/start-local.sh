@@ -1,30 +1,21 @@
 #!/usr/bin/env bash
-#
-# EpiCenter — start backend (http://localhost:5084) + UI (http://localhost:3000).
-#
-# The backend's DB connection and JWT key are passed as ENVIRONMENT VARIABLES, not
-# user-secrets: EpicenterX.csproj sets <GenerateAssemblyInfo>false</GenerateAssemblyInfo>,
-# which suppresses the UserSecretsId assembly attribute, so `dotnet user-secrets` is
-# silently ignored and the committed Azure connection string wins.
-#
+# Starts the Throughline API (http://localhost:5084) and UI (http://localhost:3000) against the
+# platform PostgreSQL database. Run scripts/setup-local.sh first.
 set -euo pipefail
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SA_PASSWORD="${SA_PASSWORD:-Your_strong_Pass1}"
-DB_NAME="${DB_NAME:-Epicenterv2}"
-SQL_PORT="${SQL_PORT:-1433}"
-
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 export PATH="$HOME/.dotnet:$HOME/.dotnet/tools:$PATH"
 export DOTNET_ROOT="${DOTNET_ROOT:-$HOME/.dotnet}"
-export ASPNETCORE_ENVIRONMENT=Development
-export ConnectionStrings__EpicConnection="Server=localhost,${SQL_PORT};Initial Catalog=${DB_NAME};User ID=sa;Password=${SA_PASSWORD};Encrypt=True;TrustServerCertificate=True;Connection Timeout=30;"
-export Jwt__SecretKey="${JWT_KEY:-dev-only-key-min-32-bytes-long-change-me!!}"
 
-docker start epicenter-sql >/dev/null 2>&1 || true
+PG_PORT="${PG_PORT:-5433}"
+PG_PASSWORD="${PG_PASSWORD:-Your_strong_Pass1}"
+PG_DB="${PG_DB:-platform}"
 
-( cd "$ROOT/EpiCenter-backend-main" && dotnet run --launch-profile http ) &
-BACK=$!
-( cd "$ROOT/UI-Epicenter-main" && npm run dev ) &
-UIP=$!
-trap 'kill $BACK $UIP 2>/dev/null' INT TERM EXIT
-echo "Backend: http://localhost:5084/swagger   UI: http://localhost:3000   (Ctrl-C stops both)"
+# The API reads these (user-secrets are ignored because the csproj sets GenerateAssemblyInfo=false).
+export ConnectionStrings__EpicConnection="Host=localhost;Port=${PG_PORT};Database=${PG_DB};Username=postgres;Password=${PG_PASSWORD};Include Error Detail=true"
+export Jwt__SecretKey="${JWT_SECRET:-local-dev-jwt-secret-key-change-me-0123456789abcdef}"
+
+trap 'kill 0' EXIT
+( cd "$ROOT/apps/throughline-api" && dotnet run --launch-profile http ) &
+sleep 3
+( cd "$ROOT/apps/throughline-web" && npm run dev ) &
 wait

@@ -17,7 +17,8 @@ using EpicenterX.Domain.Entities.PMS;
 using EpicenterX.Domain.Enums;
 using EpicenterX.Domain.Shared;
 using EpicenterX.Infrastructure.Persistence;
-using Microsoft.Data.SqlClient;
+using Npgsql;
+using NpgsqlTypes;
 using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
@@ -1636,13 +1637,13 @@ namespace EpicenterX.Application.Services
                 if (pageData.FinancialYear != null && pageData.FinancialYear != 1 && pageData.QuarterId != null)
                     financialDateRange = await _helperMethods.GetFinancialQuarterRange(pageData.FinancialYear ?? 0, (FinancialQuarter)(pageData.QuarterId ?? 5));
 
-                var partnerIdParam = new SqlParameter("@PartnerId", partnerId != null ? partnerId.Value : 0);
-                var hiringStatusIdsParam = new SqlParameter("@HiringStatusIds", pageData.HiringStatusIds != null && pageData.HiringStatusIds.Any() ? string.Join(",", pageData.HiringStatusIds) : (object)DBNull.Value);
-                var financialStartParam = new SqlParameter("@FinancialYearStart", financialDateRange?.financialYearStartDate ?? (object)DBNull.Value);
-                var financialEndParam = new SqlParameter("@FinancialYearEnd", financialDateRange?.financialYearEndDate ?? (object)DBNull.Value);
+                var partnerIdParam = new NpgsqlParameter("p_partner_id", NpgsqlDbType.Integer) { Value = partnerId != null ? partnerId.Value : 0 };
+                var hiringStatusIdsParam = new NpgsqlParameter("p_hiring_status_ids", NpgsqlDbType.Text) { Value = pageData.HiringStatusIds != null && pageData.HiringStatusIds.Any() ? string.Join(",", pageData.HiringStatusIds) : (object)DBNull.Value };
+                var financialStartParam = new NpgsqlParameter("p_fy_start", NpgsqlDbType.Timestamp) { Value = financialDateRange != null ? DateTime.SpecifyKind(financialDateRange.Value.financialYearStartDate, DateTimeKind.Unspecified) : (object)DBNull.Value };
+                var financialEndParam = new NpgsqlParameter("p_fy_end", NpgsqlDbType.Timestamp) { Value = financialDateRange != null ? DateTime.SpecifyKind(financialDateRange.Value.financialYearEndDate, DateTimeKind.Unspecified) : (object)DBNull.Value };
 
                 var raw = await _context.PartnerHRQDetails
-                    .FromSqlRaw("EXEC GetHiringRequestDetails  @PartnerId, @HiringStatusIds, @FinancialYearStart, @FinancialYearEnd",
+                    .FromSqlRaw("SELECT * FROM throughline.get_hiring_request_details(@p_partner_id, @p_hiring_status_ids, @p_fy_start, @p_fy_end)",
                                 partnerIdParam,
                                 hiringStatusIdsParam,
                                 financialStartParam,
@@ -1773,13 +1774,13 @@ namespace EpicenterX.Application.Services
             if (pageData.FinancialYear != null && pageData.FinancialYear != 1 && pageData.QuarterId != null)
                 financialDateRange = await _helperMethods.GetFinancialQuarterRange(pageData.FinancialYear ?? 0, (FinancialQuarter)(pageData.QuarterId ?? 5));
 
-            var partnerIdParam = new SqlParameter("@PartnerId", partnerId != null ? partnerId.Value : 0);
-            var hiringStatusIdsParam = new SqlParameter("@HiringStatusIds", pageData.HiringStatusIds != null && pageData.HiringStatusIds.Any() ? string.Join(",", pageData.HiringStatusIds) : (object)DBNull.Value);
-            var financialStartParam = new SqlParameter("@FinancialYearStart", financialDateRange?.financialYearStartDate ?? (object)DBNull.Value);
-            var financialEndParam = new SqlParameter("@FinancialYearEnd", financialDateRange?.financialYearEndDate ?? (object)DBNull.Value);
+            var partnerIdParam = new NpgsqlParameter("p_partner_id", NpgsqlDbType.Integer) { Value = partnerId != null ? partnerId.Value : 0 };
+            var hiringStatusIdsParam = new NpgsqlParameter("p_hiring_status_ids", NpgsqlDbType.Text) { Value = pageData.HiringStatusIds != null && pageData.HiringStatusIds.Any() ? string.Join(",", pageData.HiringStatusIds) : (object)DBNull.Value };
+            var financialStartParam = new NpgsqlParameter("p_fy_start", NpgsqlDbType.Timestamp) { Value = financialDateRange != null ? DateTime.SpecifyKind(financialDateRange.Value.financialYearStartDate, DateTimeKind.Unspecified) : (object)DBNull.Value };
+            var financialEndParam = new NpgsqlParameter("p_fy_end", NpgsqlDbType.Timestamp) { Value = financialDateRange != null ? DateTime.SpecifyKind(financialDateRange.Value.financialYearEndDate, DateTimeKind.Unspecified) : (object)DBNull.Value };
 
             var result = await _context.PartnerHRQDetails
-                .FromSqlRaw("EXEC GetHiringRequestDetails  @PartnerId, @HiringStatusIds, @FinancialYearStart, @FinancialYearEnd",
+                .FromSqlRaw("SELECT * FROM throughline.get_hiring_request_details(@p_partner_id, @p_hiring_status_ids, @p_fy_start, @p_fy_end)",
                             partnerIdParam,
                             hiringStatusIdsParam,
                             financialStartParam,

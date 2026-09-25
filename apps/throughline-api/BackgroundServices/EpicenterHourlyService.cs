@@ -29,7 +29,7 @@ namespace EpicenterX.BackgroundServices
 
                     var expiredSlots = await _interviewSlotRepository.GetListAsync(query => query.Where(x => x.CandidateInterviewStatusId == (int)INTERVIEW_SLOT_STATUS.PENDING &&
                                                                                                              x.ValidityHours.HasValue &&
-                                                                                                             SqlServerDbFunctionsExtensions.DateDiffHour(EF.Functions, x.LastStatusUpdated ?? x.CreatedAt, DateTime.UtcNow) >= x.ValidityHours.Value));
+                                                                                                             (x.LastStatusUpdated ?? x.CreatedAt) <= DateTime.UtcNow.AddHours(-x.ValidityHours.Value)));
 
                     foreach (var item in expiredSlots)
                     {

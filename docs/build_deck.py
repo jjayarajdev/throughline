@@ -319,7 +319,7 @@ def slide_arch():
     add_rect(s, fx, fy, fw, fh, LIGHT)
     add_rect(s, fx, fy, fw, Inches(0.5), TEAL)
     add_text(s, fx + Inches(0.2), fy + Inches(0.05), fw, Inches(0.5),
-             "UI-Epicenter-main", size=14, bold=True, color=WHITE)
+             "apps/throughline-web", size=14, bold=True, color=WHITE)
     add_text(s, fx + Inches(0.2), fy + Inches(0.65), fw, Inches(0.4),
              "Next.js 15 + React 19", size=14, bold=True, color=NAVY)
     add_bullets(s, fx + Inches(0.2), fy + Inches(1.05), fw - Inches(0.3),
@@ -333,7 +333,7 @@ def slide_arch():
     add_rect(s, bx, by, bw, bh, LIGHT)
     add_rect(s, bx, by, bw, Inches(0.5), NAVY)
     add_text(s, bx + Inches(0.2), by + Inches(0.05), bw, Inches(0.5),
-             "EpiCenter-backend-main", size=14, bold=True, color=WHITE)
+             "apps/throughline-api", size=14, bold=True, color=WHITE)
     add_text(s, bx + Inches(0.2), by + Inches(0.65), bw, Inches(0.4),
              "ASP.NET Core 8 API", size=14, bold=True, color=NAVY)
     add_bullets(s, bx + Inches(0.2), by + Inches(1.05), bw - Inches(0.3),
@@ -418,7 +418,7 @@ def slide_backend_structure():
     s = prs.slides.add_slide(BLANK)
     add_header(s, "Backend", "Project Structure — Clean Architecture")
 
-    code = """EpiCenter-backend-main/
+    code = """apps/throughline-api/
 ├── Controllers/         31 HTTP endpoints (resource-per-controller)
 ├── Application/         Services · DTOs · business orchestration
 ├── Domain/              59 entities — CMS · HMS · PMS · Masters
@@ -918,7 +918,7 @@ def slide_close():
     add_text(s, Inches(0.9), Inches(5.0), Inches(11), Inches(0.4),
              "QUICK LINKS", size=12, bold=True, color=ACCENT)
     add_bullets(s, Inches(0.9), Inches(5.4), Inches(12), Inches(1.6), [
-        "Repos — EpiCenter-backend-main  ·  UI-Epicenter-main",
+        "Repos — apps/throughline-api  ·  apps/throughline-web",
         "Swagger — /swagger on the API host",
         "Logs — Logs/requests-*.log (Serilog daily rolling)",
         "CI — .github/workflows/deploy_backend.yml",

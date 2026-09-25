@@ -58,7 +58,7 @@ A centralized recruitment operating system that unifies three sub-systems:
                 (file storage)     (Send Email)        Okta SAML SSO
 ```
 
-Two repositories: `EpiCenter-backend-main` (API) and `UI-Epicenter-main` (web).
+Two repositories: `apps/throughline-api` (API) and `apps/throughline-web` (web).
 
 ---
 
@@ -85,7 +85,7 @@ Two repositories: `EpiCenter-backend-main` (API) and `UI-Epicenter-main` (web).
 Clean Architecture-style separation across **287 C# files**:
 
 ```
-EpiCenter-backend-main/
+apps/throughline-api/
 ├── Controllers/         31 HTTP endpoints (resource-per-controller)
 ├── Application/         Services, DTOs, business orchestration
 ├── Domain/              59 entities grouped by CMS / HMS / PMS / Masters
@@ -317,8 +317,8 @@ src/components/
 # Thank you
 
 **Repos**
-- `EpiCenter-backend-main` — .NET 8 API
-- `UI-Epicenter-main` — Next.js 15 UI
+- `apps/throughline-api` — .NET 8 API
+- `apps/throughline-web` — Next.js 15 UI
 
 **Quick links**
 - Swagger: `/swagger` on the API host

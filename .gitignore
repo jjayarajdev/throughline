@@ -22,8 +22,8 @@ Uploads/
 EpiCenterV2Documents/
 
 # Real secrets kept locally, never committed
-EpiCenter-backend-main/appsettings.Development.json
-EpiCenter-backend-main/.secrets/
+apps/throughline-api/appsettings.Development.json
+apps/throughline-api/.secrets/
 
 # Generated during local setup
 scripts/.migrate.sql
@@ -32,3 +32,9 @@ scripts/.schema.utf8.sql
 # Legacy data export — contains personal data (candidates, employees). Never commit.
 Migrated Data*.xlsx
 *.xlsx
+
+# generated locally
+docs/*.visual-check.*
+scripts/__pycache__/
+scripts/.copy-report.json
+scripts/.migrate.sql

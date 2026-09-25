@@ -121,6 +121,7 @@ namespace EpicenterX.Infrastructure.Persistence
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+            modelBuilder.HasDefaultSchema("throughline");
 
             #region Masters
 
@@ -223,8 +224,7 @@ namespace EpicenterX.Infrastructure.Persistence
             .HasColumnType("varchar(100)");
 
             modelBuilder.Entity<M_SubDomain>()
-            .HasIndex(a => a.Name)
-            .IsUnique();
+            .HasIndex(a => a.Name); // not unique: legacy data repeats sub-domain names across domains (see V3 migration)
 
             modelBuilder.Entity<M_State>()
             .HasOne(state => state.Country)
@@ -428,7 +428,7 @@ namespace EpicenterX.Infrastructure.Persistence
 
             modelBuilder.Entity<Candidate>()
                 .Property(a => a.CandidateCode)
-                .HasComputedColumnSql("'CA' + CAST(((ID - 1) / 999 + 1) AS VARCHAR) + RIGHT('000' + CAST(((ID - 1) % 999 + 1) AS VARCHAR), 3)", stored: true)
+                .HasComputedColumnSql("'CA' || ((\"Id\" - 1) / 999 + 1)::text || lpad(((\"Id\" - 1) % 999 + 1)::text, 3, '0')", stored: true)
                 .IsRequired();
 
             modelBuilder.Entity<Candidate>()
@@ -532,12 +532,12 @@ namespace EpicenterX.Infrastructure.Persistence
 
             modelBuilder.Entity<HiringRequest>()
                .Property(a => a.HrqId)
-               .HasComputedColumnSql("'HRQ' + CAST(((ID - 1) / 999 + 1) AS VARCHAR) + RIGHT('000' + CAST(((ID - 1) % 999 + 1) AS VARCHAR), 3)", stored: true)
+               .HasComputedColumnSql("'HRQ' || ((\"Id\" - 1) / 999 + 1)::text || lpad(((\"Id\" - 1) % 999 + 1)::text, 3, '0')", stored: true)
                .IsRequired();
 
             modelBuilder.Entity<HiringRequest>()
                 .Property(a => a.HrqIdURL)
-                .HasComputedColumnSql("'home/hiring-manage/hiring-details/HRQ' + CAST(((ID - 1) / 999 + 1) AS VARCHAR) + RIGHT('000' + CAST(((ID - 1) % 999 + 1) AS VARCHAR), 3)", stored: true)
+                .HasComputedColumnSql("'home/hiring-manage/hiring-details/HRQ' || ((\"Id\" - 1) / 999 + 1)::text || lpad(((\"Id\" - 1) % 999 + 1)::text, 3, '0')", stored: true)
                 .IsRequired();
 
             modelBuilder.Entity<HiringRequest>()
@@ -716,12 +716,12 @@ namespace EpicenterX.Infrastructure.Persistence
 
             modelBuilder.Entity<Partner>()
                .Property(a => a.PartnerCode)
-               .HasComputedColumnSql("'PID' + CAST(((ID - 1) / 999 + 1) AS VARCHAR) + RIGHT('000' + CAST(((ID - 1) % 999 + 1) AS VARCHAR), 3)", stored: true)
+               .HasComputedColumnSql("'PID' || ((\"Id\" - 1) / 999 + 1)::text || lpad(((\"Id\" - 1) % 999 + 1)::text, 3, '0')", stored: true)
                .IsRequired();
 
             modelBuilder.Entity<Partner>()
                .Property(a => a.PartnerProfileURL)
-               .HasComputedColumnSql("'home/partner-onboarding/partner-profile/PID' + CAST(((ID - 1) / 999 + 1) AS VARCHAR) + RIGHT('000' + CAST(((ID - 1) % 999 + 1) AS VARCHAR), 3)", stored: true)
+               .HasComputedColumnSql("'home/partner-onboarding/partner-profile/PID' || ((\"Id\" - 1) / 999 + 1)::text || lpad(((\"Id\" - 1) % 999 + 1)::text, 3, '0')", stored: true)
                .IsRequired();
 
             modelBuilder.Entity<Partner>()

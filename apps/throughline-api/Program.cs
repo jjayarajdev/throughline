@@ -15,11 +15,13 @@ ServiceExtensions.Initialize(builder.Configuration);
 builder.Services.Configure<DocumentSettings>(builder.Configuration.GetSection("DocumentSettings"));
 
 // Add services to the container.
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+
 builder.Services.AddDbContext<AppDBContext>((serviceProvider, options) =>
 {
-    options.UseSqlServer(
+    options.UseNpgsql(
         builder.Configuration.GetConnectionString("EpicConnection"),
-        sqlOptions => sqlOptions.CommandTimeout(120)
+        npgsqlOptions => npgsqlOptions.CommandTimeout(120)
     );
 });
 

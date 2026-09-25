@@ -12,7 +12,8 @@ using EpicenterX.Domain.Enums;
 using EpicenterX.Domain.Shared;
 using EpicenterX.Domain.Shared.HelperClasses;
 using EpicenterX.Infrastructure.Persistence;
-using Microsoft.Data.SqlClient;
+using Npgsql;
+using NpgsqlTypes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 
@@ -927,30 +928,19 @@ namespace EpicenterX.Application.Services
 
                 using (var command = conn.CreateCommand())
                 {
-                    command.CommandText = "GetMasterData";
-                    command.CommandType = CommandType.StoredProcedure;
+                    command.CommandText = "SELECT * FROM throughline.get_master_data(@p_master_type_id, @p_round_name_ids, @p_domain_ids)";
+                    command.CommandType = CommandType.Text;
 
-                    var param1 = new SqlParameter("@MasterTypeId", SqlDbType.Int);
-                    param1.Value = masterTypeId;
-                    command.Parameters.Add(param1);
-                    if (masterTypeId == (int)MASTER_TYPE.INTERVIEW_MODE)
+                    var ids = (idList ?? new List<int>()).ToArray();
+                    command.Parameters.Add(new NpgsqlParameter("p_master_type_id", NpgsqlDbType.Integer) { Value = (object)masterTypeId ?? DBNull.Value });
+                    command.Parameters.Add(new NpgsqlParameter("p_round_name_ids", NpgsqlDbType.Array | NpgsqlDbType.Integer)
                     {
-                        var param2 = new SqlParameter("@RoundNameIds", SqlDbType.Structured)
-                        {
-                            TypeName = "IntListType",
-                            Value = IntListTVP.CreateIntListTvp(idList)
-                        };
-                        command.Parameters.Add(param2);
-                    }
-                    else if (masterTypeId == (int)MASTER_TYPE.SUBDOMAIN)
+                        Value = masterTypeId == (int)MASTER_TYPE.INTERVIEW_MODE ? (object)ids : DBNull.Value
+                    });
+                    command.Parameters.Add(new NpgsqlParameter("p_domain_ids", NpgsqlDbType.Array | NpgsqlDbType.Integer)
                     {
-                        var param2 = new SqlParameter("@DomainIds", SqlDbType.Structured)
-                        {
-                            TypeName = "IntListType",
-                            Value = IntListTVP.CreateIntListTvp(idList)
-                        };
-                        command.Parameters.Add(param2);
-                    }
+                        Value = masterTypeId == (int)MASTER_TYPE.SUBDOMAIN ? (object)ids : DBNull.Value
+                    });
 
                     using (var reader = await command.ExecuteReaderAsync())
                     {

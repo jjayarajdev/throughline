@@ -18,10 +18,11 @@ using EpicenterX.Domain.Shared;
 using EpicenterX.Domain.Shared.HelperClasses;
 using EpicenterX.Infrastructure.Persistence;
 using LinqKit;
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
+using Npgsql;
+using NpgsqlTypes;
 using static EpicenterX.Utility.Utility;
 
 namespace EpicenterX.Application.Services
@@ -50,6 +51,12 @@ namespace EpicenterX.Application.Services
         // Phone pattern (e.g., 10 digits, Indian format starts with 6-9)
         private static readonly Regex PhoneRegex = new Regex(@"^[6-9]\d{9}$", RegexOptions.Compiled);
 
+        // PostgreSQL port of dbo.AddCandidateForm (see platform-db/migrations/V4__throughline_candidate_functions.sql)
+        private const string AddCandidateFormSql = "SELECT * FROM throughline.add_candidate_form({0}, {1}, {2}, {3}, {4}, {5})";
+
+        private static NpgsqlParameter DbParam(string name, NpgsqlDbType type, object? value)
+            => new(name, type) { Value = value ?? DBNull.Value };
+
 
         public async Task<ApiResponseDto<string>> ValidateCandidatesFromProc(List<GetCandidateBinDto> candidateDtos)
         {
@@ -59,18 +66,15 @@ namespace EpicenterX.Application.Services
 
                 var _connectionString = _config.GetConnectionString("EpicConnection");
 
-                using var connection = new SqlConnection(_connectionString);
-
-                DataTable tvp = ConvertToTable(candidateDtos);
+                using var connection = new NpgsqlConnection(_connectionString);
 
                 var parameters = new DynamicParameters();
-                parameters.Add("@CandidatesTVP", tvp.AsTableValuedParameter("dbo.UploadCandidateType"));
-                parameters.Add("@PartnerId", loggedInUserDetails.PartnerId);
+                parameters.Add("p_candidates", BuildUploadCandidatesJson(candidateDtos), DbType.String);
+                parameters.Add("p_partner_id", loggedInUserDetails.PartnerId, DbType.Int32);
 
                 var results = await connection.QueryAsync<CandidateValidationResultDto>(
-                    "ValidateCandidates",
-                    parameters,
-                    commandType: CommandType.StoredProcedure
+                    "SELECT * FROM throughline.validate_candidates(CAST(@p_candidates AS jsonb), @p_partner_id)",
+                    parameters
                 );
 
                 var invalidEntries = results.Select(x => x.ErrorMessage).ToList();
@@ -86,78 +90,48 @@ namespace EpicenterX.Application.Services
             }, "Candidates Validated successfully.");
         }
 
-        public DataTable ConvertToTable(List<GetCandidateBinDto> candidateDtos)
+        /// <summary>
+        /// Serialises the candidates to the jsonb shape expected by throughline.validate_candidates /
+        /// throughline.upload_validated_candidates (replacement for the former dbo.UploadCandidateType TVP:
+        /// same column names, one JSON object per row, ';'-joined name lists).
+        /// </summary>
+        public static string BuildUploadCandidatesJson(List<GetCandidateBinDto> candidateDtos)
         {
-            var candidateTable = new DataTable();
-            candidateTable.Columns.Add("PartnerId", typeof(int));
-            candidateTable.Columns.Add("PartnerCode", typeof(string));
-            candidateTable.Columns.Add("HiringRequestId", typeof(int));
-            candidateTable.Columns.Add("HrqId", typeof(string));
-            candidateTable.Columns.Add("JobTitle", typeof(string));
-            candidateTable.Columns.Add("FullName", typeof(string));
-            candidateTable.Columns.Add("PhoneNumber", typeof(string));
-            candidateTable.Columns.Add("Email", typeof(string));
-            candidateTable.Columns.Add("RoleHiredFor", typeof(string));
-            candidateTable.Columns.Add("PrimarySkillNames", typeof(string));
-            candidateTable.Columns.Add("SecondarySkillNames", typeof(string));
-            candidateTable.Columns.Add("PreferredWorkLocationNames", typeof(string));
-            candidateTable.Columns.Add("Diversity", typeof(string));
-            candidateTable.Columns.Add("CountryName", typeof(string));
-            candidateTable.Columns.Add("StateName", typeof(string));
-            candidateTable.Columns.Add("CityName", typeof(string));
-            candidateTable.Columns.Add("NoticePeriod", typeof(int));
-            candidateTable.Columns.Add("RelevantExperience", typeof(int));
-            candidateTable.Columns.Add("CurrentlyWorking", typeof(string));
-            candidateTable.Columns.Add("CurrentOrganisation", typeof(string));
-            candidateTable.Columns.Add("LastWorkingDay", typeof(DateTime));
-            candidateTable.Columns.Add("IsDuplicate", typeof(bool));
-            candidateTable.Columns.Add("PrimarySkillIds", typeof(string));
-            candidateTable.Columns.Add("SecondarySkillIds", typeof(string));
-            candidateTable.Columns.Add("PreferredWorkLocationIds", typeof(string));
-            candidateTable.Columns.Add("ExistingCandidateCode", typeof(string));
-            candidateTable.Columns.Add("IsSingleEntry", typeof(bool));
-            candidateTable.Columns.Add("CountryId", typeof(int));
-            candidateTable.Columns.Add("StateId", typeof(int));
-            candidateTable.Columns.Add("CityId", typeof(int));
-
-            // Add rows using foreach
-            foreach (var c in candidateDtos)
+            var rows = candidateDtos.Select(c => new
             {
-                candidateTable.Rows.Add(
-                    (object?)c.PartnerId ?? DBNull.Value,
-                    c.PartnerCode ?? (object)DBNull.Value,
-                    (object?)c.HiringRequestId ?? DBNull.Value,
-                    c.HrqId ?? (object)DBNull.Value,
-                    c.JobTitle ?? (object)DBNull.Value,
-                    c.FullName ?? (object)DBNull.Value,
-                    c.PhoneNumber ?? (object)DBNull.Value,
-                    c.Email ?? (object)DBNull.Value,
-                    c.RoleHiredFor ?? (object)DBNull.Value,
-                    (c.PrimarySkillNames != null && c.PrimarySkillNames.Any()) ? string.Join(';', c.PrimarySkillNames) : (object)DBNull.Value,
-                    (c.SecondarySkillNames != null && c.SecondarySkillNames.Any()) ? string.Join(';', c.SecondarySkillNames) : (object)DBNull.Value,
-                    (c.PreferredWorkLocationNames != null && c.PreferredWorkLocationNames.Any()) ? string.Join(';', c.PreferredWorkLocationNames) : (object)DBNull.Value,
-                    c.Diversity ?? (object)DBNull.Value,
-                    c.CountryName ?? (object)DBNull.Value,
-                    c.StateName ?? (object)DBNull.Value,
-                    c.CityName ?? (object)DBNull.Value,
-                    (object?)c.NoticePeriod ?? DBNull.Value,
-                    (object?)c.RelevantExperience ?? DBNull.Value,
-                    c.CurrentlyWorking ?? (object)DBNull.Value,
-                    c.CurrentOrganisation ?? (object)DBNull.Value,
-                    (object?)c.LastWorkingDay ?? DBNull.Value,
-                    (object?)c.IsDuplicate ?? DBNull.Value,
-                    c.PrimarySkillIds ?? (object)DBNull.Value,
-                    c.SecondarySkillIds ?? (object)DBNull.Value,
-                    c.PreferredWorkLocationIds ?? (object)DBNull.Value,
-                    c.ExistingCandidateCode ?? (object)DBNull.Value,
-                    (object?)c.IsSingleEntry ?? DBNull.Value,
-                    (object?)c.CountryId ?? DBNull.Value,
-                    (object?)c.StateId ?? DBNull.Value,
-                    (object?)c.CityId ?? DBNull.Value
-                );
-            }
+                c.PartnerId,
+                c.PartnerCode,
+                HiringRequestId = (int?)c.HiringRequestId,
+                c.HrqId,
+                c.JobTitle,
+                c.FullName,
+                c.PhoneNumber,
+                c.Email,
+                c.RoleHiredFor,
+                PrimarySkillNames = (c.PrimarySkillNames != null && c.PrimarySkillNames.Any()) ? string.Join(';', c.PrimarySkillNames) : null,
+                SecondarySkillNames = (c.SecondarySkillNames != null && c.SecondarySkillNames.Any()) ? string.Join(';', c.SecondarySkillNames) : null,
+                PreferredWorkLocationNames = (c.PreferredWorkLocationNames != null && c.PreferredWorkLocationNames.Any()) ? string.Join(';', c.PreferredWorkLocationNames) : null,
+                c.Diversity,
+                c.CountryName,
+                c.StateName,
+                c.CityName,
+                c.NoticePeriod,
+                c.RelevantExperience,
+                c.CurrentlyWorking,
+                c.CurrentOrganisation,
+                c.LastWorkingDay,
+                c.IsDuplicate,
+                PrimarySkillIds = c.PrimarySkillIds == null ? null : System.Text.Json.JsonSerializer.Serialize(c.PrimarySkillIds),
+                SecondarySkillIds = c.SecondarySkillIds == null ? null : System.Text.Json.JsonSerializer.Serialize(c.SecondarySkillIds),
+                PreferredWorkLocationIds = c.PreferredWorkLocationIds == null ? null : System.Text.Json.JsonSerializer.Serialize(c.PreferredWorkLocationIds),
+                c.ExistingCandidateCode,
+                IsSingleEntry = (bool?)c.IsSingleEntry,
+                c.CountryId,
+                c.StateId,
+                c.CityId
+            });
 
-            return candidateTable;
+            return System.Text.Json.JsonSerializer.Serialize(rows);
         }
 
         public async Task<ApiResponseDto<string>> ValidateCandidates(List<GetCandidateBinDto> candidateDtos)
@@ -526,19 +500,16 @@ namespace EpicenterX.Application.Services
 
                 var _connectionString = _config.GetConnectionString("EpicConnection");
 
-                using var connection = new SqlConnection(_connectionString);
-
-                DataTable tvp = ConvertToTable(candidateDtos);
+                using var connection = new NpgsqlConnection(_connectionString);
 
                 var parameters = new DynamicParameters();
-                parameters.Add("@CandidatesTVP", tvp.AsTableValuedParameter("dbo.UploadCandidateType"));
-                parameters.Add("@PartnerId", loggedInUserDetails.PartnerId);
-                parameters.Add("@UserId", loggedInUserDetails.UserId);
+                parameters.Add("p_candidates", BuildUploadCandidatesJson(candidateDtos), DbType.String);
+                parameters.Add("p_partner_id", loggedInUserDetails.PartnerId, DbType.Int32);
+                parameters.Add("p_user_id", loggedInUserDetails.UserId, DbType.Int32);
 
                 var results = await connection.QueryAsync<GetCandidateBinDto>(
-                    "UploadValidatedCandidates",
-                    parameters,
-                    commandType: CommandType.StoredProcedure
+                    "SELECT * FROM throughline.upload_validated_candidates(CAST(@p_candidates AS jsonb), @p_partner_id, @p_user_id)",
+                    parameters
                 );
 
                 results.ForEach(x =>
@@ -778,16 +749,14 @@ namespace EpicenterX.Application.Services
 
                 var candidateBins = _mapper.Map<IEnumerable<CandidateBinBulkUploadDto>>(candidateDtos);
 
-                DataTable tvp = ObjectToTvpHelper.ToDataTable(candidateBins, "CandidateBinDtoType");
+                // The former dbo.CandidateBinDtoType TVP is passed as a jsonb array (PascalCase keys = DTO property names)
+                var candidatesJson = System.Text.Json.JsonSerializer.Serialize(candidateBins);
 
-                // Pass to SQL Server as TVP
-                var candidatesParam = new SqlParameter("@Candidates", tvp)
-                {
-                    TypeName = "dbo.CandidateBinDtoType",  // your TVP type in SQL Server
-                    SqlDbType = SqlDbType.Structured
-                };
+                var candidatesParam = new NpgsqlParameter("p_candidates", NpgsqlDbType.Jsonb) { Value = candidatesJson };
 
-                var result = await _context.CandidateUploadResults.FromSqlRaw("EXEC dbo.InsertCandidatesFromUpload @Candidates", candidatesParam).ToListAsync();
+                var result = await _context.CandidateUploadResults
+                    .FromSqlRaw("SELECT * FROM throughline.insert_candidates_from_upload({0})", candidatesParam)
+                    .ToListAsync();
 
                 return _mapper.Map<List<GetCandidateBinDto>>(result);
 
@@ -1093,8 +1062,13 @@ namespace EpicenterX.Application.Services
                         throw new Exception($"Hiring request is not valid.");
 
                     var addedCandidateResult = _context.CandidateResult
-                        .FromSqlRaw("EXEC dbo.AddCandidateForm @ReviewCandidateId = {0}, @IsAcknoledged = {1}, @IsDuplicate = {2}, @AllowedToUpdate = {3}, @ExistingCandidateCode = {4}, @IsRequestException = {5}",
-                                    dto.CandidateBinId, true, true, true, result.ExistingCandidateCode ?? (object)DBNull.Value, true)
+                        .FromSqlRaw(AddCandidateFormSql,
+                                    DbParam("p_review_candidate_id", NpgsqlDbType.Integer, dto.CandidateBinId),
+                                    DbParam("p_is_acknoledged", NpgsqlDbType.Boolean, true),
+                                    DbParam("p_is_duplicate", NpgsqlDbType.Boolean, true),
+                                    DbParam("p_allowed_to_update", NpgsqlDbType.Boolean, true),
+                                    DbParam("p_existing_candidate_code", NpgsqlDbType.Text, result.ExistingCandidateCode),
+                                    DbParam("p_is_request_exception", NpgsqlDbType.Boolean, true))
                         .ToList();
 
                     var addedCandidate = addedCandidateResult.FirstOrDefault();
@@ -1536,9 +1510,15 @@ namespace EpicenterX.Application.Services
 
                 if (dto.IsAcknoledged == true && duplicateCheckDto != null)
                 {
-                    var addedCandidateResult = _context.CandidateResult.FromSqlRaw("EXEC dbo.AddCandidateForm @ReviewCandidateId = {0}, @IsAcknoledged = {1}, @IsDuplicate = {2}, @AllowedToUpdate = {3}, @ExistingCandidateCode = {4}, @IsRequestException = {5}",
-                                            candidateBinId, dto.IsAcknoledged, duplicateCheckDto.IsDuplicate ?? (object)DBNull.Value, duplicateCheckDto.AllowToUpdate ?? (object)DBNull.Value, duplicateCheckDto.ExistingCandidateCode ?? (object)DBNull.Value, false)
-                                            .ToList();
+                    var addedCandidateResult = _context.CandidateResult
+                        .FromSqlRaw(AddCandidateFormSql,
+                                    DbParam("p_review_candidate_id", NpgsqlDbType.Integer, candidateBinId),
+                                    DbParam("p_is_acknoledged", NpgsqlDbType.Boolean, dto.IsAcknoledged),
+                                    DbParam("p_is_duplicate", NpgsqlDbType.Boolean, duplicateCheckDto.IsDuplicate),
+                                    DbParam("p_allowed_to_update", NpgsqlDbType.Boolean, duplicateCheckDto.AllowToUpdate),
+                                    DbParam("p_existing_candidate_code", NpgsqlDbType.Text, duplicateCheckDto.ExistingCandidateCode),
+                                    DbParam("p_is_request_exception", NpgsqlDbType.Boolean, false))
+                        .ToList();
                     var addedCandidate = addedCandidateResult.FirstOrDefault();
 
                     if (addedCandidate?.ErrorMessage != null)

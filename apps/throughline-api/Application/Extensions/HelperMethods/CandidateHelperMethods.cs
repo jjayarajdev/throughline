@@ -7,8 +7,9 @@ using EpicenterX.Domain.Entities.HMS;
 using EpicenterX.Domain.Entities.Masters;
 using EpicenterX.Domain.Enums;
 using EpicenterX.Infrastructure.Persistence;
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
+using NpgsqlTypes;
 
 namespace EpicenterX.Application.Extensions.HelperMethods
 {
@@ -182,11 +183,11 @@ namespace EpicenterX.Application.Extensions.HelperMethods
 
         public MarkDuplicateCandidateDto MarkIfCandidateIsExistedInCandidateForms(string? email, string? phone)
         {
-            var emailParam = new SqlParameter("@Email", email ?? (object)DBNull.Value);
-            var phoneParam = new SqlParameter("@Phone", phone ?? (object)DBNull.Value);
+            var emailParam = new NpgsqlParameter("p_email", NpgsqlDbType.Text) { Value = (object?)email ?? DBNull.Value };
+            var phoneParam = new NpgsqlParameter("p_phone", NpgsqlDbType.Text) { Value = (object?)phone ?? DBNull.Value };
 
             var results = _context.DuplicateCheckResult
-                .FromSqlRaw("EXEC dbo.FindDuplicateCandidatesSummary @Email, @Phone", emailParam, phoneParam)
+                .FromSqlRaw("SELECT * FROM throughline.find_duplicate_candidates_summary({0}, {1})", emailParam, phoneParam)
                 .ToList();
 
             var duplicateInfo = results.FirstOrDefault();
@@ -196,7 +197,12 @@ namespace EpicenterX.Application.Extensions.HelperMethods
 
         public async Task MarkDuplicateIfCandidateIsExistedInCandidateBin(int? CurrentBinId, string CandidateCode, string? email, string? phone)
         {
-            await _context.Database.ExecuteSqlRawAsync("EXEC UpdateDuplicateCandidateCode @CurrentReviewCandidateId = {0}, @CandidateCode = {1}, @Email = {2}, @Phone = {3}", CurrentBinId, CandidateCode, email, phone);
+            await _context.Database.ExecuteSqlRawAsync(
+                "SELECT throughline.update_duplicate_candidate_code({0}, {1}, {2}, {3})",
+                new NpgsqlParameter("p_current_review_candidate_id", NpgsqlDbType.Integer) { Value = (object?)CurrentBinId ?? DBNull.Value },
+                new NpgsqlParameter("p_candidate_code", NpgsqlDbType.Text) { Value = (object?)CandidateCode ?? DBNull.Value },
+                new NpgsqlParameter("p_email", NpgsqlDbType.Text) { Value = (object?)email ?? DBNull.Value },
+                new NpgsqlParameter("p_phone", NpgsqlDbType.Text) { Value = (object?)phone ?? DBNull.Value });
         }
 
 

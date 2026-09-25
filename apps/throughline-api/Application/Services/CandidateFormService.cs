@@ -17,7 +17,8 @@ using EpicenterX.Domain.Enums;
 using EpicenterX.Domain.Shared;
 using EpicenterX.Domain.Shared.HelperClasses;
 using EpicenterX.Infrastructure.Persistence;
-using Microsoft.Data.SqlClient;
+using Npgsql;
+using NpgsqlTypes;
 using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
@@ -1744,23 +1745,19 @@ namespace EpicenterX.Application.Services
             await conn.OpenAsync();
 
             using var command = conn.CreateCommand();
-            command.CommandText = "sp_GetCandidateHiringDetails";
-            command.CommandType = CommandType.StoredProcedure;
+            command.CommandText = "SELECT * FROM throughline.get_candidate_hiring_details(@p_intake_status_ids, @p_partner_id, @p_logged_in_partner_id, @p_logged_in_role_id)";
+            command.CommandType = CommandType.Text;
 
-            var partnerParam = new SqlParameter("@PartnerId", SqlDbType.Int) { Value = (object)partnerId ?? DBNull.Value };
+            var partnerParam = new NpgsqlParameter("p_partner_id", NpgsqlDbType.Integer) { Value = (object)partnerId ?? DBNull.Value };
             command.Parameters.Add(partnerParam);
 
-            var loggedInPartnerParam = new SqlParameter("@LoggedInPartnerId", SqlDbType.Int) { Value = (object)loggedInUserDetails.PartnerId ?? DBNull.Value };
+            var loggedInPartnerParam = new NpgsqlParameter("p_logged_in_partner_id", NpgsqlDbType.Integer) { Value = (object)loggedInUserDetails.PartnerId ?? DBNull.Value };
             command.Parameters.Add(loggedInPartnerParam);
 
-            var loggedInRoleParam = new SqlParameter("@LoggedInRoleId", SqlDbType.Int) { Value = loggedInUserDetails.RoleId };
+            var loggedInRoleParam = new NpgsqlParameter("p_logged_in_role_id", NpgsqlDbType.Integer) { Value = (object)loggedInUserDetails.RoleId ?? DBNull.Value };
             command.Parameters.Add(loggedInRoleParam);
 
-            var intakeStatusParam = new SqlParameter("@IntakeStatusIds", SqlDbType.Structured)
-            {
-                TypeName = "IntListType",
-                Value = IntListTVP.CreateIntListTvp(intakeStatusId ?? new List<int>())
-            };
+            var intakeStatusParam = new NpgsqlParameter("p_intake_status_ids", NpgsqlDbType.Array | NpgsqlDbType.Integer) { Value = (intakeStatusId ?? new List<int>()).ToArray() };
             command.Parameters.Add(intakeStatusParam);
 
             var candidatesData = new List<GetExportCandidate>();
@@ -1854,30 +1851,17 @@ namespace EpicenterX.Application.Services
         {
             var loggedInUserDetails = _helperMethods.GetUserDetails();
 
-            var intakeStatusParam = new SqlParameter("@IntakeStatusIds", SqlDbType.Structured)
-            {
-                TypeName = "IntListType",
-                Value = IntListTVP.CreateIntListTvp(intakeStatusId ?? new List<int>())
-            };
+            var intakeStatusParam = new NpgsqlParameter("p_intake_status_ids", NpgsqlDbType.Array | NpgsqlDbType.Integer) { Value = (intakeStatusId ?? new List<int>()).ToArray() };
 
-            var partnerParam = new SqlParameter("@PartnerId", SqlDbType.Int)
-            {
-                Value = (object)partnerId ?? DBNull.Value
-            };
+            var partnerParam = new NpgsqlParameter("p_partner_id", NpgsqlDbType.Integer) { Value = (object)partnerId ?? DBNull.Value };
 
-            var loggedInPartnerParam = new SqlParameter("@LoggedInPartnerId", SqlDbType.Int)
-            {
-                Value = (object)loggedInUserDetails.PartnerId ?? DBNull.Value
-            };
+            var loggedInPartnerParam = new NpgsqlParameter("p_logged_in_partner_id", NpgsqlDbType.Integer) { Value = (object)loggedInUserDetails.PartnerId ?? DBNull.Value };
 
-            var loggedInRoleParam = new SqlParameter("@LoggedInRoleId", SqlDbType.Int)
-            {
-                Value = loggedInUserDetails.RoleId
-            };
+            var loggedInRoleParam = new NpgsqlParameter("p_logged_in_role_id", NpgsqlDbType.Integer) { Value = (object)loggedInUserDetails.RoleId ?? DBNull.Value };
             var feedbackData = await _context
                 .Set<GetExportFeedbackCandidate>()
                 .FromSqlRaw(
-                    "EXEC sp_GetCandidateInterviewFeedback @IntakeStatusIds, @PartnerId, @LoggedInPartnerId, @LoggedInRoleId",
+                    "SELECT * FROM throughline.get_candidate_interview_feedback(@p_intake_status_ids, @p_partner_id, @p_logged_in_partner_id, @p_logged_in_role_id)",
                     intakeStatusParam, partnerParam, loggedInPartnerParam, loggedInRoleParam
                 )
                 .ToListAsync();
@@ -1937,30 +1921,17 @@ namespace EpicenterX.Application.Services
             {
                 var loggedInUserDetails = _helperMethods.GetUserDetails();
 
-                var intakeStatusParam = new SqlParameter("@IntakeStatusIds", SqlDbType.Structured)
-                {
-                    TypeName = "IntListType",
-                    Value = IntListTVP.CreateIntListTvp(intakeStatusId ?? new List<int>())
-                };
+                var intakeStatusParam = new NpgsqlParameter("p_intake_status_ids", NpgsqlDbType.Array | NpgsqlDbType.Integer) { Value = (intakeStatusId ?? new List<int>()).ToArray() };
 
-                var partnerParam = new SqlParameter("@PartnerId", SqlDbType.Int)
-                {
-                    Value = (object)partnerId ?? DBNull.Value
-                };
+                var partnerParam = new NpgsqlParameter("p_partner_id", NpgsqlDbType.Integer) { Value = (object)partnerId ?? DBNull.Value };
 
-                var loggedInPartnerParam = new SqlParameter("@LoggedInPartnerId", SqlDbType.Int)
-                {
-                    Value = (object)loggedInUserDetails.PartnerId ?? DBNull.Value
-                };
+                var loggedInPartnerParam = new NpgsqlParameter("p_logged_in_partner_id", NpgsqlDbType.Integer) { Value = (object)loggedInUserDetails.PartnerId ?? DBNull.Value };
 
-                var loggedInRoleParam = new SqlParameter("@LoggedInRoleId", SqlDbType.Int)
-                {
-                    Value = loggedInUserDetails.RoleId
-                };
+                var loggedInRoleParam = new NpgsqlParameter("p_logged_in_role_id", NpgsqlDbType.Integer) { Value = (object)loggedInUserDetails.RoleId ?? DBNull.Value };
                 var feedbackData = await _context
                     .Set<GetExportCandidateInterviewDetails>()
                     .FromSqlRaw(
-                        "EXEC sp_GetCandidate_HRQ_InterviewDetails @IntakeStatusIds, @PartnerId, @LoggedInPartnerId, @LoggedInRoleId",
+                        "SELECT * FROM throughline.get_candidate_hrq_interview_details(@p_intake_status_ids, @p_partner_id, @p_logged_in_partner_id, @p_logged_in_role_id)",
                         intakeStatusParam, partnerParam, loggedInPartnerParam, loggedInRoleParam
                     )
                     .ToListAsync();
