@@ -1,51 +1,26 @@
 "use client";
-
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm, useWatch } from "react-hook-form";
-import * as z from "zod";
-import { Button } from "@/components/ui/button";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import { InputField } from "@/components/form-fields/InputField";
-import { SelectField } from "@/components/form-fields/SelectField";
-import { FileField } from "@/components/form-fields/FileField";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { MasterTypes } from "@/constants/masterTypes";
-import { dropdownApi } from "@/services/api/master";
 import { useEffect, useState } from "react";
-import { MultiSelectField } from "@/components/form-fields/MultiSelectField";
-import { toast } from "@/lib/toast";
-import { candidateApi } from "@/services/api/candidate.api";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Label } from "@/components/ui/label";
-import UploadMultipleCandidate from "./uploadMultipleCandidate";
-import { useCandidateStore } from "@/store/useCandidateStore";
-import { Input } from "@/components/ui/input";
-import api from "@/lib/axiosInstance";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Separator } from "@/components/ui/separator";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import * as z from "zod";
+import { Button, Checkbox, Col, DatePicker, Divider, Flex, Form, Input, Radio, Row, Select, Space, Spin, Typography } from "antd";
+import { PlusOutlined } from "@ant-design/icons";
+
+import { toast } from "@/lib/toast";
+import { validateWithZod, zodRules } from "@/lib/zodRules";
+import api from "@/lib/axiosInstance";
+import { candidateApi } from "@/services/api/candidate.api";
+import { dropdownApi } from "@/services/api/master";
+import { MasterTypes } from "@/constants/masterTypes";
 import { isPartner, useUserStore } from "@/store/userStore";
-import { DatePickerField } from "@/components/form-fields/DatePickerField";
-import { SearchableDropdown } from "@/components/form-fields/searchable-dropdown";
-import { Breadcrumbs } from "@/components/common/Breadcrumbs";
 import { AddSkillDialog } from "@/components/dialog/AddSkillDialog";
-import { FieldView } from "@/components/form-fields/FieldView";
-import SubmitFormLoader from "@/components/common/SubmitFormLoader";
+import { TermsConditionsModal } from "@/components/dialog/TermsConditionsModal";
+import { CandidateBreadcrumb } from "../CandidateBreadcrumb";
+import UploadMultipleCandidate from "./uploadMultipleCandidate";
+import { ResumeUploadField } from "./ResumeUploadField";
+import { dateStringProps, idNameSelectProps, REFERRED_OPTIONS, toStringOptions, YES_NO_OPTIONS, type IdName } from "./formFieldProps";
+
+const idName = z.object({ id: z.number(), name: z.string() });
 
 const candidateFormSchema = z.object({
   fullName: z.string().min(1, "Full Name is required"),
@@ -53,35 +28,11 @@ const candidateFormSchema = z.object({
     .string()
     .min(10, "Contact number must be 10 digits")
     .max(10, "Contact number must be 10 digits")
-    .refine((value) => /^\d+$/.test(value), {
-      message: "Only numbers are allowed",
-    }),
+    .refine((value) => /^\d+$/.test(value), { message: "Only numbers are allowed" }),
   email: z.string().email("Invalid email address").min(1, "Email is required"),
-  // RoleHiredFor: z.string().min(1, "Role Hired For is required"),
-  PreferredWorkLocationId: z
-    .array(
-      z.object({
-        id: z.number(),
-        name: z.string(),
-      })
-    )
-    .optional(),
-  primarySkills: z
-    .array(
-      z.object({
-        id: z.number(),
-        name: z.string(),
-      })
-    )
-    .optional(),
-  secondarySkills: z
-    .array(
-      z.object({
-        id: z.number(),
-        name: z.string(),
-      })
-    )
-    .optional(),
+  PreferredWorkLocationId: z.array(idName).optional(),
+  primarySkills: z.array(idName).optional(),
+  secondarySkills: z.array(idName).optional(),
   countryId: z.string().min(1, "Country is required"),
   stateId: z.string().min(1, "State is required"),
   cityId: z.string().min(1, "City is required"),
@@ -89,9 +40,7 @@ const candidateFormSchema = z.object({
   noticePeriod: z.string().min(1, "NoticePeriod is required"),
   relevantExperience: z.string().min(1, "Relevant Experience is required"),
   currentlyWorking: z.string().min(1, "Currently Working is required"),
-  currentOrganisation: z
-    .string()
-    .min(1, "Current/Last Organisation is required"),
+  currentOrganisation: z.string().min(1, "Current/Last Organisation is required"),
   lastWorkingDay: z.string().optional().nullable(),
   resume: z.object({
     attachmentName: z.string().min(1, "Resume is required"),
@@ -104,140 +53,63 @@ const candidateFormSchema = z.object({
   jobTitle: z.string().min(1, "Role Hired For is required"),
   hrqStatusName: z.string().min(1, "HRQ Status is required"),
   resourceTypeName: z.string().optional(),
-  isAgreedForTermsConditions: z.boolean().refine((val) => val === true, {
-    message: "You must accept the terms and conditions",
-  }),
+  isAgreedForTermsConditions: z.boolean().refine((val) => val === true, { message: "You must accept the terms and conditions" }),
   hiringRequestId: z.number().optional(),
 });
 
 type FormValues = z.infer<typeof candidateFormSchema>;
 
+/** Candidate registration: single (this form) or multiple (Excel upload). */
 const CandidateForm = () => {
-  const [registrationType, setRegistrationType] = useState<
-    "single" | "multiple"
-  >("single");
+  const [registrationType, setRegistrationType] = useState<"single" | "multiple">("single");
   const searchParams = useSearchParams();
   const hrqid = searchParams.get("hrqid");
+  const router = useRouter();
+  const { partnerId, partnerName, userId } = useUserStore();
+  const [form] = Form.useForm<FormValues>();
+
   const [showTermsDialog, setShowTermsDialog] = useState(false);
   const [selectedHrqID, setSelectedHrqID] = useState<string | null>(null);
-  const router = useRouter();
-  const { intakeId } = useCandidateStore();
-  const { partnerId, partnerName, userId, roles } = useUserStore();
+  const [jobLocations, setJobLocations] = useState<IdName[]>([]);
+  const [loader, setLoader] = useState(false);
+  const [isPrimary, setisPrimary] = useState(true);
+  const [isAddSkillOpen, setIsAddSkillOpen] = useState(false);
 
-  const [jobLocations, setJobLocations] = useState<
-    { id: number; name: string }[]
-  >([]);
-
-  const form = useForm<FormValues>({
-    resolver: zodResolver(candidateFormSchema),
-    defaultValues: {
-      fullName: "",
-      phoneNumber: "",
-      email: "",
-      hiringRequestId: NaN,
-      countryId: "",
-      stateId: "",
-      cityId: "",
-      diversity: "",
-      noticePeriod: "",
-      relevantExperience: "",
-      currentlyWorking: "",
-      currentOrganisation: "",
-      lastWorkingDay: null,
-      isReferred: "",
-      referredBy: "",
-      resume: {
-        attachmentName: "",
-        attachmentURL: "",
-      },
-      hrqId: "",
-      partner: partnerName,
-      jobTitle: "",
-      hrqStatusName: "",
-   
-      resourceTypeName: "",
-      isAgreedForTermsConditions: false,
-      // RoleHiredFor: "",
-      PreferredWorkLocationId: [],
-      primarySkills: [],
-      secondarySkills: [],
-    },
-  });
-
-  const selectedCountry = form.watch("countryId");
-  const selectedState = form.watch("stateId");
+  const selectedCountry = Form.useWatch("countryId", form);
+  const selectedState = Form.useWatch("stateId", form);
 
   const { data: hrqids = [] } = useQuery({
     queryKey: ["hrqids"],
     queryFn: () => candidateApi.getHrqid(partnerId ? Number(partnerId) : null),
-    enabled: true,
   });
-
-  const { data: country = [] } = useQuery({
-    queryKey: ["country"],
-    queryFn: () => dropdownApi.fetchDropdown(MasterTypes.COUNTRY),
-  });
-
-  const { data: states = [], refetch: refetchStates } = useQuery({
+  const { data: country = [] } = useQuery({ queryKey: ["country"], queryFn: () => dropdownApi.fetchDropdown(MasterTypes.COUNTRY) });
+  const { data: states = [] } = useQuery({
     queryKey: ["states", selectedCountry],
-    queryFn: () =>
-      dropdownApi.fetchDropdown(MasterTypes.STATE, {
-        countryId: parseInt(selectedCountry),
-      }),
+    queryFn: () => dropdownApi.fetchDropdown(MasterTypes.STATE, { countryId: parseInt(selectedCountry) }),
     enabled: !!selectedCountry,
   });
-
-  const { data: cities = [], refetch: refetchCities } = useQuery({
+  const { data: cities = [] } = useQuery({
     queryKey: ["cities", selectedState],
-    queryFn: () =>
-      dropdownApi.fetchDropdown(MasterTypes.CITY, {
-        stateId: parseInt(selectedState),
-      }),
+    queryFn: () => dropdownApi.fetchDropdown(MasterTypes.CITY, { stateId: parseInt(selectedState) }),
     enabled: !!selectedState,
   });
-
-
-  const { data: PRIMARY_SKILLS = [] } = useQuery({
-    queryKey: ["PRIMARY_SKILLS"],
-    queryFn: () => dropdownApi.fetchDropdown(MasterTypes.PRIMARY_SKILLS),
-  });
+  const { data: PRIMARY_SKILLS = [] } = useQuery({ queryKey: ["PRIMARY_SKILLS"], queryFn: () => dropdownApi.fetchDropdown(MasterTypes.PRIMARY_SKILLS) });
   const { data: SECONDARY_SKILLS = [] } = useQuery({
     queryKey: ["SECONDARY_SKILLS"],
     queryFn: () => dropdownApi.fetchDropdown(MasterTypes.SECONDARY_SKILLS),
   });
-
-
-
   const { data: hrqPartnersList = [] } = useQuery({
     queryKey: ["hrqPartnersList", selectedHrqID],
-    queryFn: () =>
-      dropdownApi.fetchSpecificpartner(
-        MasterTypes.HRQ_SPECIFIC_PARTNERS,
-        selectedHrqID
-      ),
+    queryFn: () => dropdownApi.fetchSpecificpartner(MasterTypes.HRQ_SPECIFIC_PARTNERS, selectedHrqID),
     enabled: !!selectedHrqID,
   });
 
   useEffect(() => {
     if (hrqPartnersList && hrqPartnersList.length > 0 && partnerId) {
-      form.setValue("partner", partnerId?.toString() || "");
+      form.setFieldValue("partner", partnerId?.toString() || "");
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hrqPartnersList]);
-
-  useEffect(() => {
-    if (selectedCountry) {
-      form.setValue("stateId", "");
-      form.setValue("cityId", "");
-      refetchStates();
-    }
-  }, [selectedCountry, form, refetchStates]);
-
-  useEffect(() => {
-    if (selectedState) {
-      form.setValue("cityId", "");
-      refetchCities();
-    }
-  }, [selectedState, form, refetchCities]);
 
   const createCandidateMutation = useMutation({
     mutationFn: async (values: any) => {
@@ -248,56 +120,44 @@ const CandidateForm = () => {
           error.response?.data?.message ===
           "The candidate you are trying to upload is a duplicate. Are you sure you want to send this candidate for approval?"
         ) {
-          // If duplicate, make another API call with isRequestException: true
-          return await candidateApi.createCandidateUserIdBased(
-            { ...values, isRequestException: true },
-            userId
-          );
+          return await candidateApi.createCandidateUserIdBased({ ...values, isRequestException: true }, userId);
         }
         throw error;
       }
     },
     onSuccess: () => {
       toast.success("Candidate details created successfully");
-      form.reset();
+      form.resetFields();
       router.push("/home/candidate-management");
     },
     onError: (error: any) => {
-      toast.error(
-        error.response?.data?.message || "Failed to create candidate details"
-      );
+      toast.error(error.response?.data?.message || "Failed to create candidate details");
       console.error("Error creating candidate details:", error);
     },
   });
-  async function onSubmit(values: FormValues) {
-    try {
-      const primarySkillIds = values.primarySkills.map((skill) => skill.id);
-      const secondarySkillIds =
-        values.secondarySkills?.map((skill) => skill.id) || [];
-      const { PreferredWorkLocationId, ...rest } = values;
-      const payload = {
-        ...rest,
-        PrimarySkillIds: primarySkillIds,
-        SecondarySkillIds: secondarySkillIds,
-        // RoleHiredFor: values.RoleHiredFor,
-        preferredWorkLocationIds: values.PreferredWorkLocationId
-          ? values.PreferredWorkLocationId.map((item: any) => item.id)
-          : [], // now array
-        noticePeriod: Number(values.noticePeriod),
-        isReferred: values.isReferred,
-        isBin: true,       
-        partnerId: values.partner,
-        isActive: true,
-      };
-      await createCandidateMutation.mutateAsync(payload);
-      router.push("/home/candidate-management");
-    } catch (error) {
-      console.error("Form submission error:", error);
-    }
-  }
-  const [loader, setLoader] = useState(false);
+
+  const onFinish = (raw: FormValues) => {
+    const values = validateWithZod(candidateFormSchema, form, raw);
+    if (!values) return;
+    const primarySkillIds = (values.primarySkills ?? []).map((skill) => skill.id);
+    const secondarySkillIds = values.secondarySkills?.map((skill) => skill.id) || [];
+    const { PreferredWorkLocationId, ...rest } = values;
+    const payload = {
+      ...rest,
+      PrimarySkillIds: primarySkillIds,
+      SecondarySkillIds: secondarySkillIds,
+      preferredWorkLocationIds: PreferredWorkLocationId ? PreferredWorkLocationId.map((item) => item.id) : [],
+      noticePeriod: Number(values.noticePeriod),
+      isReferred: values.isReferred,
+      isBin: true,
+      partnerId: values.partner,
+      isActive: true,
+    };
+    createCandidateMutation.mutate(payload);
+  };
+
   const fillRandomData = async () => {
-    const hrqId = form.getValues("hrqId");
+    const hrqId = form.getFieldValue("hrqId");
     if (!hrqId) {
       toast.error("Please enter HRQ ID");
       return;
@@ -306,432 +166,312 @@ const CandidateForm = () => {
       setLoader(true);
       const response = await api.get(`/HiringRequest/hiring/validate/${hrqId}`);
       const data = response.data.data;
-      form.setValue("hiringRequestId", data.hiringRequestId);
-      form.setValue("jobTitle", data.jobTitle);
-      form.setValue("hrqStatusName", data.hiringStatusName);
-      form.setValue("resourceTypeName", String(data.resourceTypeName));
-      // Fetch jobLocations from API response if available
-      if (Array.isArray(data.jobLocations)) {
-        setJobLocations(
-          data.jobLocations.map((loc: any) => ({
-            id: loc.id,
-            name: loc.name,
-          }))
-        );
-      } else {
-        setJobLocations([]);
-      }
+      form.setFieldsValue({
+        hiringRequestId: data.hiringRequestId,
+        jobTitle: data.jobTitle,
+        hrqStatusName: data.hiringStatusName,
+        resourceTypeName: String(data.resourceTypeName),
+      });
+      setJobLocations(Array.isArray(data.jobLocations) ? data.jobLocations.map((loc: any) => ({ id: loc.id, name: loc.name })) : []);
       toast.success("HRQ details loaded successfully");
       setSelectedHrqID(data.hiringRequestId);
-    } catch (error) {
-      toast.error(
-        error?.response?.data?.message || "Failed to fetch HRQ details"
-      );
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || "Failed to fetch HRQ details");
     } finally {
       setLoader(false);
     }
   };
 
-  const handleTermsAccept = () => {
-    form.setValue("isAgreedForTermsConditions", true, {
-      shouldValidate: true,
-      shouldDirty: true,
-      shouldTouch: true,
-    });
-    setShowTermsDialog(false);
-  };
   useEffect(() => {
     if (hrqid) {
-      form.setValue("hrqId", hrqid);
+      form.setFieldValue("hrqId", hrqid);
       fillRandomData();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hrqid]);
 
-  const [isPrimary, setisPrimary] = useState(true);
-  const [isAddSkillOpen, setIsAddSkillOpen] = useState(false);
+  const handleTermsAccept = () => {
+    form.setFieldValue("isAgreedForTermsConditions", true);
+    form.validateFields(["isAgreedForTermsConditions"]);
+    setShowTermsDialog(false);
+  };
 
   return (
-    <div className="space-y-6">
-      <Breadcrumbs />
-      {loader ? (
-        <SubmitFormLoader />
-      ) : (
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-bold">Candidate Registration</h2>
-          </div>
-          <div className="flex items-center gap-4">
-            <Label>Registration Type</Label>
-            <RadioGroup
-              defaultValue="single"
-              onValueChange={(value) =>
-                setRegistrationType(value as "single" | "multiple")
-              }
-              className="flex items-center gap-4"
-            >
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="single" id="single" />
-                <Label htmlFor="single">Single</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="multiple" id="multiple" />
-                <Label htmlFor="multiple">Multiple</Label>
-              </div>
-            </RadioGroup>
-          </div>
-        </div>
-      )}
+    <Flex vertical gap={16}>
+      <CandidateBreadcrumb />
+      <Flex justify="space-between" align="center" wrap gap={8}>
+        <Typography.Title level={4} style={{ margin: 0 }}>
+          Candidate Registration
+        </Typography.Title>
+        <Space>
+          <Typography.Text>Registration Type</Typography.Text>
+          <Radio.Group
+            optionType="button"
+            value={registrationType}
+            onChange={(e) => setRegistrationType(e.target.value)}
+            options={[
+              { value: "single", label: "Single" },
+              { value: "multiple", label: "Multiple" },
+            ]}
+          />
+        </Space>
+      </Flex>
 
       {registrationType === "single" ? (
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {!hrqid ? (
-                <FormField
-                  control={form.control}
-                  name="hrqId"
-                  render={({ field }) => (
-                    <FormItem className="flex-1">
-                      <FormLabel>HRQ ID*</FormLabel>
-                      <FormControl>
-                        <div className="flex gap-2 items-center">
-                          <SearchableDropdown
-                            options={hrqids?.map((option: any) => ({
-                              value: option.hrqId,
-                              label: option.hrqId,
-                            }))}
-                            disabled={hrqid ? true : false}
-                            value={field.value}
-                            onChange={field.onChange}
-                            placeholder="Select or search HRQ ID"
-                            searchPlaceholder="Search HRQ ID..."
-                            className="flex-1"
-                          />
-                          {!hrqid && (
-                            <Button
-                              type="button"
-                              className="text-white dark:text-black"
-                              variant="hpButton"
-                              disabled={loader}
-                              onClick={fillRandomData}
-                            >
-                              {loader ? "Validating..." : "Validate"}
-                            </Button>
-                          )}
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              ) : (
-                <div>
-                  <Label>
-                    HRQ ID: <span className="font-medium">{hrqid} </span>
-                  </Label>
-                </div>
-              )}
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <SelectField
-                control={form.control}
-                name="partner"
-                label="Partner"
-                placeholder="Select Partner"
-                options={hrqPartnersList}
-                required
-                disabled={!!partnerId}
-              />
-              <FieldView
-                label="Role Hired For"
-                value={form.watch("jobTitle")}
-              />
-              <FieldView
-                label="HRQ Status"
-                value={form.watch("hrqStatusName")}
-              />
-              <FieldView label="Intake Status" value="New" />
-              <FieldView
-                label="Resource Type"
-                value={form.watch("resourceTypeName")}
-              />
-              <MultiSelectField
-                control={form.control}
-                name="PreferredWorkLocationId"
-                label="Preferred Work Location"
-                placeholder="Select preferred work locations"
-                options={jobLocations}
-                // required
-                disabled={jobLocations.length === 0}
-              />
-            </div>
-            {/* Add new fields below the HRQ section */}
-            <Separator className="w-full my-4 bg-gray-200 border border-gray-200 dark:bg-green-800 dark:border-green-100" />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <InputField
-                control={form.control}
-                name="fullName"
-                label="Full Name"
-                placeholder="Full Name"
-                required
-              />
-              <InputField
-                control={form.control}
-                name="phoneNumber"
-                label="Phone Number"
-                placeholder="Enter 10 digit contact number"
-                required
-                type="tel"
-                maxLength={10}
-                pattern="[0-9]{10}"
-              />
-              <InputField
-                control={form.control}
-                name="email"
-                label="Email"
-                placeholder="Email"
-                required
-              />
-              <div className="flex items-end gap-4">
-                <div className="flex-1">
-                  <MultiSelectField
-                    control={form.control}
-                    name="primarySkills"
-                    label="Primary Skills"
-                    placeholder="Select primary skills"
-                    options={PRIMARY_SKILLS}
-                    // required
+        <Spin spinning={loader} description="Validating HRQ...">
+          <Form
+            form={form}
+            layout="vertical"
+            onFinish={onFinish}
+            initialValues={{
+              fullName: "",
+              phoneNumber: "",
+              email: "",
+              countryId: "",
+              stateId: "",
+              cityId: "",
+              diversity: "",
+              noticePeriod: "",
+              relevantExperience: "",
+              currentlyWorking: "",
+              currentOrganisation: "",
+              lastWorkingDay: null,
+              isReferred: "",
+              referredBy: "",
+              resume: { attachmentName: "", attachmentURL: "" },
+              hrqId: "",
+              partner: partnerName,
+              jobTitle: "",
+              hrqStatusName: "",
+              resourceTypeName: "",
+              isAgreedForTermsConditions: false,
+              PreferredWorkLocationId: [],
+              primarySkills: [],
+              secondarySkills: [],
+            }}
+          >
+            <Row gutter={[16, 8]}>
+              <Col xs={24} md={12}>
+                {!hrqid ? (
+                  <Form.Item label="HRQ ID" required>
+                    <Space.Compact className="w-full">
+                      <Form.Item name="hrqId" noStyle rules={zodRules(candidateFormSchema, "hrqId")}>
+                        <Select
+                          showSearch
+                          optionFilterProp="label"
+                          placeholder="Select or search HRQ ID"
+                          options={(hrqids as any[])?.map((option) => ({ value: option.hrqId, label: option.hrqId }))}
+                          className="w-full"
+                        />
+                      </Form.Item>
+                      <Button type="primary" loading={loader} onClick={fillRandomData}>
+                        {loader ? "Validating..." : "Validate"}
+                      </Button>
+                    </Space.Compact>
+                  </Form.Item>
+                ) : (
+                  <Form.Item name="hrqId" label="HRQ ID">
+                    <Input readOnly variant="filled" />
+                  </Form.Item>
+                )}
+              </Col>
+            </Row>
+
+            <Row gutter={[16, 8]}>
+              <Col xs={24} md={12}>
+                <Form.Item name="partner" label="Partner" rules={zodRules(candidateFormSchema, "partner")}>
+                  <Select showSearch optionFilterProp="label" placeholder="Select Partner" options={toStringOptions(hrqPartnersList)} disabled={!!partnerId} />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="jobTitle" label="Role Hired For" rules={zodRules(candidateFormSchema, "jobTitle")}>
+                  <Input readOnly variant="filled" placeholder="Validate an HRQ ID" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="hrqStatusName" label="HRQ Status" rules={zodRules(candidateFormSchema, "hrqStatusName")}>
+                  <Input readOnly variant="filled" placeholder="Validate an HRQ ID" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item label="Intake Status">
+                  <Input readOnly variant="filled" value="New" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="resourceTypeName" label="Resource Type">
+                  <Input readOnly variant="filled" placeholder="Validate an HRQ ID" />
+                </Form.Item>
+                <Form.Item name="hiringRequestId" hidden>
+                  <Input />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="PreferredWorkLocationId" label="Preferred Work Location" {...idNameSelectProps(jobLocations)}>
+                  <Select
+                    mode="multiple"
+                    showSearch
+                    optionFilterProp="label"
+                    allowClear
+                    maxTagCount="responsive"
+                    placeholder="Select preferred work locations"
+                    options={jobLocations.map((o) => ({ value: o.id, label: o.name }))}
+                    disabled={jobLocations.length === 0}
                   />
-                </div>
-                {!isPartner && (
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={() => {
-                      setisPrimary(true);
-                      setIsAddSkillOpen(true);
-                    }}
-                    className="mb-1"
-                  >
-                    Add Skill
-                  </Button>
-                )}
-              </div>
-              <MultiSelectField
-                control={form.control}
-                name="secondarySkills"
-                label="Secondary Skills"
-                placeholder="Select secondary skills"
-                options={SECONDARY_SKILLS}
-              />
-              <SelectField
-                control={form.control}
-                name="countryId"
-                label="Country"
-                placeholder="Select country"
-                options={country}
-                required
-              />
-              <SelectField
-                control={form.control}
-                name="stateId"
-                label="State"
-                placeholder="Select state"
-                options={states}
-                required
-              />
-              <SelectField
-                control={form.control}
-                name="cityId"
-                label="City"
-                placeholder="Select city"
-                options={cities}
-                required
-              />
-              <SelectField
-                control={form.control}
-                name="diversity"
-                label="Diversity"
-                placeholder="Diversity"
-                options={[
-                  { id: "yes", name: "Yes" },
-                  { id: "no", name: "No" },
-                ]}
-              />
-              <InputField
-                control={form.control}
-                name="noticePeriod"
-                label="Notice Period(Days)"
-                placeholder="Notice Period"
-                required
-                type="number"
-              />
-              <InputField
-                control={form.control}
-                name="relevantExperience"
-                label="Relevant Experience(In Years)"
-                placeholder="Relevant Experience"
-                required
-              />
-              <SelectField
-                control={form.control}
-                name="currentlyWorking"
-                label="Currently Working"
-                placeholder="Currently Working"
-                required
-                options={[
-                  { id: "yes", name: "Yes" },
-                  { id: "no", name: "No" },
-                ]}
-              />
-              <InputField
-                control={form.control}
-                name="currentOrganisation"
-                label="Current/Last Organisation"
-                placeholder="Current/Last Organisation"
-                required
-              />
+                </Form.Item>
+              </Col>
+            </Row>
 
-              <DatePickerField
-                control={form.control}
-                name="lastWorkingDay"
-                label="Last Working Date"
-                disabledDates={[]}
-              />
-              <FileField
-                control={form.control}
-                name="resume"
-                label="Resume"
-                accept=".ppt,.pptx,.pdf,.doc,.docx"
-                required
-              />
-              <SelectField
-                control={form.control}
-                name="isReferred"
-                label="Is Referred"
-                placeholder="Select..."
-                options={[
-                  { id: 1, name: "External" },
-                  { id: 2, name: "Internal" },
-                  { id: 3, name: "Others" },
-                ]}
-              />
-              <InputField
-                control={form.control}
-                name="referredBy"
-                label="Referred By(Email)"
-                placeholder="Enter email"
-              />
-            </div>
-            <div className="space-y-1 leading-none ml-2">
-              <FormField
-                control={form.control}
-                name="isAgreedForTermsConditions"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                    <FormControl>
-                      <Checkbox
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                        disabled
-                      />
-                    </FormControl>
-                    <div className="space-y-1 leading-none">
-                      <FormLabel>
-                        I read and agree to{" "}
-                        <Button
-                          variant="link"
-                          type="button"
-                          className="p-0 text-[#4096ff] hover:underline h-auto font-normal"
-                          onClick={() => setShowTermsDialog(true)}
-                        >
-                          terms and conditions
-                        </Button>
-                      </FormLabel>
-                      <FormMessage />
-                    </div>
-                  </FormItem>
-                )}
-              />
-            </div>
-            <div className="flex justify-between pt-6">
-              <div className="flex gap-4">
-                <Button
-                  disabled={createCandidateMutation.isPending}
-                  type="submit"
-                  variant="hpButton"
-                  className="px-8"
+            <Divider />
+
+            <Row gutter={[16, 8]}>
+              <Col xs={24} md={12}>
+                <Form.Item name="fullName" label="Full Name" rules={zodRules(candidateFormSchema, "fullName")}>
+                  <Input placeholder="Full Name" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="phoneNumber" label="Phone Number" rules={zodRules(candidateFormSchema, "phoneNumber")}>
+                  <Input placeholder="Enter 10 digit contact number" type="tel" maxLength={10} />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="email" label="Email" rules={zodRules(candidateFormSchema, "email")}>
+                  <Input placeholder="Email" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Flex gap={8} align="flex-end">
+                  <Form.Item name="primarySkills" label="Primary Skills" className="flex-1" {...idNameSelectProps(PRIMARY_SKILLS)}>
+                    <Select
+                      mode="multiple"
+                      showSearch
+                      optionFilterProp="label"
+                      allowClear
+                      maxTagCount="responsive"
+                      placeholder="Select primary skills"
+                      options={(PRIMARY_SKILLS as IdName[]).map((o) => ({ value: o.id, label: o.name }))}
+                    />
+                  </Form.Item>
+                  {!isPartner && (
+                    <Form.Item label=" ">
+                      <Button
+                        icon={<PlusOutlined />}
+                        onClick={() => {
+                          setisPrimary(true);
+                          setIsAddSkillOpen(true);
+                        }}
+                      >
+                        Add Skill
+                      </Button>
+                    </Form.Item>
+                  )}
+                </Flex>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="secondarySkills" label="Secondary Skills" {...idNameSelectProps(SECONDARY_SKILLS)}>
+                  <Select
+                    mode="multiple"
+                    showSearch
+                    optionFilterProp="label"
+                    allowClear
+                    maxTagCount="responsive"
+                    placeholder="Select secondary skills"
+                    options={(SECONDARY_SKILLS as IdName[]).map((o) => ({ value: o.id, label: o.name }))}
+                  />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="countryId" label="Country" rules={zodRules(candidateFormSchema, "countryId")}>
+                  <Select
+                    showSearch
+                    optionFilterProp="label"
+                    placeholder="Select country"
+                    options={toStringOptions(country)}
+                    onChange={() => form.setFieldsValue({ stateId: "", cityId: "" })}
+                  />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="stateId" label="State" rules={zodRules(candidateFormSchema, "stateId")}>
+                  <Select showSearch optionFilterProp="label" placeholder="Select state" options={toStringOptions(states)} onChange={() => form.setFieldValue("cityId", "")} />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="cityId" label="City" rules={zodRules(candidateFormSchema, "cityId")}>
+                  <Select showSearch optionFilterProp="label" placeholder="Select city" options={toStringOptions(cities)} />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="diversity" label="Diversity">
+                  <Select placeholder="Diversity" options={YES_NO_OPTIONS} allowClear />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="noticePeriod" label="Notice Period(Days)" rules={zodRules(candidateFormSchema, "noticePeriod")}>
+                  <Input type="number" placeholder="Notice Period" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="relevantExperience" label="Relevant Experience(In Years)" rules={zodRules(candidateFormSchema, "relevantExperience")}>
+                  <Input placeholder="Relevant Experience" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="currentlyWorking" label="Currently Working" rules={zodRules(candidateFormSchema, "currentlyWorking")}>
+                  <Select placeholder="Currently Working" options={YES_NO_OPTIONS} />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="currentOrganisation" label="Current/Last Organisation" rules={zodRules(candidateFormSchema, "currentOrganisation")}>
+                  <Input placeholder="Current/Last Organisation" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="lastWorkingDay" label="Last Working Date" {...dateStringProps(null)}>
+                  <DatePicker className="w-full" format="YYYY-MM-DD" placeholder="YYYY-MM-DD" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item
+                  name="resume"
+                  label="Resume"
+                  required
+                  rules={[{ validator: async (_, v) => (v?.attachmentURL ? undefined : Promise.reject(new Error("Resume is required"))) }]}
                 >
-                  {createCandidateMutation.isPending
-                    ? "Submitting..."
-                    : "Submit"}
-                </Button>
-              </div>
-            </div>
-            <Dialog open={showTermsDialog} onOpenChange={setShowTermsDialog}>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Terms and Conditions</DialogTitle>
-                  <div className="space-y-4 max-h-[60vh] overflow-y-auto mt-4">
-                    <h3 className="font-semibold">1. Introduction</h3>
-                    <p>
-                      These Terms and Conditions govern your use of our
-                      candidate intake system. By using this system, you agree
-                      to these terms in full.
-                    </p>
+                  <ResumeUploadField accept=".ppt,.pptx,.pdf,.doc,.docx" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="isReferred" label="Is Referred">
+                  <Select placeholder="Select..." options={REFERRED_OPTIONS} allowClear />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="referredBy" label="Referred By(Email)">
+                  <Input placeholder="Enter email" />
+                </Form.Item>
+              </Col>
+            </Row>
 
-                    <h3 className="font-semibold">2. Data Privacy</h3>
-                    <p>
-                      We are committed to protecting candidate data and comply
-                      with all relevant data protection laws. All information
-                      submitted will be handled confidentially.
-                    </p>
+            <Form.Item name="isAgreedForTermsConditions" valuePropName="checked" rules={zodRules(candidateFormSchema, "isAgreedForTermsConditions")}>
+              <Checkbox disabled>
+                I read and agree to <Typography.Link onClick={() => setShowTermsDialog(true)}>terms and conditions</Typography.Link>
+              </Checkbox>
+            </Form.Item>
 
-                    <h3 className="font-semibold">3. Responsibilities</h3>
-                    <p>You agree to:</p>
-                    <ul className="list-disc pl-6">
-                      <li>Provide accurate and complete information</li>
-                      <li>Maintain the confidentiality of candidate data</li>
-                      <li>Use the system only for its intended purpose</li>
-                      <li>Comply with all applicable laws and regulations</li>
-                    </ul>
-
-                    <h3 className="font-semibold">4. Usage Guidelines</h3>
-                    <p>
-                      The system must be used in accordance with our usage
-                      guidelines, which prohibit any unauthorized or malicious
-                      activities.
-                    </p>
-                  </div>
-                </DialogHeader>
-                <DialogFooter className="mt-6">
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowTermsDialog(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={handleTermsAccept}
-                    className="bg-[#4096ff] hover:bg-[#009e79]"
-                  >
-                    Accept
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </form>
-        </Form>
+            <Button type="primary" htmlType="submit" loading={createCandidateMutation.isPending}>
+              {createCandidateMutation.isPending ? "Submitting..." : "Submit"}
+            </Button>
+          </Form>
+        </Spin>
       ) : (
         <UploadMultipleCandidate />
       )}
-      <AddSkillDialog
-        isOpen={isAddSkillOpen}
-        onClose={() => setIsAddSkillOpen(false)}
-        isPrimary={isPrimary}
-        masterType={MasterTypes.SKILL}
-      />
-    </div>
+
+      <TermsConditionsModal open={showTermsDialog} onCancel={() => setShowTermsDialog(false)} onAccept={handleTermsAccept} />
+      <AddSkillDialog isOpen={isAddSkillOpen} onClose={() => setIsAddSkillOpen(false)} isPrimary={isPrimary} masterType={MasterTypes.SKILL} />
+    </Flex>
   );
 };
 

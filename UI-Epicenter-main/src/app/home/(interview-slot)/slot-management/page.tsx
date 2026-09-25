@@ -1,64 +1,44 @@
 "use client";
-
-import { Card, CardContent } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import {
-  Users,
-  CalendarRange,
-  ClipboardCheck,
-  CheckCircle2,
-  Clock,
-  Calendar,
-} from "lucide-react";
+import { Flex, Tabs, Typography } from "antd";
+import { CalendarOutlined, CheckCircleOutlined, ClockCircleOutlined, FileTextOutlined, TeamOutlined } from "@ant-design/icons";
 import ScreeningPagination from "@/components/slot-management/ScreeningPagination";
 import CompletedPagination from "@/components/slot-management/CompletedPagination";
 import FeebackPendingPagination from "@/components/slot-management/FeedbackPendingPagination";
 import InterviewListPagination from "@/components/slot-management/InterviewListPagination";
-import { Breadcrumbs } from "@/components/common/Breadcrumbs";
-import { isDomainManager, isHiringManager, isPanel, isShowslotAllocation, useUserStore } from "@/store/userStore";
-import { FilterTypeEnum, SlotAllocationType } from "@/constants/FilterTypeEnum";
 import PanelScheduled from "@/components/slot-management/PanelScheduled";
+import { isDomainManager, isHiringManager, isPanel, isShowslotAllocation } from "@/store/userStore";
+import { FilterTypeEnum, SlotAllocationType } from "@/constants/FilterTypeEnum";
+
 const DEFAULT_SECTION = "evaluation";
 const DEFAULT_EVALUATION_TAB = "screening";
 const DEFAULT_SLOT_ALLOCATION_TAB = "assignslot";
-export default function Home() {
-  const { roles } = useUserStore();
 
-  // const isPanel = roles.some((role) => role.name === "PANEL");
-
+/** Evaluation (screening, feedback, completed) and Slot Allocation grids, synced to `?section=&tab=`. */
+export default function SlotManagementPage() {
   const router = useRouter();
   const params = useSearchParams();
-  const [activeMainTab, setActiveMainTab] = useState(
-    params.get("section") ?? DEFAULT_SECTION
-  );
-  const [evaluationTab, setEvaluationTab] = useState(
-    DEFAULT_EVALUATION_TAB
-  );
-  const [slotAllocationTab, setSlotAllocationTab] = useState(
-    DEFAULT_SLOT_ALLOCATION_TAB
-  );
+  const urlSection = params.get("section");
+  const urlTab = params.get("tab");
+
+  const [activeMainTab, setActiveMainTab] = useState(urlSection ?? DEFAULT_SECTION);
+  const [evaluationTab, setEvaluationTab] = useState((urlSection ?? DEFAULT_SECTION) === "evaluation" && urlTab ? urlTab : DEFAULT_EVALUATION_TAB);
+  const [slotAllocationTab, setSlotAllocationTab] = useState(urlSection === "slot-allocation" && urlTab ? urlTab : DEFAULT_SLOT_ALLOCATION_TAB);
 
   useEffect(() => {
     if (!params.get("section") && !params.get("tab")) {
-      router.replace(
-        `?section=${DEFAULT_SECTION}&tab=${DEFAULT_EVALUATION_TAB}`
-      );
+      router.replace(`?section=${DEFAULT_SECTION}&tab=${DEFAULT_EVALUATION_TAB}`);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
   const handleMainTabChange = (value: string) => {
     setActiveMainTab(value);
     if (value === "evaluation") {
-      router.replace(
-        `?section=${value}&tab=${evaluationTab || DEFAULT_EVALUATION_TAB}`
-      );
-    } else if(value === "slot-allocation") {
-      router.replace(
-        `?section=${value}&tab=${DEFAULT_SLOT_ALLOCATION_TAB
-        }`
-      );
+      router.replace(`?section=${value}&tab=${evaluationTab || DEFAULT_EVALUATION_TAB}`);
+    } else if (value === "slot-allocation") {
+      router.replace(`?section=${value}&tab=${DEFAULT_SLOT_ALLOCATION_TAB}`);
     }
   };
 
@@ -72,143 +52,68 @@ export default function Home() {
     router.replace(`?section=slot-allocation&tab=${value}`);
   };
 
+  const evaluationItems = [
+    { key: "screening", label: "Screening/Assessment", icon: <TeamOutlined />, children: <ScreeningPagination /> },
+    { key: "feedback-pending", label: "Feedback Pending", icon: <FileTextOutlined />, children: <FeebackPendingPagination /> },
+    ...(isPanel || isHiringManager || isDomainManager
+      ? [{ key: "panelsheduled", label: "Interview Scheduled", icon: <CheckCircleOutlined />, children: <PanelScheduled /> }]
+      : []),
+    ...(!isPanel ? [{ key: "completed", label: "Completed", icon: <CheckCircleOutlined />, children: <CompletedPagination /> }] : []),
+  ];
+
+  const slotAllocationItems = [
+    {
+      key: "assignslot",
+      label: "Assign Slots",
+      icon: <ClockCircleOutlined />,
+      children: <InterviewListPagination filterType={FilterTypeEnum.SlotAllocation_AssignSlots} slotStatusTypeId={SlotAllocationType.assignslot} />,
+    },
+    {
+      key: "pending",
+      label: "Pending",
+      icon: <CalendarOutlined />,
+      children: <InterviewListPagination filterType={FilterTypeEnum.SlotAllocation_Pending} slotStatusTypeId={SlotAllocationType.pending} />,
+    },
+    {
+      key: "declined",
+      label: "Declined",
+      icon: <CalendarOutlined />,
+      children: <InterviewListPagination filterType={FilterTypeEnum.SlotAllocation_Declined} slotStatusTypeId={SlotAllocationType.declined} />,
+    },
+    {
+      key: "scheduled",
+      label: "Interview Scheduled",
+      icon: <CalendarOutlined />,
+      children: <InterviewListPagination filterType={FilterTypeEnum.SlotAllocation_Scheduled} slotStatusTypeId={SlotAllocationType.scheduled} />,
+    },
+  ];
+
+  const evaluation = <Tabs activeKey={evaluationTab} items={evaluationItems} destroyOnHidden onChange={handleEvaluationTabChange} />;
+
+  const mainItems = [
+    { key: "evaluation", label: "Evaluation", icon: <TeamOutlined />, children: evaluation },
+    ...(!isPanel
+      ? [
+          {
+            key: "slot-allocation",
+            label: "Slot Allocation",
+            icon: <CalendarOutlined />,
+            children: <Tabs activeKey={slotAllocationTab} items={slotAllocationItems} destroyOnHidden onChange={handleSlotAllocationTabChange} />,
+          },
+        ]
+      : []),
+  ];
+
   return (
-    <div className="py-5 px-4 sm:px-6">
-      {/* <Breadcrumbs /> */}
-      <Card>
-        <CardContent className="pt-6">
-          <Tabs value={activeMainTab} onValueChange={handleMainTabChange}>
-            {isShowslotAllocation && (
-              <TabsList className="w-full h-12 bg-[#DFE6E5]  dark:bg-gray-800 mb-6">
-                <>
-                  <TabsTrigger value="evaluation" className="flex-1 gap-2">
-                    <Users className="h-4 w-4" />
-                    Evaluation
-                  </TabsTrigger>
-
-                  <TabsTrigger value="slot-allocation" className="flex-1 gap-2">
-                    <CalendarRange className="h-4 w-4" />
-                    Slot Allocation
-                  </TabsTrigger>
-                </>
-              </TabsList>
-            )}
-            <TabsContent value="evaluation">
-              <Tabs
-                value={evaluationTab}
-                onValueChange={handleEvaluationTabChange}
-              >
-                <ScrollArea className="w-full whitespace-nowrap">
-                  <TabsList className="w-full h-12 bg-[#DFE6E5]  dark:bg-gray-800">
-                    <TabsTrigger value="screening" className="flex-1 gap-2">
-                      <Users className="h-4 w-4" />
-                      Screening/Assessment
-                    </TabsTrigger>
-                    <TabsTrigger
-                      value="feedback-pending"
-                      className="flex-1 gap-2"
-                    >
-                      <ClipboardCheck className="h-4 w-4" />
-                      Feedback Pending
-                    </TabsTrigger>
-                    {(isPanel || isHiringManager || isDomainManager)  && (
-                      <TabsTrigger
-                        value="panelsheduled"
-                        className="flex-1 gap-2"
-                      >
-                        <CheckCircle2 className="h-4 w-4" />
-                        Interview Scheduled
-                      </TabsTrigger>
-                    )}
-                    {!isPanel && (
-                      <TabsTrigger value="completed" className="flex-1 gap-2">
-                        <CheckCircle2 className="h-4 w-4" />
-                        Completed
-                      </TabsTrigger>
-                    )}
-                  </TabsList>
-                  <ScrollBar orientation="horizontal" className="invisible" />
-                </ScrollArea>
-
-                <TabsContent value="screening">
-                  <ScreeningPagination />
-                </TabsContent>
-                <TabsContent value="feedback-pending">
-                  <FeebackPendingPagination />
-                </TabsContent>
-                {(!isPanel ) && (
-                  <TabsContent value="completed">
-                    <CompletedPagination />
-                  </TabsContent>
-                )}
-
-                {(isPanel || isHiringManager || isDomainManager)   && (
-                  <TabsContent value="panelsheduled">
-                    <PanelScheduled />
-                  </TabsContent>
-                )}
-              </Tabs>
-            </TabsContent>
-
-            {/* Slot Allocation section */}
-            {!isPanel && (
-              <TabsContent value="slot-allocation">
-                <Tabs
-                  value={slotAllocationTab}
-                  onValueChange={handleSlotAllocationTabChange}
-                >
-                  <ScrollArea className="w-full whitespace-nowrap">
-                    <TabsList className="w-full h-12 bg-[#DFE6E5]  dark:bg-gray-800">
-                      <TabsTrigger value="assignslot" className="flex-1 gap-2">
-                        <Clock className="h-4 w-4" />
-                        Assign Slots
-                      </TabsTrigger>
-                      <TabsTrigger value="pending" className="flex-1 gap-2">
-                        <CalendarRange className="h-4 w-4" />
-                        Pending
-                      </TabsTrigger>
-                      <TabsTrigger value="declined" className="flex-1 gap-2">
-                        <Calendar className="h-4 w-4" />
-                        Declined
-                      </TabsTrigger>
-                      <TabsTrigger value="scheduled" className="flex-1 gap-2">
-                        <Calendar className="h-4 w-4" />
-                        Interview Scheduled
-                      </TabsTrigger>
-                    </TabsList>
-                    <ScrollBar orientation="horizontal" className="invisible" />
-                  </ScrollArea>
-
-                  <TabsContent value="assignslot">
-                    <InterviewListPagination
-                      filterType={FilterTypeEnum.SlotAllocation_AssignSlots}
-                      slotStatusTypeId={SlotAllocationType.assignslot}
-                    />
-                  </TabsContent>
-                  <TabsContent value="pending">
-                    <InterviewListPagination
-                      filterType={FilterTypeEnum.SlotAllocation_Pending}
-                      slotStatusTypeId={SlotAllocationType.pending}
-                    />
-                  </TabsContent>
-                  <TabsContent value="declined">
-                    <InterviewListPagination
-                      filterType={FilterTypeEnum.SlotAllocation_Declined}
-                      slotStatusTypeId={SlotAllocationType.declined}
-                    />
-                  </TabsContent>
-                  <TabsContent value="scheduled">
-                    <InterviewListPagination
-                      filterType={FilterTypeEnum.SlotAllocation_Scheduled}
-                      slotStatusTypeId={SlotAllocationType.scheduled}
-                    />
-                  </TabsContent>
-                </Tabs>
-              </TabsContent>
-            )}
-          </Tabs>
-        </CardContent>
-      </Card>
-    </div>
+    <Flex vertical gap={16} className="p-4">
+      <Typography.Title level={4} style={{ margin: 0 }}>
+        Slot Management
+      </Typography.Title>
+      {isShowslotAllocation ? (
+        <Tabs type="card" activeKey={activeMainTab} items={mainItems} destroyOnHidden onChange={handleMainTabChange} />
+      ) : (
+        evaluation
+      )}
+    </Flex>
   );
 }

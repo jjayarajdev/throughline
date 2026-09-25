@@ -1,26 +1,25 @@
-import { Card } from "@/components/ui/card";
-import { MapPin } from "lucide-react";
+"use client";
+import { Card, Flex, Typography, theme } from "antd";
+import { EnvironmentOutlined } from "@ant-design/icons";
 
 interface LocationInfoProps {
   partner: any;
 }
 
+/** Partner's registered location. */
 export function LocationInfo({ partner }: LocationInfoProps) {
+  const { token } = theme.useToken();
   return (
-    <Card className="p-4 mb-6">
-      <div className="space-y-4">
-        <div className="flex gap-3">
-          <div className="mt-1">
-            <MapPin className="h-6 w-6 text-gray-600" />
-          </div>
-          <div>
-            <div className="font-medium">
-              {partner?.countryName}, {partner?.stateName}, {partner?.cityName}
-            </div>
-            <div className="text-sm text-gray-500">{partner?.address}</div>
-          </div>
-        </div>
-      </div>
+    <Card size="small">
+      <Flex gap={12} align="start">
+        <EnvironmentOutlined style={{ fontSize: 22, color: token.colorTextSecondary, marginTop: 4 }} />
+        <Flex vertical>
+          <Typography.Text strong>
+            {partner?.countryName}, {partner?.stateName}, {partner?.cityName}
+          </Typography.Text>
+          <Typography.Text type="secondary">{partner?.address}</Typography.Text>
+        </Flex>
+      </Flex>
     </Card>
   );
 }

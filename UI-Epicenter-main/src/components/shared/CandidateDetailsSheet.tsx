@@ -1,10 +1,6 @@
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import { CandidateDetailsTypes } from "../slot-management/types";
+"use client";
+import { Descriptions, Drawer, Empty } from "antd";
+import type { CandidateDetailsTypes } from "../slot-management/types";
 
 interface CandidateDetailsSheetProps {
   isOpen: boolean;
@@ -12,127 +8,41 @@ interface CandidateDetailsSheetProps {
   candidate: CandidateDetailsTypes | null;
   children?: React.ReactNode;
   title?: string;
+  /** rendered in the Drawer footer (actions) */
+  footer?: React.ReactNode;
 }
 
-export function CandidateDetailsSheet({
-  isOpen,
-  onClose,
-  candidate,
-  children,
-  title = "Candidate Details",
-}: CandidateDetailsSheetProps) {
-  const defaultCandidate: CandidateDetailsTypes = {
-    hrqId: "",
-    candidateCode: "",
-    candidateName: "",
-    jobTitle: "",
-    partnerName: "",
-    intakeStatusName: "",
-    interviewModeName: "",
-  };
-
-  const candidateData = candidate || defaultCandidate;
-
-  function formatArray(value?: string | string[] | null) {
-    if (Array.isArray(value)) {
-      return value
-        .map((day) => day.charAt(0).toUpperCase() + day.slice(1))
-        .join(", ");
-    }
-    return value || "-";
-  }
-
-  return (
-    <Sheet
-      aria-describedby={undefined}
-      open={isOpen}
-      onOpenChange={(val) => !val && onClose()}
-    >
-      <SheetContent side="right" className="w-[800px] p-0 overflow-hidden flex flex-col">
-        <SheetHeader className="p-4 pb-2 border-b shrink-0">
-          <SheetTitle className="text-xl font-semibold text-[#0958d9]">
-            {title}
-          </SheetTitle>
-        </SheetHeader>
-        
-        {/* Make this div scrollable */}
-        <div className="flex-1 overflow-y-auto p-4">
-          {candidate ? (
-            <>
-              <div className="space-y-1 bg-gray-50 p-2 rounded-lg">
-                <div className="grid gap-1">
-                  <DetailRow
-                    label="Candidate Name"
-                    value={candidateData.candidateName || candidateData.fullName}
-                  />
-
-                  {candidateData?.intakeStatusName && (
-                    <DetailRow
-                      label="Status"
-                      value={candidateData.intakeStatusName}
-                    />
-                  )}
-                  {candidateData?.interviewModeName && (
-                    <DetailRow
-                      label="Mode of Interview"
-                      value={candidateData.interviewModeName}
-                    />
-                  )}
-
-                  {candidateData.panelNames && (
-                    <DetailRow
-                      label="Panel Member"
-                      value={candidateData.panelNames || "No panel members assigned"}
-                    />
-                  )}
-                  {candidateData?.availableDays && (
-                    <DetailRow
-                      label="Available Days"
-                      value={formatArray(candidateData.availableDays)}
-                    />
-                  )}
-
-                  {candidateData?.rejectionCount && (
-                    <DetailRow
-                      label="Declined"
-                      value={candidateData.rejectionCount}
-                    />
-                  )}
-                  {candidateData?.hmComments && (
-                       <DetailRow
-                      label="Hiring Comments"
-                      value={candidateData.hmComments || "No comments available"}
-                    />
-                  )}
-                  {candidateData?.partnerComments && (
-                       <DetailRow
-                      label="Partner Comments"
-                      value={candidateData.partnerComments || "No comments available"}
-                    />
-                  )}
-
-                 
-                </div>
-              </div>
-              {children}
-            </>
-          ) : (
-            <div className="text-center text-gray-500 py-8">
-              No candidate selected
-            </div>
-          )}
-        </div>
-      </SheetContent>
-    </Sheet>
-  );
+function formatArray(value?: string | string[] | null) {
+  if (Array.isArray(value)) return value.map((day) => day.charAt(0).toUpperCase() + day.slice(1)).join(", ");
+  return value || "-";
 }
 
-// Helper component for detail rows with null checks
-function DetailRow({ label, value }: { label: string; value?: string | null }) {
+/** Right-hand drawer with the candidate summary; `children` render below the summary. */
+export function CandidateDetailsSheet({ isOpen, onClose, candidate, children, title = "Candidate Details", footer }: CandidateDetailsSheetProps) {
+  const c = candidate;
+  const items = c
+    ? [
+        { key: "name", label: "Candidate Name", children: c.candidateName || c.fullName || "-" },
+        ...(c.intakeStatusName ? [{ key: "status", label: "Status", children: c.intakeStatusName }] : []),
+        ...(c.interviewModeName ? [{ key: "mode", label: "Mode of Interview", children: c.interviewModeName }] : []),
+        ...(c.panelNames ? [{ key: "panel", label: "Panel Member", children: c.panelNames || "No panel members assigned" }] : []),
+        ...(c.availableDays ? [{ key: "days", label: "Available Days", children: formatArray(c.availableDays) }] : []),
+        ...(c.rejectionCount ? [{ key: "declined", label: "Declined", children: String(c.rejectionCount) }] : []),
+        ...(c.hmComments ? [{ key: "hm", label: "Hiring Comments", children: c.hmComments || "No comments available" }] : []),
+        ...(c.partnerComments ? [{ key: "partner", label: "Partner Comments", children: c.partnerComments || "No comments available" }] : []),
+      ]
+    : [];
+
   return (
-    <div className="flex justify-between items-center py-1">
-      <span className="text-sm font-medium text-gray-500">{label}</span>
-      <span className="text-sm font-medium text-gray-500 ml-4 text-right">{value || "-"}</span>
-    </div>
+    <Drawer open={isOpen} onClose={onClose} title={title} size="large" destroyOnHidden footer={footer}>
+      {c ? (
+        <>
+          <Descriptions bordered size="small" column={1} styles={{ label: { width: 180 } }} items={items} />
+          {children}
+        </>
+      ) : (
+        <Empty description="No candidate selected" />
+      )}
+    </Drawer>
   );
 }

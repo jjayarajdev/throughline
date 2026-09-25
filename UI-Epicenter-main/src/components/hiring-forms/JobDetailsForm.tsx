@@ -1,112 +1,96 @@
 "use client";
-
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm, useWatch } from "react-hook-form";
-import * as z from "zod";
-import { Button } from "@/components/ui/button";
-import { Form } from "@/components/ui/form";
-import { InputField } from "../form-fields/InputField";
-import { SelectField } from "../form-fields/SelectField";
+import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { Button, Col, DatePicker, Flex, Form, Input, Row, Select, Space, Spin, Tooltip, Typography, Upload } from "antd";
+import { PaperClipOutlined } from "@ant-design/icons";
 import pdfToText from "react-pdftotext";
 import mammoth from "mammoth";
 import * as XLSX from "xlsx";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import * as z from "zod";
+import { toast } from "@/lib/toast";
+import { validateWithZod, zodRules } from "@/lib/zodRules";
 import { dropdownApi } from "../../services/api/master";
 import { MasterTypes } from "@/constants/masterTypes";
-import { useEffect, useState, useRef } from "react";
-import { TextareaField } from "../form-fields/TextAreaField";
-import { useJobDetailsDropdown } from "./hooks/useJobDetailsDropdown";
-import { Paperclip } from "lucide-react";
-import { useParams } from "next/navigation";
-import { MultiSelectField } from "../form-fields/MultiSelectField";
 import { hiringApi, HiringReqPayload } from "@/services/api/hiring.api";
-import { toast } from "@/lib/toast";
-import { useHiringStore } from "@/store/useHiringStore";
-import SubmitFormLoader from "../common/SubmitFormLoader";
-import { DatePickerField } from "../form-fields/DatePickerField";
-import { LoadingButton } from "../form-fields/LoadingButton";
 import { AddSkillDialog } from "../dialog/AddSkillDialog";
-import { useQueryClient } from "@tanstack/react-query";
+import { useJobDetailsDropdown } from "./hooks/useJobDetailsDropdown";
+import { dateItem, idNameMulti, toIdOptions, toOptions } from "./shared";
+
+const idName = z.object({ id: z.number(), name: z.string() });
+
+const step3Fields = z.object({
+  jobDescription: z.string().min(1, "Job description is required"),
+  hiringActivity: z.string().min(1, "Hiring Activity is required"),
+  jobPriority: z.string().min(1, "Job Priority is required"),
+  hiringDate: z.string().min(1, "Hiring Date is required"),
+  resourceType: z.string().min(1, "Resource Type is required"),
+  subDomain: z.string().min(1, "Sub-Domain is required"),
+  domainManager: z.string().optional(),
+  subDomainManager: z.string().optional(),
+  primarySkills: z.array(idName).min(1, "At least one Primary skill is required"),
+  secondarySkills: z.array(idName).min(1, "At least one Secondary skill is required"),
+  mandatoryCertification: z.string().optional(),
+  jobLevels: z.string().min(1, "Job Levels is required"),
+  relevantExperience: z.string().min(1, "Relevant Experience is required"),
+  totalExperience: z.string().min(1, "Total Experience is required"),
+  country: z.string().min(1, "Country is required"),
+  state: z.array(idName).min(1, "At least one State is required"),
+  city: z.array(idName).min(1, "At least one primary city is required"),
+  secondaryCity: z.array(idName).optional(),
+  badgeRecId: z.string().optional(),
+});
+
 const step3Schema = (jobLevels: any[]) =>
-  z
-    .object({
-      jobDescription: z.string().min(1, "Job description is required"),
-      hiringActivity: z.string().min(1, "Hiring Activity is required"),
-      jobPriority: z.string().min(1, "Job Priority is required"),
-      hiringDate: z.string().min(1, "Hiring Date is required"),
-      resourceType: z.string().min(1, "Resource Type is required"),
-      subDomain: z.string().min(1, "Sub-Domain is required"),
-      domainManager: z.string().optional(),
-      subDomainManager: z.string().optional(),
-      primarySkills: z
-        .array(
-          z.object({
-            id: z.number(),
-            name: z.string(),
-          })
-        )
-        .min(1, "At least one Primary skill is required"),
-      secondarySkills: z
-        .array(
-          z.object({
-            id: z.number(),
-            name: z.string(),
-          })
-        )
-        .min(1, "At least one Secondary skill is required"),
-      mandatoryCertification: z.string().optional(),
-      jobLevels: z.string().min(1, "Job Levels is required"),
-      relevantExperience: z.string().min(1, "Relevant Experience is required"),
-      totalExperience: z.string().min(1, "Total Experience is required"),
-      country: z.string().min(1, "Country is required"),
-      state:z.array(z.object({
-          id: z.number(),
-          name: z.string(),
-        })).min(1, "At least one State is required"),
-      city:z.array(z.object({
-          id: z.number(),
-          name: z.string(),
-        })).min(1, "At least one primary city is required"),
-      secondaryCity:z
-            .array(
-              z.object({
-                id: z.number(),
-                name: z.string(),
-              })
-            )
-            .optional(),
-      badgeRecId:z.string().optional()
-    })
-    .superRefine((data, ctx) => {
-      const selected = jobLevels.find(
-        (j) => j.id.toString() === data.jobLevels
-      );
-      const value = Number(data.relevantExperience);
+  step3Fields.superRefine((data, ctx) => {
+    const selected = jobLevels.find((j) => j.id.toString() === data.jobLevels);
+    const value = Number(data.relevantExperience);
 
-      if (selected && !isNaN(value)) {
-        const min = selected.defaultExperience - selected.experienceRange;
-        const max = selected.defaultExperience;
+    if (selected && !isNaN(value)) {
+      const min = selected.defaultExperience - selected.experienceRange;
+      const max = selected.defaultExperience;
 
-        if (value < min || value > max) {
-          ctx.addIssue({
-            path: ["relevantExperience"],
-            code: z.ZodIssueCode.custom,
-            message: `Relevant experience must be between ${min} and ${max} years for the selected job level.`,
-          });
-        }
-      }
-
-       if (["40001", "40014"].includes(data.resourceType) && !data.badgeRecId) {
+      if (value < min || value > max) {
         ctx.addIssue({
-          path: ["badgeRecId"],
+          path: ["relevantExperience"],
           code: z.ZodIssueCode.custom,
-          message: "Badge Rec Id is required for this resource type.",
+          message: `Relevant experience must be between ${min} and ${max} years for the selected job level.`,
         });
       }
-    });
+    }
 
-const emptySchema = step3Schema([]);
-type Step3Values = z.infer<typeof emptySchema>;
+    if (["40001", "40014"].includes(data.resourceType) && !data.badgeRecId) {
+      ctx.addIssue({
+        path: ["badgeRecId"],
+        code: z.ZodIssueCode.custom,
+        message: "Badge Rec Id is required for this resource type.",
+      });
+    }
+  });
+
+type Step3Values = z.infer<typeof step3Fields>;
+
+const defaultValues: Step3Values = {
+  jobDescription: "",
+  hiringActivity: "",
+  jobPriority: "",
+  hiringDate: "",
+  resourceType: "",
+  subDomain: "",
+  domainManager: "",
+  subDomainManager: "",
+  primarySkills: [],
+  secondarySkills: [],
+  mandatoryCertification: "",
+  jobLevels: "",
+  relevantExperience: "",
+  totalExperience: "",
+  country: "",
+  state: [],
+  city: [],
+  secondaryCity: [],
+  badgeRecId: "",
+};
 
 interface RCMSStep3FormProps {
   onPrevious?: () => void;
@@ -114,185 +98,91 @@ interface RCMSStep3FormProps {
   domainId?: number;
 }
 
-export default function JobDetailsForm({
-  onPrevious,
-  onNext,
-  domainId,
-}: RCMSStep3FormProps) {
+/** Step 2 of the hiring request: job description, skills, experience and location. */
+export default function JobDetailsForm({ onPrevious, onNext, domainId }: RCMSStep3FormProps) {
   const { hiring } = useParams();
-  const { data: jobLevel = [] } = useQuery({
-    queryKey: ["jobLevel"],
-    queryFn: () => dropdownApi.fetchDropdown(MasterTypes.JOB_LEVEL),
-  });
-  const form = useForm<Step3Values>({
-    resolver: zodResolver(step3Schema(jobLevel)),
-    defaultValues: {
-      jobDescription: "",
-      hiringActivity: "",
-      jobPriority: "",
-      hiringDate: "",
-      resourceType: "",
-      subDomain: "",
-      domainManager: "",
-      subDomainManager: "",
-      primarySkills: [],
-      secondarySkills: [],
-      mandatoryCertification: "",
-      jobLevels: "",
-      relevantExperience: "",
-      totalExperience: "",
-      country: "",
-      state:[],
-      city:[],
-      secondaryCity:[],
-      badgeRecId:""
-    },
-  });
-
+  const [form] = Form.useForm<Step3Values>();
   const { hiringActivity, jobPriority } = useJobDetailsDropdown();
-  const selectedCountry = form.watch("country");
-  const selectedState = form.watch("state");
-  const selectedStates = selectedState?.map((id) => Number(id.id)) || [];
-  // const { data: subdomain = [] } = useQuery({
-  //   queryKey: ["subDomain", domainId],
-  //   queryFn: () =>
-  //     dropdownApi.fetchSubDropDown(MasterTypes.SUBDOMAIN,
-  //       domainId?.toString() || ""
-  //     ),
-  //   enabled: !!domainId,
-  // });
-  
+
+  const selectedCountry = Form.useWatch("country", form);
+  const selectedState = Form.useWatch("state", form);
+  const selectedLevel = Form.useWatch("jobLevels", form);
+  const selectedSubDomain = Form.useWatch("subDomain", form);
+  const resourceTypeValue = Form.useWatch("resourceType", form);
+  const selectedStates = selectedState?.map((s) => Number(s.id)) || [];
+
+  const { data: jobLevel = [] } = useQuery({ queryKey: ["jobLevel"], queryFn: () => dropdownApi.fetchDropdown(MasterTypes.JOB_LEVEL) });
   const { data: subdomain = [] } = useQuery({
     queryKey: ["subDomain", domainId],
-    queryFn: () =>
-      dropdownApi.fetchSubDropDowns([Number(domainId)]),
+    queryFn: () => dropdownApi.fetchSubDropDowns([Number(domainId)]),
     enabled: !!domainId,
   });
-
-
-  const { data: resourceType = [] } = useQuery({
-    queryKey: ["resourceType"],
-    queryFn: () => dropdownApi.fetchDropdown(MasterTypes.RESOURCE_TYPE),
-  });
-  const { data: PrimarySkills = [],isLoading:primarySkillsLoading } = useQuery({
-    queryKey: ["PrimarySkills"],
-    queryFn: () => dropdownApi.fetchDropdown(MasterTypes.PRIMARY_SKILLS),
-  });
-
-  const { data: SecondarySkills = [],isLoading:secondarySkillsLoading } = useQuery({
-    queryKey: ["SecondarySkills"],
-    queryFn: () => dropdownApi.fetchDropdown(MasterTypes.SECONDARY_SKILLS),
-  });
-
-  const { data: country = [] } = useQuery({
-    queryKey: ["country"],
-    queryFn: () => dropdownApi.fetchDropdown(MasterTypes.COUNTRY),
-  });
-
+  const { data: resourceType = [] } = useQuery({ queryKey: ["resourceType"], queryFn: () => dropdownApi.fetchDropdown(MasterTypes.RESOURCE_TYPE) });
+  const { data: PrimarySkills = [], isLoading: primarySkillsLoading } = useQuery({ queryKey: ["PrimarySkills"], queryFn: () => dropdownApi.fetchDropdown(MasterTypes.PRIMARY_SKILLS) });
+  const { data: SecondarySkills = [], isLoading: secondarySkillsLoading } = useQuery({ queryKey: ["SecondarySkills"], queryFn: () => dropdownApi.fetchDropdown(MasterTypes.SECONDARY_SKILLS) });
+  const { data: country = [] } = useQuery({ queryKey: ["country"], queryFn: () => dropdownApi.fetchDropdown(MasterTypes.COUNTRY) });
   const { data: states = [], refetch: refetchStates } = useQuery({
     queryKey: ["states", selectedCountry],
-    queryFn: () =>
-      dropdownApi.fetchDropdown(MasterTypes.STATE, {
-        countryId: parseInt(selectedCountry),
-      }),
+    queryFn: () => dropdownApi.fetchDropdown(MasterTypes.STATE, { countryId: parseInt(selectedCountry) }),
     enabled: !!selectedCountry,
   });
-
   const { data: cities = [], refetch: refetchCities } = useQuery({
     queryKey: ["cities", selectedStates],
-    queryFn: () =>
-      dropdownApi.fetchSubCitys(MasterTypes.CITY,
-      selectedStates,
-      ),
+    queryFn: () => dropdownApi.fetchSubCitys(MasterTypes.CITY, selectedStates),
     enabled: !!selectedStates,
   });
-  const selectedLevel = form.watch("jobLevels");
 
   const [maxLimit, setMaxLimit] = useState(0);
-
-  useEffect(() => {
-    const level = jobLevel.find(
-      (j: { id: { toString: () => string } }) =>
-        j.id.toString() === selectedLevel
-    );
-    if (level) {
-      setMaxLimit(level.experienceRange);
-      form.setValue("relevantExperience", String(level.defaultExperience));
-    }
-  }, [selectedLevel, form, jobLevel]);
-
-  useEffect(() => {
-    const subDomainManager = subdomain.find(
-      (subdomain: { id: number }) =>
-        subdomain.id === Number(form.watch("subDomain"))
-    );
-    if (subDomainManager) {
-      form.setValue("subDomainManager", subDomainManager.subDomainManagerName);
-    }
-  }, [form.watch("subDomain")]);
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
   const [isAddSkillOpen, setIsAddSkillOpen] = useState(false);
   const [isPrimary, setisPrimary] = useState(true);
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  useEffect(() => {
+    const level = (jobLevel as any[]).find((j) => j.id.toString() === selectedLevel);
+    if (level) {
+      setMaxLimit(level.experienceRange);
+      form.setFieldValue("relevantExperience", String(level.defaultExperience));
+    }
+  }, [selectedLevel, form, jobLevel]);
 
+  useEffect(() => {
+    const subDomainManager = (subdomain as any[]).find((s) => s.id === Number(selectedSubDomain));
+    if (subDomainManager) form.setFieldValue("subDomainManager", subDomainManager.subDomainManagerName);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSubDomain]);
+
+  const handleFile = async (file: File) => {
     setLoading(true);
     try {
       let text = "";
       if (file.type === "application/pdf") {
         text = await pdfToText(file);
-      } else if (
-        file.type ===
-          "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
-        file.name.endsWith(".docx")
-      ) {
+      } else if (file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || file.name.endsWith(".docx")) {
         const arrayBuffer = await file.arrayBuffer();
         const result = await mammoth.extractRawText({ arrayBuffer });
         text = result.value;
-      } else if (
-        file.type === "application/msword" ||
-        file.name.endsWith(".doc")
-      ) {
-        toast.warning(
-          "Old .doc files have limited support. Consider using .docx for better results."
-        );
+      } else if (file.type === "application/msword" || file.name.endsWith(".doc")) {
+        toast.warning("Old .doc files have limited support. Consider using .docx for better results.");
       } else if (file.type === "text/plain" || file.name.endsWith(".txt")) {
-        // Text files
         text = await file.text();
-      } else if (
-        file.type.includes("spreadsheetml") ||
-        file.name.endsWith(".xlsx") ||
-        file.name.endsWith(".xls")
-      ) {
-        // Excel files
+      } else if (file.type.includes("spreadsheetml") || file.name.endsWith(".xlsx") || file.name.endsWith(".xls")) {
         const data = await file.arrayBuffer();
         const workbook = XLSX.read(data);
-
-        // Get first sheet
         const sheetName = workbook.SheetNames[0];
         const sheet = workbook.Sheets[sheetName];
-
-        // Convert to text
         text = XLSX.utils.sheet_to_txt(sheet);
       } else {
-        toast.error(
-          "Unsupported file format. Please use PDF, Word, Excel or text files."
-        );
+        toast.error("Unsupported file format. Please use PDF, Word, Excel or text files.");
         return;
       }
 
-      form.setValue("jobDescription", text);
+      form.setFieldValue("jobDescription", text);
       toast.success(`Job description extracted from ${file.name}`);
     } catch (err) {
       console.error("File parsing failed", err);
       toast.error("Failed to extract text from the file");
     } finally {
       setLoading(false);
-      e.target.value = "";
     }
   };
 
@@ -301,11 +191,11 @@ export default function JobDetailsForm({
     mutationFn: hiringApi.createJobDetails,
     onSuccess: (data) => {
       toast.success(data?.message || "Job Details Created successfully");
-      form.reset();
+      form.resetFields();
       onNext?.();
     },
     onError: (error) => {
-      toast.error( error?.message || "Failed to create job details");
+      toast.error(error?.message || "Failed to create job details");
       console.error("Error creating partner:", error);
     },
   });
@@ -317,8 +207,7 @@ export default function JobDetailsForm({
   });
 
   const { mutate: updateJobdetails, isPending: UpdateLoading } = useMutation({
-    mutationFn: (values: HiringReqPayload) =>
-      hiringApi.updateJobDetails(Number(getJobdetails?.id), values),
+    mutationFn: (values: HiringReqPayload) => hiringApi.updateJobDetails(Number(getJobdetails?.id), values as any),
     onSuccess: (data) => {
       toast.success(data?.message || "Updated Successfully");
       onNext?.();
@@ -329,7 +218,9 @@ export default function JobDetailsForm({
     },
   });
 
-  const handleSubmit = (values: Step3Values) => {
+  const handleSubmit = (raw: Step3Values) => {
+    const values = validateWithZod(step3Schema(jobLevel), form, raw);
+    if (!values) return;
     const payload = {
       hiringRequestId: Number(hiring),
       isActive: true,
@@ -343,23 +234,19 @@ export default function JobDetailsForm({
       resourceTypeId: Number(values.resourceType),
       countryId: Number(values.country),
       stateIds: values.state.map((item) => item.id),
-      primaryCityIds:values.city.map((item) => item.id),
-      secondaryCityIds:values.secondaryCity?values.secondaryCity.map((item) => item.id):[],
+      primaryCityIds: values.city.map((item) => item.id),
+      secondaryCityIds: values.secondaryCity ? values.secondaryCity.map((item) => item.id) : [],
       subDomainId: Number(values.subDomain),
-      primarySkills: values.primarySkills.map(
-        (skill: { id: number }) => skill.id
-      ),
-      secondarySkills: (values.secondarySkills || []).map(
-        (skill: { id: number }) => skill.id
-      ),
+      primarySkills: values.primarySkills.map((skill: { id: number }) => skill.id),
+      secondarySkills: (values.secondarySkills || []).map((skill: { id: number }) => skill.id),
       mandatoryCertification: values.mandatoryCertification ?? "",
       id: getJobdetails?.id || 0,
-      badgeRecId:values.badgeRecId ?values.badgeRecId:null
+      badgeRecId: values.badgeRecId ? values.badgeRecId : null,
     };
-    if (!!getJobdetails) {
-      updateJobdetails(payload);
+    if (getJobdetails) {
+      updateJobdetails(payload as any);
     } else {
-      createJobDetails(payload);
+      createJobDetails(payload as any);
     }
   };
 
@@ -367,380 +254,247 @@ export default function JobDetailsForm({
     if (!getJobdetails) return;
     setLoading(true);
     const setDataTimer = setTimeout(() => {
-      if (getJobdetails) {
-        const { countryId } =
-          getJobdetails;
-
-        const mapIdsToObjects = (ids: number[] = []) =>
-          PrimarySkills.filter((skill: { id: number }) =>
-            ids.includes(skill.id)
-          );
-
-        const mapSecondary = (ids: number[] = []) =>
-          SecondarySkills.filter((skill: { id: number }) =>
-            ids.includes(skill.id)
-          );
-        form.reset({
-          jobDescription: getJobdetails.jobDescription || "",
-          hiringActivity: String(getJobdetails.hiringActivityId),
-          jobPriority: String(getJobdetails.jobPriorityId),
-          hiringDate: getJobdetails.hiringDate?.split("T")[0] || "",
-          resourceType: String(getJobdetails.resourceTypeId),
-          domainManager: getJobdetails.domainManagerName || "",
-          subDomainManager: getJobdetails.subDomainManagerName || "",
-          primarySkills: mapIdsToObjects(getJobdetails.primarySkills),
-          secondarySkills: mapSecondary(getJobdetails.secondarySkills),
-          mandatoryCertification: getJobdetails.mandatoryCertification || "",
-          jobLevels: String(getJobdetails.jobLevelId),
-          relevantExperience: String(getJobdetails.relevantExperience),
-          totalExperience: String(getJobdetails.totalExperience),
-          country: String(countryId),
-          badgeRecId:getJobdetails.badgeRecId?.toString()|| ""
-        });
-      }
+      const { countryId } = getJobdetails;
+      const mapIdsToObjects = (ids: number[] = []) => (PrimarySkills as any[]).filter((skill: { id: number }) => ids.includes(skill.id));
+      const mapSecondary = (ids: number[] = []) => (SecondarySkills as any[]).filter((skill: { id: number }) => ids.includes(skill.id));
+      form.resetFields();
+      form.setFieldsValue({
+        jobDescription: getJobdetails.jobDescription || "",
+        hiringActivity: String(getJobdetails.hiringActivityId),
+        jobPriority: String(getJobdetails.jobPriorityId),
+        hiringDate: getJobdetails.hiringDate?.split("T")[0] || "",
+        resourceType: String(getJobdetails.resourceTypeId),
+        domainManager: getJobdetails.domainManagerName || "",
+        subDomainManager: getJobdetails.subDomainManagerName || "",
+        primarySkills: mapIdsToObjects(getJobdetails.primarySkills),
+        secondarySkills: mapSecondary(getJobdetails.secondarySkills),
+        mandatoryCertification: getJobdetails.mandatoryCertification || "",
+        jobLevels: String(getJobdetails.jobLevelId),
+        relevantExperience: String(getJobdetails.relevantExperience),
+        totalExperience: String(getJobdetails.totalExperience),
+        country: String(countryId),
+        badgeRecId: getJobdetails.badgeRecId?.toString() || "",
+      });
     }, 500);
     const subDomainTimer = setTimeout(() => {
-      form.setValue("subDomain", String(getJobdetails?.subDomainId) || "");
-       setLoading(false);
+      form.setFieldValue("subDomain", String(getJobdetails?.subDomainId) || "");
+      setLoading(false);
     }, 1500);
-
-    
 
     return () => {
       clearTimeout(setDataTimer);
       clearTimeout(subDomainTimer);
     };
-  }, [getJobdetails, form,primarySkillsLoading,secondarySkillsLoading]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [getJobdetails, form, primarySkillsLoading, secondarySkillsLoading]);
 
   useEffect(() => {
     if (selectedCountry) {
-      form.setValue("state", []);
-      form.setValue("city", []);
+      form.setFieldsValue({ state: [], city: [] });
       refetchStates();
     }
   }, [selectedCountry, form, refetchStates]);
 
   useEffect(() => {
     if (selectedState) {
-      form.setValue("city", []);
+      form.setFieldValue("city", []);
       refetchCities();
     }
   }, [selectedState, form, refetchCities]);
- 
-useEffect(() => {
-  const existingStateIds = getJobdetails?.stateIds || [];
-  if (states.length > 0 && existingStateIds.length > 0) {
-    const matchedStates = states.filter((s: any) =>
-      existingStateIds.includes(s.id)
-    );
 
-    if (matchedStates.length > 0) {
-      const currentState = form.getValues("state") || [];
-      if (currentState.length === 0) {
-        form.setValue(
-          "state",
-          matchedStates.map((m: any) => ({ id: m.id, name: m.name }))
-        );
+  useEffect(() => {
+    const existingStateIds: number[] = getJobdetails?.stateIds || [];
+    if (states.length > 0 && existingStateIds.length > 0) {
+      const matchedStates = (states as any[]).filter((s) => existingStateIds.includes(s.id));
+      if (matchedStates.length > 0) {
+        const currentState = form.getFieldValue("state") || [];
+        if (currentState.length === 0) form.setFieldValue("state", matchedStates.map((m) => ({ id: m.id, name: m.name })));
       }
     }
-  }
 
-  const existingPrimaryCityIds = getJobdetails?.primaryCityIds || [];
-  if (cities.length > 0 && existingPrimaryCityIds.length > 0) {
-    const matchedCities = cities.filter((c: any) =>
-      existingPrimaryCityIds.includes(c.id)
-    );
-
-    if (matchedCities.length > 0) {
-      const currentCities = form.getValues("city") || [];
-      if (currentCities.length === 0) {
-        form.setValue(
-          "city",
-          matchedCities.map((m: any) => ({ id: m.id, name: m.name }))
-        );
+    const existingPrimaryCityIds: number[] = getJobdetails?.primaryCityIds || [];
+    if (cities.length > 0 && existingPrimaryCityIds.length > 0) {
+      const matchedCities = (cities as any[]).filter((c) => existingPrimaryCityIds.includes(c.id));
+      if (matchedCities.length > 0) {
+        const currentCities = form.getFieldValue("city") || [];
+        if (currentCities.length === 0) form.setFieldValue("city", matchedCities.map((m) => ({ id: m.id, name: m.name })));
       }
     }
-  }
 
-  const existingSecondaryCityIds = getJobdetails?.secondaryCityIds || [];
-  if (cities.length > 0 && existingSecondaryCityIds.length > 0) {
-    const matchedSecondary = cities.filter((c: any) =>
-      existingSecondaryCityIds.includes(c.id)
-    );
-
-    if (matchedSecondary.length > 0) {
-      const currentSecondary = form.getValues("secondaryCity") || [];
-      if (currentSecondary.length === 0) {
-        form.setValue(
-          "secondaryCity",
-          matchedSecondary.map((m: any) => ({ id: m.id, name: m.name }))
-        );
+    const existingSecondaryCityIds: number[] = getJobdetails?.secondaryCityIds || [];
+    if (cities.length > 0 && existingSecondaryCityIds.length > 0) {
+      const matchedSecondary = (cities as any[]).filter((c) => existingSecondaryCityIds.includes(c.id));
+      if (matchedSecondary.length > 0) {
+        const currentSecondary = form.getFieldValue("secondaryCity") || [];
+        if (currentSecondary.length === 0) form.setFieldValue("secondaryCity", matchedSecondary.map((m) => ({ id: m.id, name: m.name })));
       }
     }
-  }
-}, [states, cities, getJobdetails, form]);
+  }, [states, cities, getJobdetails, form]);
 
-  const resourceTypeValue = useWatch({
-  control: form.control,
-  name: "resourceType",
-});
+  const multiSelect = (placeholder: string, options: any[], disabled?: boolean) => (
+    <Select mode="multiple" labelInValue showSearch optionFilterProp="label" maxTagCount="responsive" placeholder={placeholder} options={toIdOptions(options)} disabled={disabled} />
+  );
+
   return (
     <>
-      <Form {...form}>
-        <form
-          onSubmit={form.handleSubmit(handleSubmit)}
-          className="space-y-8 relative"
-        >
-          {(createPending || UpdateLoading || loading) && <SubmitFormLoader />}
-          <h2 className="text-xl font-semibold">Job Details</h2>
-          <div className="relative">
-            <TextareaField
-              control={form.control}
+      <Form form={form} layout="vertical" onFinish={handleSubmit} initialValues={defaultValues}>
+        <Spin spinning={createPending || UpdateLoading || loading} description={loading ? "Extracting…" : undefined}>
+          <Flex vertical gap={16}>
+            <Typography.Title level={5} style={{ margin: 0 }}>
+              Job Details
+            </Typography.Title>
+
+            <Form.Item
               name="jobDescription"
-              label="Job Description (JD)"
-              placeholder="Enter Job Description"
-              required
-            />
-
-            <div className="absolute inset-y-0 right-2 flex items-center mt-8">
-              <input
-                type="file"
-                accept=".pdf,.docx,.doc,.txt,.xlsx,.xls"
-                ref={fileInputRef}
-                className="hidden"
-                onChange={handleFileChange}
-              />
-
-              {/* Pin icon container */}
-              <div className="absolute inset-y-0 right-2 flex items-center">
-                {loading ? (
-                  <span className="text-sm text-gray-500 animate-pulse">
-                    Extracting…
-                  </span>
-                ) : (
-                  <Paperclip
-                    className="h-6 w-6 text-gray-400 cursor-pointer"
-                    onClick={() => fileInputRef.current?.click()}
-                  />
-                )}
-              </div>
-            </div>
-          </div>
-          {loading && <h2>Loading</h2>}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <SelectField
-              control={form.control}
-              name="hiringActivity"
-              label="Hiring Activity"
-              placeholder="Select Hiring Activity"
-              options={hiringActivity}
-              required
-            />
-            <SelectField
-              control={form.control}
-              name="jobPriority"
-              label="Job Priority"
-              placeholder="Select Job Priority"
-              options={jobPriority}
-              required
-            />
-
-            <DatePickerField
-              control={form.control}
-              name="hiringDate"
-              label="Target Hiring Date"
-              placeholder="Select Target Date"
-              required
-            />
-            <SelectField
-              control={form.control}
-              name="resourceType"
-              label="Resource Type"
-              placeholder="Select Resource Type"
-              options={resourceType}
-              required
-            />
-            {[40001, 40014].includes(Number(resourceTypeValue)) && (
-              <InputField
-                control={form.control}
-                name="badgeRecId"
-                label="Badge Rec"
-                placeholder="Enter Badge Rec"
-                required
-                type="number"
-                maxLength={7}
-               />
-             )}
-            <SelectField
-              control={form.control}
-              name="subDomain"
-              label="Sub-Domain"
-              placeholder="Select Sub-Domain"
-              options={subdomain}
-              required
-            />
-
-            <InputField
-              control={form.control}
-              name="subDomainManager"
-              label="Sub-Domain Manager"
-              placeholder="Sub-Domain Manager Name"
-              disabled
-              required
-            />
-            <div className="col-span-1">
-              <div className="flex items-end gap-4">
-                <div className="flex-1">
-                  <MultiSelectField
-                    control={form.control}
-                    name="primarySkills"
-                    label="Primary Skills"
-                    placeholder="Select Primary Skills"
-                    options={PrimarySkills}
-                    required
-                  />
-                </div>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => {
-                    setisPrimary(true);
-                    setIsAddSkillOpen(true);
-                  }}
-                  className="mb-1"
-                >
-                  Add Skill
-                </Button>
-              </div>
-            </div>
-            <div className="col-span-1">
-              <div className="flex items-end gap-4">
-                <div className="flex-1">
-                  <MultiSelectField
-                    control={form.control}
-                    name="secondarySkills"
-                    label="Secondary Skills"
-                    placeholder="Select Secondary Skills"
-                    options={SecondarySkills}
-                    required
-                  />
-                </div>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => {
-                    setisPrimary(false);
-                    setIsAddSkillOpen(true);
-                  }}
-                  className="mb-1"
-                >
-                  Add Skill
-                </Button>
-              </div>
-            </div>
-
-            <InputField
-              control={form.control}
-              name="mandatoryCertification"
-              label="Mandatory Certification"
-              placeholder="Enter Mandatory Certification"
-              required
-            />
-
-            <SelectField
-              control={form.control}
-              name="jobLevels"
-              label="Job Levels"
-              placeholder="Select Job Level"
-              options={jobLevel}
-              required
-            />
-            <InputField
-              control={form.control}
-              name="relevantExperience"
-              label="Relevant Experience"
-              placeholder="Enter Relevant Experience"
-              max={maxLimit}
-              required
-            />
-            <InputField
-              control={form.control}
-              name="totalExperience"
-              label="Total Experience"
-              placeholder="Enter Total Experience"
-              required
-            />
-
-            <SelectField
-              control={form.control}
-              name="country"
-              label="Country"
-              placeholder="Select Country"
-              options={country}
-              required
-            />
-
-            <MultiSelectField
-              control={form.control}
-              name="state"
-              label="State"
-              placeholder="Select States"
-              options={states}
-              required
-            />
-
-            <MultiSelectField
-              control={form.control}
-              name="city"
-              label="City"
-              placeholder="Select Primary Citys"
-              options={cities}
-              required
-            />
-
-            <MultiSelectField
-              control={form.control}
-              name="secondaryCity"
-              label="Secondary City"
-              placeholder="Select Secondary Citys"
-              options={cities}
-            />
-          </div>
-
-          {/* Buttons */}
-          <div className="flex justify-between pt-6">
-            <Button
-              variant="secondary"
-              type="button"
-              onClick={onPrevious}
-              className="px-8"
+              rules={zodRules(step3Fields, "jobDescription")}
+              label={
+                <Space>
+                  Job Description (JD)
+                  <Upload
+                    accept=".pdf,.docx,.doc,.txt,.xlsx,.xls"
+                    showUploadList={false}
+                    beforeUpload={(file) => {
+                      handleFile(file);
+                      return false;
+                    }}
+                  >
+                    <Tooltip title="Extract from a PDF, Word, Excel or text file">
+                      <Button type="text" size="small" icon={<PaperClipOutlined />} loading={loading} />
+                    </Tooltip>
+                  </Upload>
+                </Space>
+              }
             >
-              Previous
-            </Button>
-            <div className="flex space-x-4">
-              <LoadingButton
-                loading={UpdateLoading || createPending}
-                text={!!getJobdetails ? "Update" : "Save"}
-                loadingText={!!getJobdetails ? "Updating..." : "Saving..."}
-              />
-              <Button
-                variant="secondary"
-                type="button"
-                onClick={onNext}
-                className="px-8"
-              >
-                Next
-              </Button>
-            </div>
-          </div>
-        </form>
+              <Input.TextArea rows={5} placeholder="Enter Job Description" />
+            </Form.Item>
+
+            <Row gutter={[16, 8]}>
+              <Col xs={24} md={12}>
+                <Form.Item name="hiringActivity" label="Hiring Activity" rules={zodRules(step3Fields, "hiringActivity")}>
+                  <Select showSearch optionFilterProp="label" placeholder="Select Hiring Activity" options={toOptions(hiringActivity)} />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="jobPriority" label="Job Priority" rules={zodRules(step3Fields, "jobPriority")}>
+                  <Select showSearch optionFilterProp="label" placeholder="Select Job Priority" options={toOptions(jobPriority)} />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="hiringDate" label="Target Hiring Date" rules={zodRules(step3Fields, "hiringDate")} {...dateItem}>
+                  <DatePicker className="w-full" format="YYYY-MM-DD" placeholder="Select Target Date" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="resourceType" label="Resource Type" rules={zodRules(step3Fields, "resourceType")}>
+                  <Select showSearch optionFilterProp="label" placeholder="Select Resource Type" options={toOptions(resourceType)} />
+                </Form.Item>
+              </Col>
+              {[40001, 40014].includes(Number(resourceTypeValue)) && (
+                <Col xs={24} md={12}>
+                  <Form.Item name="badgeRecId" label="Badge Rec" required rules={zodRules(step3Fields, "badgeRecId")}>
+                    <Input type="number" maxLength={7} placeholder="Enter Badge Rec" />
+                  </Form.Item>
+                </Col>
+              )}
+              <Col xs={24} md={12}>
+                <Form.Item name="subDomain" label="Sub-Domain" rules={zodRules(step3Fields, "subDomain")}>
+                  <Select showSearch optionFilterProp="label" placeholder="Select Sub-Domain" options={toOptions(subdomain)} />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="subDomainManager" label="Sub-Domain Manager" required rules={zodRules(step3Fields, "subDomainManager")}>
+                  <Input placeholder="Sub-Domain Manager Name" disabled />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Flex gap={8} align="flex-start">
+                  <Form.Item name="primarySkills" label="Primary Skills" rules={zodRules(step3Fields, "primarySkills")} className="flex-1" {...idNameMulti}>
+                    {multiSelect("Select Primary Skills", PrimarySkills)}
+                  </Form.Item>
+                  <Form.Item label=" ">
+                    <Button
+                      onClick={() => {
+                        setisPrimary(true);
+                        setIsAddSkillOpen(true);
+                      }}
+                    >
+                      Add Skill
+                    </Button>
+                  </Form.Item>
+                </Flex>
+              </Col>
+              <Col xs={24} md={12}>
+                <Flex gap={8} align="flex-start">
+                  <Form.Item name="secondarySkills" label="Secondary Skills" rules={zodRules(step3Fields, "secondarySkills")} className="flex-1" {...idNameMulti}>
+                    {multiSelect("Select Secondary Skills", SecondarySkills)}
+                  </Form.Item>
+                  <Form.Item label=" ">
+                    <Button
+                      onClick={() => {
+                        setisPrimary(false);
+                        setIsAddSkillOpen(true);
+                      }}
+                    >
+                      Add Skill
+                    </Button>
+                  </Form.Item>
+                </Flex>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="mandatoryCertification" label="Mandatory Certification" required rules={zodRules(step3Fields, "mandatoryCertification")}>
+                  <Input placeholder="Enter Mandatory Certification" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="jobLevels" label="Job Levels" rules={zodRules(step3Fields, "jobLevels")}>
+                  <Select showSearch optionFilterProp="label" placeholder="Select Job Level" options={toOptions(jobLevel)} />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="relevantExperience" label="Relevant Experience" rules={zodRules(step3Fields, "relevantExperience")}>
+                  <Input placeholder="Enter Relevant Experience" max={maxLimit} />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="totalExperience" label="Total Experience" rules={zodRules(step3Fields, "totalExperience")}>
+                  <Input placeholder="Enter Total Experience" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="country" label="Country" rules={zodRules(step3Fields, "country")}>
+                  <Select showSearch optionFilterProp="label" placeholder="Select Country" options={toOptions(country)} />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="state" label="State" rules={zodRules(step3Fields, "state")} {...idNameMulti}>
+                  {multiSelect("Select States", states)}
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="city" label="City" rules={zodRules(step3Fields, "city")} {...idNameMulti}>
+                  {multiSelect("Select Primary Citys", cities)}
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="secondaryCity" label="Secondary City" rules={zodRules(step3Fields, "secondaryCity")} {...idNameMulti}>
+                  {multiSelect("Select Secondary Citys", cities)}
+                </Form.Item>
+              </Col>
+            </Row>
+
+            <Flex justify="space-between" wrap gap={8}>
+              <Button onClick={onPrevious}>Previous</Button>
+              <Space>
+                <Button type="primary" htmlType="submit" loading={UpdateLoading || createPending}>
+                  {UpdateLoading || createPending ? (getJobdetails ? "Updating..." : "Saving...") : getJobdetails ? "Update" : "Save"}
+                </Button>
+                <Button onClick={onNext}>Next</Button>
+              </Space>
+            </Flex>
+          </Flex>
+        </Spin>
       </Form>
-      <AddSkillDialog
-        isOpen={isAddSkillOpen}
-        onClose={() => setIsAddSkillOpen(false)}
-        isPrimary={isPrimary}
-        masterType={MasterTypes.SKILL}
-      />
+      <AddSkillDialog isOpen={isAddSkillOpen} onClose={() => setIsAddSkillOpen(false)} isPrimary={isPrimary} masterType={MasterTypes.SKILL} />
     </>
   );
 }

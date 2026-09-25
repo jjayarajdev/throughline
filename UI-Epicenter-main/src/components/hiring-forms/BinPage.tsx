@@ -1,345 +1,104 @@
 "use client";
-
-import { Button } from "@/components/ui/button";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  ArrowDownIcon,
-  ArrowUpIcon,
-  Ban,
-  Check,
-  ChevronDown,
-  Menu,
-} from "lucide-react";
+import React, { useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Partner } from "@/services/api/partner.profile.api";
+import { Button, Dropdown, Result } from "antd";
+import type { MenuProps } from "antd";
+import { CheckOutlined, MoreOutlined, StopOutlined } from "@ant-design/icons";
+import DataTable, { type DataColumn } from "@/components/data-table/DataTable";
+import { useTableState } from "@/components/data-table/useTableState";
+import { useSearchColumns } from "@/components/data-table/useSearchColumns";
+import { StatusBadge } from "@/components/status-badge";
 import { toast } from "@/lib/toast";
 import { Hiring, hiringApi } from "@/services/api/hiring.api";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "../ui/dropdown-menu";
-import { StatusBadge } from "../status-badge";
-import TableSkeletonLoader from "../skelton/TableSkelton";
-import { useDebounce } from "@/lib/useDebounce";
-import SearchFilter from "../common/SearchFilter";
 import { FilterTypeEnum } from "@/constants/FilterTypeEnum";
-import ColumnsPopover from "../common/PopoverColumns";
-import Pagination from "../common/Pagination";
-import { EntriesSelector } from "../common/PageEntries";
-import { formatDate, sortData, tatFormat } from "@/helpers/helper";
+import { formatDate, tatFormat } from "@/helpers/helper";
 import { isAdmin, isRmowner } from "@/store/userStore";
 
-interface Column {
-  id: keyof Hiring | "actions";
-  label: string;
-  visible: boolean;
-  sortable?: boolean;
-}
-
-type SortColumn = {
-  column: string;
-  descending: boolean;
-};
-
-type SortConfig = {
-  sortColumns: SortColumn[];
-} | null;
-
+/** Hiring requests waiting for review ("bin") — approve / reject from the row menu. */
 export default function BinPage() {
   const router = useRouter();
-  const [columns, setColumns] = useState<Column[]>([
-    { id: "hrqId", label: "HRQ ID", visible: true, sortable: true },
-    { id: "businessName", label: "Business", visible: true},
-    { id: "rcMsProjectId", label: "RCMS ID", visible: false},
-    { id: "projectName", label: "Project", visible: true },
-    { id: "requestorName", label: "Requester", visible: true },
-    { id: "jobTitle", label: "Role Hired For", visible: true },
-    {
-      id: "requestStartDate",
-      label: "Request Start Date",
-      visible: true,
-      sortable: true,
-    },
-    { id: "hiringStatusName", label: "Status", visible: true },
-         ...((isAdmin || isRmowner ) ? [ { id: "parentHrqId", label: "Parent HRQID", visible: false }] : []),
-    { id: "tatDate", label: "TAT (Hours/Days)", visible: true },
-    { id: "actions", label: "Actions", visible: true },
-  ]);
+  const t = useTableState({ pageSize: 50, sortBy: "hrqId", sortOrder: "desc", searchColumn: "HrqId" });
+  const searchColumns = useSearchColumns(FilterTypeEnum.HiringManagement);
 
-  const [sortConfig, setSortConfig] = useState<SortConfig>({
-    sortColumns: [{ column: "hrqId", descending: true }],
-  });
-  const [searchText, setSearchText] = useState("");
-
-  const [currentPage, setCurrentPage] = useState(1);
-
-  const debouncedSearch = useDebounce(searchText, 300);
-  const [searchColumn, setSearchColumn] = useState("HrqId");
-  const [pageSize, setPageSize] = useState(50);
-
-  const {
-    data: hiringBindData,
-    isLoading,
-    error,
-    refetch: reFetchData,
-  } = useQuery({
-    queryKey: [
-      "hiringBin",
-      currentPage,
-      searchColumn,
-      debouncedSearch,
-      pageSize,
-      sortConfig,
-    ],
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ["hiringBin", t.query, t.sortColumns],
     queryFn: () =>
       hiringApi.getHiringBin({
-        pageNumber: currentPage,
-        pageSize,
-        searchColumn,
-        searchText: debouncedSearch || undefined,
-        sortColumns: sortConfig.sortColumns,
+        pageNumber: t.query.pageNumber,
+        pageSize: t.query.pageSize,
+        searchColumn: t.query.searchColumn,
+        searchText: t.query.searchText,
+        sortColumns: t.sortColumns,
         isBin: true,
       }),
     refetchOnWindowFocus: true,
   });
 
-  if (error) {
-    toast.error("Failed to fetch hiring");
-  }
+  useEffect(() => {
+    if (error) toast.error("Failed to fetch hiring");
+  }, [error]);
 
-  const toggleColumn = (columnId: string) => {
-    setColumns(
-      columns.map((col) =>
-        col.id === columnId ? { ...col, visible: !col.visible } : col
-      )
-    );
-  };
+  const rowMenu = (hiring: Hiring): MenuProps["items"] => [
+    {
+      key: "approve",
+      icon: <CheckOutlined />,
+      label: "Approve",
+      onClick: () => router.push(`/home/hiring-review-requests/hiring-requests?id=${encodeURIComponent(Number(hiring.id))}&statusId=${encodeURIComponent(32001)}`),
+    },
+    {
+      key: "reject",
+      icon: <StopOutlined />,
+      label: "Reject",
+      danger: true,
+      onClick: () => router.push(`/home/hiring-review-requests/hiring-requests?id=${Number(hiring.id)}&statusId=${32002}`),
+    },
+  ];
 
-  const handleSort = (column: string) => {
-    const columnIndex = sortConfig.sortColumns.findIndex(
-      (sort) => sort.column === column
-    );
+  const columns = useMemo<DataColumn<Hiring>[]>(
+    () => [
+      { key: "hrqId", title: "HRQ ID", dataIndex: "hrqId", sorter: true, fixed: "left" },
+      { key: "businessName", title: "Business", dataIndex: "businessName" },
+      { key: "rcMsProjectId", title: "RCMS ID", dataIndex: "rcMsProjectId", defaultHidden: true },
+      { key: "projectName", title: "Project", dataIndex: "projectName" },
+      { key: "requestorName", title: "Requester", dataIndex: "requestorName" },
+      { key: "jobTitle", title: "Role Hired For", dataIndex: "jobTitle" },
+      { key: "requestStartDate", title: "Request Start Date", dataIndex: "requestStartDate", sorter: true, render: (v: string) => (v ? formatDate(v) : "") },
+      { key: "hiringStatusName", title: "Status", dataIndex: "hiringStatusName", render: (v: string) => <StatusBadge status={v} /> },
+      ...(isAdmin || isRmowner ? [{ key: "parentHrqId", title: "Parent HRQID", dataIndex: "parentHrqId", defaultHidden: true } as DataColumn<Hiring>] : []),
+      { key: "tatDate", title: "TAT (Hours/Days)", dataIndex: "tatDate", render: (_: unknown, h: Hiring) => <StatusBadge status={tatFormat(String(h.requestStartDate))} /> },
+      {
+        key: "actions",
+        title: "Actions",
+        locked: true,
+        align: "center",
+        width: 80,
+        fixed: "right",
+        render: (_: unknown, h: Hiring) => (
+          <Dropdown menu={{ items: rowMenu(h) }} trigger={["click"]}>
+            <Button size="small" icon={<MoreOutlined />} />
+          </Dropdown>
+        ),
+      },
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
 
-    let newSortColumns: SortColumn[] = [...sortConfig.sortColumns];
+  if (error) return <Result status="error" title="Could not load hiring review requests" subTitle={(error as Error).message} extra={<Button onClick={() => refetch()}>Retry</Button>} />;
 
-    if (columnIndex >= 0) {
-      newSortColumns[columnIndex] = {
-        ...newSortColumns[columnIndex],
-        descending: !newSortColumns[columnIndex].descending,
-      };
-    } else {
-      newSortColumns = [
-        { column, descending: true },
-        ...newSortColumns.slice(0, 2),
-      ];
-    }
-
-    setSortConfig({ sortColumns: newSortColumns });
-  };
-
-  const visibleColumns = columns.filter((col) => col.visible);
-
-  const getSortIcon = (columnId: string) => {
-    const columnIndex = sortConfig.sortColumns.findIndex(
-      (sort) => sort.column === columnId
-    );
-
-    if (columnIndex === -1) {
-      return null;
-    }
-
-    const sortColumn = sortConfig.sortColumns[columnIndex];
-
-    return (
-      <div className="flex items-center gap-1">
-        {sortColumn.descending ? (
-          <ArrowDownIcon className="h-4 w-4" />
-        ) : (
-          <ArrowUpIcon className="h-4 w-4" />
-        )}
-        {sortConfig.sortColumns.length > 1 && columnIndex > 0 && (
-          <span className="ml-1 text-xs font-medium bg-gray-200 dark:bg-gray-700 rounded-full w-4 h-4 flex items-center justify-center">
-            {columnIndex + 1}
-          </span>
-        )}
-      </div>
-    );
-  };
-
-  const hiringData = hiringBindData?.data?.items || [];
-  const hasPrevious = hiringBindData?.data.hasPrevious;
-  const hasNext = hiringBindData?.data.hasNext;
-  const totalPages = hiringBindData?.data.totalPages;
-  const currentPageNumber = hiringBindData?.data.currentPage;
-
-  const handleFilterChange = (column: string, text: string) => {
-    setSearchColumn(column);
-    setSearchText(text);
-  };
-
-  const handleClear = () => {
-    setSearchColumn("");
-    setSearchText("");
-    setCurrentPage(1);
-    reFetchData();
-  };
   return (
-    <div className="p-2">
-      <h1 className="text-xl font-semibold mb-6">Hiring Review Requests</h1>
-
-      <div className="flex items-center justify-between mb-8">
-        <SearchFilter
-          filterType={FilterTypeEnum.HiringManagement}
-          onFilterChange={handleFilterChange}
-          onClear={handleClear}
-          placeholder="Search by"
-          setCurrentPage={setCurrentPage}
-        />
-        <ColumnsPopover
-          columns={columns}
-          toggleColumn={toggleColumn}
-          screeningData={hiringData}
-          buttonName="hiringData-details"
-        />
-      </div>
-
-      <div className="bg-gray-50 dark:bg-gray-900 rounded-lg shadow">
-        {isLoading ? (
-          <TableSkeletonLoader />
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-teal-200 dark:bg-gray-700">
-                {visibleColumns.map((column) => (
-                  <TableHead
-                    key={column.id}
-                    className={
-                      column.sortable ? "cursor-pointer select-none" : ""
-                    }
-                    onClick={() => column.sortable && handleSort(column.id)}
-                  >
-                    <div className="flex items-center">
-                      {column.label}
-                      {column.sortable && getSortIcon(column.id)}
-                    </div>
-                  </TableHead>
-                ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {hiringData.length === 0 ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={visibleColumns.length}
-                    className="text-center py-4"
-                  >
-                    No Hiring Request found
-                  </TableCell>
-                </TableRow>
-              ) : (
-                hiringData.map((hiring) => (
-                  <TableRow key={hiring.id}>
-                    {visibleColumns?.map((column) => (
-                      <TableCell key={`${hiring.id}-${column.id}`}>
-                        {column.id === "hrqId" ? (
-                          <div className="text-[#4096ff] hover:underline">
-                            {hiring.hrqId}
-                          </div>
-                        ) : column.id === "hiringStatusName" ? (
-                          <StatusBadge
-                            status={hiring?.hiringStatusName as any}
-                          />
-                        ) : column.id === "requestStartDate" ? (
-                          hiring?.requestStartDate ? (
-                            formatDate(hiring?.requestStartDate)
-                          ) : (
-                            ""
-                          )
-                        ) : column.id === "tatDate" ? (
-                          <StatusBadge
-                            status={tatFormat(String(hiring?.requestStartDate))}
-                          />
-                        ) : column.id === "actions" ? (
-                          <div className="flex items-center gap-2">
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="outline" className="h-8  p-2">
-                                  <Menu />
-                                  <ChevronDown />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent
-                                align="end"
-                                className="w-[160px]"
-                              >
-                                <DropdownMenuItem
-                                  onClick={() =>
-                                    router.push(
-                                      `/home/hiring-review-requests/hiring-requests?id=${encodeURIComponent(
-                                        Number(hiring.id)
-                                      )}&statusId=${encodeURIComponent(32001)}`
-                                    )
-                                  }
-                                >
-                                  <Check className="h-4 w-4 text-green-600" />
-                                  Approve
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onClick={() =>
-                                    router.push(
-                                      `/home/hiring-review-requests/hiring-requests?id=${Number(
-                                        hiring.id
-                                      )}&statusId=${32002}`
-                                    )
-                                  }
-                                >
-                                  <Ban className="h-5 w-5 text-red-600" />
-                                  Reject
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </div>
-                        ) : (
-                          hiring[column.id as keyof Hiring]
-                        )}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        )}
-
-        <div className="flex items-center justify-between p-4">
-          <div className="text-sm text-gray-500">
-            Page {currentPageNumber} of {totalPages}
-          </div>
-          <Pagination
-            value={pageSize}
-            totalEntry={hiringBindData?.data.totalCount}
-            onChange={(newSize) => {
-              setPageSize(newSize);
-            }}
-            currentPage={currentPage}
-            totalPages={totalPages || 0}
-            onPageChange={setCurrentPage}
-            hasNext={hasNext}
-            hasPrevious={hasPrevious}
-          />
-        </div>
-      </div>
-    </div>
+    <DataTable<Hiring>
+      title="Hiring Review Requests"
+      storageKey="hiring-bin"
+      rowKey="id"
+      columns={columns}
+      data={data?.data?.items}
+      loading={isLoading}
+      pagination={{ current: t.pageNumber, pageSize: t.pageSize, total: data?.data?.totalCount ?? 0 }}
+      onChange={t.onTableChange}
+      search={{ columns: searchColumns, column: t.searchColumn, text: t.searchText, onChange: t.setSearch, placeholder: "Search by" }}
+      emptyText="No Hiring Request found"
+    />
   );
 }

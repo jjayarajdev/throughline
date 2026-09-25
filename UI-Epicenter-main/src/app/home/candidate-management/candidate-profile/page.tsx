@@ -1,12 +1,16 @@
-import CandidateHistoryView from '@/components/candidate/CandidateHistoryView'
-import { Breadcrumbs } from '@/components/common/Breadcrumbs'
-import React from 'react'
+"use client";
+import { Flex, Typography } from "antd";
+import CandidateHistoryView from "@/components/candidate/CandidateHistoryView";
+import { CandidateBreadcrumb } from "@/components/candidate/CandidateBreadcrumb";
 
-export default function page() {
+export default function CandidateProfilePage() {
   return (
-    <div className='p-4'>
-    <Breadcrumbs />
-    <CandidateHistoryView/>
-    </div>
-  )
+    <Flex vertical gap={16} className="p-4">
+      <CandidateBreadcrumb />
+      <Typography.Title level={4} style={{ margin: 0 }}>
+        Candidate Profile
+      </Typography.Title>
+      <CandidateHistoryView />
+    </Flex>
+  );
 }

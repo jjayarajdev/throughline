@@ -1,27 +1,18 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import * as z from "zod";
-import { Button } from "@/components/ui/button";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Plus, Pencil } from "lucide-react";
-import { InputField } from "../../form-fields/InputField";
-import { SelectField } from "../../form-fields/SelectField";
 import { useEffect, useState } from "react";
+import * as z from "zod";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { Alert, Button, Card, Col, Flex, Form, Input, Row, Select, Space, Tooltip, Typography } from "antd";
+import { EditOutlined, PlusOutlined } from "@ant-design/icons";
+import DataTable, { type DataColumn } from "@/components/data-table/DataTable";
+import { StatusBadge } from "@/components/status-badge";
+import { toast } from "@/lib/toast";
+import { validateWithZod, zodRules } from "@/lib/zodRules";
 import { dropdownApi } from "@/services/api/master";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { MasterTypes } from "@/constants/masterTypes";
 import { usePartnerStore } from "@/store/userPartnerStore";
-import {
-  ContactMatrixPayload,
-  partnerApi,
-} from "@/services/api/partner.profile.api";
-import { toast } from "@/lib/toast";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { StatusBadge } from "@/components/status-badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
+import { ContactMatrixPayload, partnerApi } from "@/services/api/partner.profile.api";
 
 // Custom validation functions
 const validateSpaces = (value: string) => {
@@ -71,10 +62,10 @@ const contactSchema = z.object({
     countryCode: z.string().optional(),
     contactNumber: z
       .string()
-        .nonempty("Contact number is required")
-        .refine((val) => /^\d+$/.test(val), {
-         message: "Only numbers are allowed",
-        }),
+      .nonempty("Contact number is required")
+      .refine((val) => /^\d+$/.test(val), {
+        message: "Only numbers are allowed",
+      }),
     country: z.string().min(1, "Country is required"),
     designation: z
       .string()
@@ -89,6 +80,9 @@ const contactSchema = z.object({
   }),
 });
 
+/** The Ant form is flat; the per-field rules come from the nested `contact` object schema. */
+const contactFields = contactSchema.shape.contact;
+
 interface ContactMatrixFormProps {
   onNext?: () => void;
   onPrevious?: () => void;
@@ -96,41 +90,36 @@ interface ContactMatrixFormProps {
 
 type Contact = z.infer<typeof contactSchema>["contact"];
 
-export default function CreateContactMatrixForm({
-  onNext,
-  onPrevious,
-}: ContactMatrixFormProps) {
+const emptyContact: Contact = {
+  contactType: "",
+  name: "",
+  email: "",
+  countryCode: "",
+  contactNumber: "",
+  country: "",
+  designation: "",
+  status: "25001",
+};
+
+export default function CreateContactMatrixForm({ onNext, onPrevious }: ContactMatrixFormProps) {
+  const [form] = Form.useForm<Contact>();
   const [showForm, setShowForm] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [selectedContact, setSelectedContact] = useState<any>(null);
-  const { partnerCode, partnerId,setContactMatriId } = usePartnerStore();
+  const { partnerCode, partnerId, setContactMatriId } = usePartnerStore();
   const [contactmatrixId, setContactMatrixId] = useState<number | null>(null);
-   const [maxPhoneLength, setMaxPhoneLength] = useState<number>(10);
+  const [maxPhoneLength, setMaxPhoneLength] = useState<number>(10);
+
   useEffect(() => {
     setMounted(true);
     setContactMatrixId(Number(partnerId));
   }, [partnerId]);
 
-  const form = useForm<z.infer<typeof contactSchema>>({
-    resolver: zodResolver(contactSchema),
-    defaultValues: {
-      contact: {
-        contactType: "",
-        name: "",
-        email: "",
-        countryCode: "",
-        contactNumber: "",
-        country: "",
-        designation: "",
-        status: "25001",
-      },
-    },
-  });
-
   const {
     data: contactMatrix,
     refetch: refetchContactMatrix,
     isError,
+    isLoading,
   } = useQuery({
     queryKey: ["partnerContactMatrix", contactmatrixId],
     queryFn: () => partnerApi.getContactMatrix(contactmatrixId?.toString()),
@@ -145,15 +134,13 @@ export default function CreateContactMatrixForm({
 
   const { data: contactTypes = [] } = useQuery({
     queryKey: ["contactTypes"],
-    queryFn: () =>
-      dropdownApi.fetchDropdown(MasterTypes.CONTACT_MATRIX_CONTACT_TYPE),
+    queryFn: () => dropdownApi.fetchDropdown(MasterTypes.CONTACT_MATRIX_CONTACT_TYPE),
     enabled: mounted,
   });
 
   const { data: contactStatus = [] } = useQuery({
     queryKey: ["contactStatus"],
-    queryFn: () =>
-      dropdownApi.fetchDropdown(MasterTypes.ACTIVE_INACTIVE_STATUS),
+    queryFn: () => dropdownApi.fetchDropdown(MasterTypes.ACTIVE_INACTIVE_STATUS),
     enabled: mounted,
   });
 
@@ -161,48 +148,36 @@ export default function CreateContactMatrixForm({
     mutationFn: partnerApi.createPartnerContactMatrix,
     onSuccess: async (data) => {
       toast.success("Contact added successfully");
-      form.reset();
+      form.resetFields();
       setContactMatrixId(data.data.partnerId);
       setShowForm(false);
       refetchContactMatrix();
-      setContactMatriId(data.data.partnerId)
+      setContactMatriId(data.data.partnerId);
     },
-    onError: (error:any) => {
-      const message =
-            error?.response?.data?.message ||
-            error?.message ||                 
-           "Failed to add contactMatrix";
-
-           toast.error(message);
+    onError: (error: any) => {
+      const message = error?.response?.data?.message || error?.message || "Failed to add contactMatrix";
+      toast.error(message);
     },
   });
 
   const updateContactMutation = useMutation({
-    mutationFn: (values: ContactMatrixPayload) =>
-      partnerApi.updateContactMatrix(selectedContact.id, values),
-    onSuccess: async (data) => {
+    mutationFn: (values: ContactMatrixPayload) => partnerApi.updateContactMatrix(selectedContact.id, values),
+    onSuccess: async () => {
       toast.success("Contact Updated successfully");
-      form.reset();
+      form.resetFields();
       setShowForm(false);
       setSelectedContact(null);
-      form.reset({ contact: emptyEscalation })
       refetchContactMatrix();
     },
-    onError: (error:any) => {
-        const message =
-            error?.response?.data?.message ||
-            error?.message ||                 
-           "Failed to update contactMatrix";
-
-           toast.error(message);
+    onError: (error: any) => {
+      const message = error?.response?.data?.message || error?.message || "Failed to update contactMatrix";
+      toast.error(message);
     },
   });
 
   function formatFormData(values: Contact): ContactMatrixPayload {
     // Combine country code and contact number for API
-    const fullContactNumber = values.countryCode
-      ? `${values.countryCode} ${values.contactNumber}`
-      : values.contactNumber;
+    const fullContactNumber = values.countryCode ? `${values.countryCode} ${values.contactNumber}` : values.contactNumber;
 
     return {
       id: selectedContact?.id || 0,
@@ -218,39 +193,21 @@ export default function CreateContactMatrixForm({
     };
   }
 
-  const emptyEscalation = {
-    contactType: "",
-    name: "",
-    email: "",
-    countryCode: "",
-    contactNumber: "",
-    country: "",
-    designation: "",
-    status: "",
-  };
+  function onFinish(raw: Contact) {
+    const values = validateWithZod(contactFields, form, raw);
+    if (!values) return;
+    const selectedCountry = countries.find((c: any) => c.id.toString() === values.country);
 
-  function onSubmit(values: z.infer<typeof contactSchema>) {
-    const selectedCountry = countries.find(
-        (c: any) => c.id.toString() === values.contact.country
-       );
-
-      if (
-         selectedCountry?.phoneMaxLength &&
-         values.contact.contactNumber.length !== selectedCountry.phoneMaxLength
-        ) {
-         form.setError("contact.contactNumber", {
-         type: "manual",
-         message: `Contact number must be ${selectedCountry.phoneMaxLength} digits for ${selectedCountry.name}`,
-        });
-        return;
-        }
-    const formattedData = formatFormData(values.contact);
+    if (selectedCountry?.phoneMaxLength && values.contactNumber.length !== selectedCountry.phoneMaxLength) {
+      form.setFields([{ name: "contactNumber", errors: [`Contact number must be ${selectedCountry.phoneMaxLength} digits for ${selectedCountry.name}`] }]);
+      return;
+    }
+    const formattedData = formatFormData(values);
     if (selectedContact) {
       updateContactMutation.mutate(formattedData);
     } else {
       createContactMutation.mutate(formattedData);
     }
-    // form.reset({ contact: emptyEscalation })
   }
 
   const handleEdit = (contact: any) => {
@@ -268,39 +225,47 @@ export default function CreateContactMatrixForm({
       }
     }
 
-    form.reset({
-      contact: {
-        contactType: contact.contactMatrixTypeId.toString(),
-        name: contact.name,
-        email: contact.email,
-        countryCode: countryCode,
-        contactNumber: contactNumber,
-        country: contact.countryId.toString(),
-        designation: contact.designation || "",
-        status: contact.statusName === "Active" ? "25001" : "25002",
-      },
+    form.setFieldsValue({
+      contactType: contact.contactMatrixTypeId.toString(),
+      name: contact.name,
+      email: contact.email,
+      countryCode: countryCode,
+      contactNumber: contactNumber,
+      country: contact.countryId.toString(),
+      designation: contact.designation || "",
+      status: contact.statusName === "Active" ? "25001" : "25002",
     });
     setShowForm(true);
   };
 
   // Handle country selection and update country code
   const handleCountryChange = (countryId: string) => {
-    form.setValue("contact.country", countryId);
-
-    // Find the selected country and get its country code
     const selectedCountry = countries.find((country: any) => country.id.toString() === countryId);
-
-    if (selectedCountry?.countryCode) {
-      form.setValue("contact.countryCode", selectedCountry.countryCode);
-    } else {
-      form.setValue("contact.countryCode", "");
-    }
-     if (selectedCountry?.phoneMaxLength) {
-             setMaxPhoneLength(selectedCountry.phoneMaxLength);
-          } else {
-            setMaxPhoneLength(10); 
-          }
+    form.setFieldValue("countryCode", selectedCountry?.countryCode || "");
+    setMaxPhoneLength(selectedCountry?.phoneMaxLength || 10);
   };
+
+  const columns: DataColumn<any>[] = [
+    { key: "contactMatrixTypeName", title: "Contact Type", dataIndex: "contactMatrixTypeName" },
+    { key: "name", title: "Name", dataIndex: "name" },
+    { key: "email", title: "Email ID", dataIndex: "email" },
+    { key: "contactNumber", title: "Contact Number", dataIndex: "contactNumber" },
+    { key: "countryName", title: "Country", dataIndex: "countryName" },
+    { key: "designation", title: "Designation", dataIndex: "designation" },
+    { key: "statusName", title: "Status", dataIndex: "statusName", render: (v: string) => <StatusBadge status={v} /> },
+    {
+      key: "actions",
+      title: "Actions",
+      locked: true,
+      width: 80,
+      align: "center",
+      render: (_: unknown, contact: any) => (
+        <Tooltip title="Edit">
+          <Button type="text" size="small" icon={<EditOutlined />} onClick={() => handleEdit(contact)} />
+        </Tooltip>
+      ),
+    },
+  ];
 
   if (!mounted) {
     return null;
@@ -311,262 +276,118 @@ export default function CreateContactMatrixForm({
   const canProceed = contactCount >= 1;
 
   return (
-    <>
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-semibold">Contact Matrix</h2>
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-muted-foreground">Partner ID:</span>
-              <span className="font-medium">{partnerCode}</span>
-            </div>
-          </div>
+    <Flex vertical gap={16}>
+      <Flex wrap gap={16} align="center" justify="space-between">
+        <Typography.Title level={5} style={{ margin: 0 }}>
+          Contact Matrix
+        </Typography.Title>
+        <Space size={4}>
+          <Typography.Text type="secondary">Partner ID:</Typography.Text>
+          <Typography.Text strong>{partnerCode}</Typography.Text>
+        </Space>
+      </Flex>
 
-          {remainingContacts > 0 && (
-            <Alert>
-              <AlertDescription>
-                Please add {remainingContacts} more contact
-                {remainingContacts > 1 ? "s" : ""} to proceed. Minimum 1
-                contacts are required.
-              </AlertDescription>
-            </Alert>
-          )}
+      {remainingContacts > 0 && (
+        <Alert
+          type="info"
+          showIcon
+          message={`Please add ${remainingContacts} more contact${remainingContacts > 1 ? "s" : ""} to proceed. Minimum 1 contacts are required.`}
+        />
+      )}
 
-          <div className="flex justify-end items-center mb-4">
-            {!showForm && (
-              <Button
-                type="button"
-                variant="default"
-                size="sm"
-                className="bg-[#00A76F] hover:bg-[#00A76F]/90"
-                onClick={() => {
-                  setSelectedContact(null);
-                  form.reset();
-                  setShowForm(true);
-                }}
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Add
-              </Button>
-            )}
-          </div>
+      {!showForm && (
+        <Flex justify="flex-end">
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => {
+              setSelectedContact(null);
+              form.resetFields();
+              setShowForm(true);
+            }}
+          >
+            Add
+          </Button>
+        </Flex>
+      )}
 
-          {showForm && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-6 border rounded-lg relative">
-              <SelectField
-                control={form.control}
-                name="contact.contactType"
-                label="Contact Type"
-                placeholder="Select contact type"
-                options={contactTypes}
-                required
-              />
-
-              <InputField
-                control={form.control}
-                name="contact.name"
-                label="Full Name"
-                placeholder="Enter full name"
-                required
-              />
-
-              <InputField
-                control={form.control}
-                name="contact.email"
-                label="Email ID"
-                placeholder="Enter email"
-                type="email"
-                required
-              />
-
-              <FormField
-                control={form.control}
-                name="contact.country"
-                render={({ field }) => (
-                  <FormItem className="w-full">
-                    <FormLabel className="text-sm font-medium text-gray-700 dark:text-gray-200">
-                      Country <span className="text-red-500">*</span></FormLabel>
-                    <Select
-                      onValueChange={handleCountryChange}
-                      value={field.value}
+      {showForm && (
+        <Card>
+          <Form form={form} layout="vertical" onFinish={onFinish} initialValues={emptyContact}>
+            <Row gutter={[16, 8]}>
+              <Col xs={24} md={12}>
+                <Form.Item name="contactType" label="Contact Type" rules={zodRules(contactFields, "contactType")}>
+                  <Select showSearch optionFilterProp="label" placeholder="Select contact type" options={contactTypes.map((o: any) => ({ value: String(o.id), label: o.name }))} />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="name" label="Full Name" rules={zodRules(contactFields, "name")}>
+                  <Input placeholder="Enter full name" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="email" label="Email ID" rules={zodRules(contactFields, "email")}>
+                  <Input type="email" placeholder="Enter email" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="country" label="Country" rules={zodRules(contactFields, "country")}>
+                  <Select
+                    showSearch
+                    optionFilterProp="label"
+                    placeholder="Select country"
+                    onChange={handleCountryChange}
+                    options={countries.map((c: any) => ({ value: c.id.toString(), label: c.countryCode ? `${c.name} (${c.countryCode})` : c.name }))}
+                  />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item label="Contact Number" required>
+                  <Space.Compact className="w-full">
+                    <Form.Item name="countryCode" noStyle>
+                      <Input disabled placeholder="+91" style={{ width: 96, textAlign: "center" }} />
+                    </Form.Item>
+                    <Form.Item
+                      name="contactNumber"
+                      noStyle
+                      rules={zodRules(contactFields, "contactNumber")}
+                      normalize={(v: string) => (v ?? "").replace(/\D/g, "").slice(0, maxPhoneLength)}
                     >
-                      <FormControl>
-                        <SelectTrigger className="h-10 w-full">
-                          <SelectValue placeholder="Select country" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {countries.map((country: any) => (
-                          <SelectItem key={country.id} value={country.id.toString()}>
-                            <div className="flex items-center gap-2">
-                              <span>{country.name}</span>
-                              {country.countryCode && (
-                                <span className="text-xs text-gray-500">
-                                  ({country.countryCode})
-                                </span>
-                              )}
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {/* Country Code and Contact Number Row */}
-              <div className="md:col-span-1">
-                <FormLabel className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-2 block">
-                  Contact Number <span className="text-red-500">*</span>
-                </FormLabel>
-                <div className="flex gap-2">
-                  {/* Country Code Field */}
-                  <FormField
-                    control={form.control}
-                    name="contact.countryCode"
-                    render={({ field }) => (
-                      <FormItem className="w-24">
-                        <FormControl>
-                          <Input
-                            {...field}
-                            placeholder="+91"
-                            disabled
-                            className="text-center bg-gray-50 dark:bg-gray-800"
-                            value={field.value ? `${field.value}` : ""}
-                          />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-
-                  {/* Contact Number Field */}
-                  <FormField
-                    control={form.control}
-                    name="contact.contactNumber"
-                    render={({ field }) => (
-                      <FormItem className="flex-1">
-                        <FormControl>
-                          <Input
-                            {...field}
-                            placeholder={`Enter ${maxPhoneLength}-digit contact number`}
-                            type="tel"
-                            maxLength={maxPhoneLength}
-                            onChange={(e) => {
-                              // Only allow numbers and limit to 14 digits
-                              const value = e.target.value.replace(/\D/g, '');
-                              if (value.length <= maxPhoneLength) {
-                                field.onChange(value);
-                              }
-                            }}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              </div>
-
-              <InputField
-                control={form.control}
-                name="contact.designation"
-                label="Designation"
-                placeholder="Enter designation"
-                required
-              />
-
-              <SelectField
-                control={form.control}
-                name="contact.status"
-                label="Status"
-                placeholder="Select status"
-                options={contactStatus}
-                required
-              />
-            </div>
-          )}
-          <div className="flex justify-end pt-6">
-            {showForm && (
-              <Button type="submit" variant="hpButton" className="px-8">
+                      <Input type="tel" maxLength={maxPhoneLength} placeholder={`Enter ${maxPhoneLength}-digit contact number`} />
+                    </Form.Item>
+                  </Space.Compact>
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="designation" label="Designation" rules={zodRules(contactFields, "designation")}>
+                  <Input placeholder="Enter designation" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="status" label="Status" rules={zodRules(contactFields, "status")}>
+                  <Select placeholder="Select status" options={contactStatus.map((o: any) => ({ value: String(o.id), label: o.name }))} />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Flex justify="flex-end">
+              <Button type="primary" htmlType="submit" loading={createContactMutation.isPending || updateContactMutation.isPending}>
                 {selectedContact ? "Update" : "Save"}
               </Button>
-            )}
-          </div>
-        </form>
-      </Form>
+            </Flex>
+          </Form>
+        </Card>
+      )}
 
-      <div className="mt-6">
-        {isError && (
-          <div className="text-red-500 text-center mb-4">
-            Failed to load contact matrix data. Please try again later.
-          </div>
-        )}
+      {isError && <Alert type="error" showIcon message="Failed to load contact matrix data. Please try again later." />}
 
-        {contactMatrix?.data && (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse table-auto">
-              <thead>
-                <tr className="bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
-                  <th className="px-4 py-2 text-left">Contact Type</th>
-                  <th className="px-4 py-2 text-left">Name</th>
-                  <th className="px-4 py-2 text-left">Email ID</th>
-                  <th className="px-4 py-2 text-left">Contact Number</th>
-                  <th className="px-4 py-2 text-left">Country</th>
-                  <th className="px-4 py-2 text-left">Designation</th>
-                  <th className="px-4 py-2 text-left">Status</th>
-                  <th className="px-4 py-2 text-left">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {contactMatrix.data.map((contact: any) => (
-                  <tr key={contact.id} className="border-b">
-                    <td className="px-4 py-2">
-                      {contact.contactMatrixTypeName}
-                    </td>
-                    <td className="px-4 py-2">{contact.name}</td>
-                    <td className="px-4 py-2">{contact.email}</td>
-                    <td className="px-4 py-2">{contact.contactNumber}</td>
-                    <td className="px-4 py-2">{contact.countryName}</td>
-                    <td className="px-4 py-2">{contact.designation}</td>
-                    <td className="px-4 py-2">
-                      <StatusBadge status={contact.statusName as any} />
-                    </td>
-                    <td className="px-4 py-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleEdit(contact)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      {contactMatrix?.data && <DataTable<any> rowKey="id" columns={columns} data={contactMatrix.data} loading={isLoading} pagination={false} emptyText="No contacts added yet" />}
 
-      <div className="flex justify-between pt-6">
-        <Button
-          variant="secondary"
-          type="button"
-          className="px-8"
-          onClick={onPrevious}
-        >
-          Previous
-        </Button>
-        <Button
-          type="button"
-          className="px-8"
-          onClick={onNext}
-          disabled={!canProceed}
-        >
+      <Flex justify="space-between">
+        <Button onClick={onPrevious}>Previous</Button>
+        <Button type="primary" onClick={onNext} disabled={!canProceed}>
           Next
         </Button>
-      </div>
-    </>
+      </Flex>
+    </Flex>
   );
 }

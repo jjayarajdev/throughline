@@ -1,17 +1,13 @@
-import { Button } from "@/components/ui/button";
-import { Form } from "@/components/ui/form";
-import { TextareaField } from "@/components/form-fields/TextAreaField";
-import { Loader2 } from "lucide-react";
-import { SheetFooter } from "@/components/ui/sheet";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+"use client";
+import { useState } from "react";
+import { Button, Form, Input, Space } from "antd";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import * as z from "zod";
-import { CandidateDetailsSheet } from "@/components/shared/CandidateDetailsSheet";
 import { toast } from "@/lib/toast";
-import { useState, useEffect } from "react";
+import { validateWithZod, zodRules } from "@/lib/zodRules";
 import { slotApi } from "@/services/api/slot.api";
 import { CandidateDetailsTypes } from "../types";
+import { CandidateDrawer } from "./CandidateDrawer";
 
 interface ScreeningSheetProps {
   isOpen: boolean;
@@ -22,29 +18,21 @@ interface ScreeningSheetProps {
 const formSchema = z.object({
   comment: z.string().min(1, "Comment is required"),
   status: z.boolean().optional(),
-
 });
 
 type FormValues = z.infer<typeof formSchema>;
 
-export function ScreeningSheet({
-  isOpen,
-  onClose,
-  selectedCandidate,
-}: ScreeningSheetProps) {
-  const [actionType, setActionType] = useState<"accept" | "reject" | null>(
-    null
-  );
+/** Accept / reject a candidate's screening or assessment round with a comment. */
+export function ScreeningSheet({ isOpen, onClose, selectedCandidate }: ScreeningSheetProps) {
+  const [actionType, setActionType] = useState<"accept" | "reject" | null>(null);
   const queryClient = useQueryClient();
+  const [form] = Form.useForm<FormValues>();
 
-  const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      comment: "",
-      status: undefined,
-  
-    },
-  });
+  const handleClose = () => {
+    form.resetFields();
+    setActionType(null);
+    onClose();
+  };
 
   const { mutate: handleScreening, isPending } = useMutation({
     mutationKey: ["createSlot"],
@@ -54,105 +42,63 @@ export function ScreeningSheet({
       toast.success(data?.message || "Screening status updated successfully");
       handleClose();
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast.error(error?.message || "Failed to process screening");
       console.error("Error in screening:", error);
       setActionType(null);
     },
   });
-  const handleClose = () => {
-    form.reset();
-    setActionType(null);
-    onClose();
-  };
 
-  useEffect(() => {
-    if (!isOpen) {
-      handleClose();
-    }
-  }, [isOpen]);
-
-  const handleAction = (status: boolean) => {
+  const handleAction = async (status: boolean) => {
     setActionType(status ? "accept" : "reject");
-    form.handleSubmit((data) => {
-      if (!selectedCandidate?.candidateId) {
-        toast.error("No candidate selected");
-        return;
-      }
-      const payloadAssign = {
-        candidateId: selectedCandidate.candidateId,
-        currentRoundId: selectedCandidate.currentRoundId ?? 0,
-        screeningStatus: status,
-        comments: data.comment,
-      };
-      handleScreening(payloadAssign);
-    })();
+    let values: FormValues;
+    try {
+      values = await form.validateFields();
+    } catch {
+      setActionType(null);
+      return;
+    }
+    const data = validateWithZod(formSchema, form, values);
+    if (!data) {
+      setActionType(null);
+      return;
+    }
+    if (!selectedCandidate?.candidateId) {
+      toast.error("No candidate selected");
+      return;
+    }
+    handleScreening({
+      candidateId: selectedCandidate.candidateId,
+      currentRoundId: selectedCandidate.currentRoundId ?? 0,
+      screeningStatus: status,
+      comments: data.comment,
+    });
   };
 
   return (
-    <CandidateDetailsSheet
+    <CandidateDrawer
       isOpen={isOpen}
       onClose={handleClose}
       candidate={selectedCandidate}
       title="Screening Details"
+      footer={
+        selectedCandidate ? (
+          <Space style={{ display: "flex", justifyContent: "flex-end" }}>
+            <Button type="primary" disabled={isPending} loading={isPending && actionType === "accept"} onClick={() => handleAction(true)}>
+              Accept
+            </Button>
+            <Button danger disabled={isPending} loading={isPending && actionType === "reject"} onClick={() => handleAction(false)}>
+              Reject
+            </Button>
+          </Space>
+        ) : null
+      }
     >
-      {selectedCandidate ? (
-        <Form {...form}>
-          <form className="mt-6 space-y-6" onSubmit={(e) => e.preventDefault()}>
-            <div className="pt-4">
-         
-              <TextareaField
-                control={form.control}
-                name="comment"
-                label="Screening Comments"
-                placeholder="Enter your screening feedback here..."
-                required
-              />
-            </div>
-
-            <SheetFooter className="flex gap-4 pt-6 border-t">
-              <div className="flex w-full gap-4">
-                <Button
-                  type="button"
-                  variant="hpButton"
-                  disabled={isPending}
-                  onClick={() => handleAction(true)}
-                  className="flex-1 h-11"
-                >
-                  {isPending && actionType === "accept" ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      <span>Accepting...</span>
-                    </>
-                  ) : (
-                    <span className="font-medium">Accept</span>
-                  )}
-                </Button>
-                <Button
-                  type="button"
-                  variant="hpReject"
-                  disabled={isPending}
-                  onClick={() => handleAction(false)}
-                  className="flex-1 h-11"
-                >
-                  {isPending && actionType === "reject" ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      <span>Rejecting...</span>
-                    </>
-                  ) : (
-                    <span className="font-medium">Reject</span>
-                  )}
-                </Button>
-              </div>
-            </SheetFooter>
-          </form>
-        </Form>
-      ) : (
-        <div className="mt-6 text-center text-gray-500">
-          No candidate selected
-        </div>
-      )}
-    </CandidateDetailsSheet>
+      <Form form={form} layout="vertical" className="mt-6" initialValues={{ comment: "" }}>
+        <Form.Item name="comment" label="Screening Comments" rules={zodRules(formSchema, "comment")}>
+          <Input.TextArea rows={4} placeholder="Enter your screening feedback here..." />
+        </Form.Item>
+      </Form>
+    </CandidateDrawer>
   );
 }

@@ -1,12 +1,5 @@
+import Dashboard from "@/components/dashboard/Dashboard";
 
-import DashboardDemo from "@/components/dashboard/DashbaordDemo";
-
-
-
-export default function page() {
-  return (
-    <>
-    <DashboardDemo/>
-    </>
-  );
+export default function DashboardPage() {
+  return <Dashboard />;
 }

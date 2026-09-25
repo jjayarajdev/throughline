@@ -1,22 +1,18 @@
 import {
-  CalendarSearch,
-  UserIcon,
-  Users2,
-  LayoutDashboard,
-  User,
-  LogOut,
-  Receipt,
-  Settings,
-  UserCheck,
-  Users,
-  Calendar,
-  ClipboardCheck,
-  UserCog,
-} from "lucide-react";
-import { FC } from "react";
-import { DropdownMenuItem } from "../ui/dropdown-menu";
-import Link from "next/link";
+  AppstoreOutlined,
+  AuditOutlined,
+  CalendarOutlined,
+  FileDoneOutlined,
+  ScheduleOutlined,
+  SettingOutlined,
+  SolutionOutlined,
+  TeamOutlined,
+  UserAddOutlined,
+  UserSwitchOutlined,
+  UsergroupAddOutlined,
+} from "@ant-design/icons";
 import { toast } from "@/lib/toast";
+
 export interface MenuItemProps {
   href: string;
   icon: React.ReactNode;
@@ -24,99 +20,20 @@ export interface MenuItemProps {
   onClick?: () => void;
 }
 
-export const MenuItem: FC<MenuItemProps> = ({ href, icon, label, onClick }) => (
-  <DropdownMenuItem asChild>
-    <Link
-      href={href}
-      className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5"
-      onClick={onClick}
-    >
-      {icon}
-      {label}
-    </Link>
-  </DropdownMenuItem>
-);
+const dashboard: MenuItemProps = { href: "/home/dashboard", icon: <AppstoreOutlined />, label: "Dashboard" };
+const partnerManagement: MenuItemProps = { href: "/home/partner-onboarding", icon: <TeamOutlined />, label: "Partner Management" };
+const hiringManagement: MenuItemProps = { href: "/home/hiring-management", icon: <SolutionOutlined />, label: "Hiring Management" };
+const candidateManagement: MenuItemProps = { href: "/home/candidate-management", icon: <UsergroupAddOutlined />, label: "Candidate Management" };
+const sowManagement: MenuItemProps = { href: "/home/partner-podetails", icon: <FileDoneOutlined />, label: "SOW Management" };
+const candidateApproval: MenuItemProps = { href: "/home/candidate-approval", icon: <AuditOutlined />, label: "Exception Approvals" };
+const engagementManagement: MenuItemProps = { href: "/home/partner-engagement", icon: <UserSwitchOutlined />, label: "Engagement management" };
+const interviewSlots: MenuItemProps = { href: "/home/slot-management", icon: <CalendarOutlined />, label: "Feedback Management" };
+const partnerSlotManagement: MenuItemProps = { href: "/home/partner-slot-management", icon: <ScheduleOutlined />, label: "Partner Slot Management" };
+const candidateOnboarding: MenuItemProps = { href: "/home/candidate-onboarding", icon: <UserAddOutlined />, label: "Candidate Onboarding" };
+const master: MenuItemProps = { href: "/home/master", icon: <SettingOutlined />, label: "Master" };
 
-const dashboard = {
-  href: "/home/dashboard",
-  icon: <LayoutDashboard className="w-5 h-5" />,
-  label: "Dashboard",
-};
-
-const partnerManagement = {
-  href: "/home/partner-onboarding",
-  icon: <Users2 className="w-5 h-5" />,
-  label: "Partner Management",
-};
-
-const hiringManagement = {
-  href: "/home/hiring-management",
-  icon: <UserCog className="w-5 h-5" />,
-  label: "Hiring Management",
-};
-
-// const hiringRequests = {
-//   href: "/home/hiring-requests",
-//   icon: <UserCog className="w-5 h-5" />,
-//   label: "Hiring Management",
-// };
-
-const candidateManagement = {
-  href: "/home/candidate-management",
-  icon: <Users className="w-5 h-5" />,
-  label: "Candidate Management",
-};
-
-const sowManagement = {
-  href: "/home/partner-podetails",
-  icon: <Receipt className="w-5 h-5" />,
-  label: "SOW Management",
-};
-
-const candidateApproval = {
-  href: "/home/candidate-approval",
-  icon: <UserCheck className="w-5 h-5" />,
-  label: "Exception Approvals",
-};
-
-const engagementManagement = {
-  href: "/home/partner-engagement",
-  icon: <UserCheck className="w-5 h-5" />,
-  label: "Engagement management",
-};
-
-const interviewSlots = {
-  href: "/home/slot-management",
-  icon: <Calendar className="w-5 h-5" />,
-  label: "Feedback Management",
-};
-
-
-const partnerSlotManagement = {
-  href: "/home/partner-slot-management",
-  icon: <CalendarSearch className="w-5 h-5" />,
-  label: "Partner Slot Management",
-};
-
-const candidateOnboarding = {
-  href: "/home/candidate-onboarding",
-  icon: <UserCheck className="w-5 h-5" />,
-  label: "Candidate Onboarding",
-};
-
-const master = {
-  href: "/home/master",
-  icon: <Settings className="w-5 h-5" />,
-  label: "Master",
-};
-
-const hiringReview = {
-  href: "/home/hiring-review-requests",
-  icon: <ClipboardCheck className="w-5 h-5" />,
-  label: "Hiring Review Requests",
-};
 export const menuItemsByRole: Record<string, MenuItemProps[]> = {
-"ADMIN": [
+  ADMIN: [
     dashboard,
     partnerManagement,
     hiringManagement,
@@ -129,11 +46,7 @@ export const menuItemsByRole: Record<string, MenuItemProps[]> = {
     candidateOnboarding,
     master,
   ],
-  "PARTNER": [dashboard,
-    candidateManagement,
-    partnerSlotManagement,
-    candidateOnboarding,
-  ],
+  PARTNER: [dashboard, candidateManagement, partnerSlotManagement, candidateOnboarding],
   "Vendor Manager": [
     dashboard,
     partnerManagement,
@@ -145,49 +58,36 @@ export const menuItemsByRole: Record<string, MenuItemProps[]> = {
     interviewSlots,
     candidateOnboarding,
   ],
-  "PANEL": [dashboard,hiringManagement, interviewSlots],
-  "BET Approver": [dashboard,hiringManagement],
-  "BET Member": [dashboard,hiringManagement],
+  PANEL: [dashboard, hiringManagement, interviewSlots],
+  "BET Approver": [dashboard, hiringManagement],
+  "BET Member": [dashboard, hiringManagement],
   "Domain Manager": [dashboard, hiringManagement, interviewSlots],
-  "Hiring Manager": [dashboard,hiringManagement, interviewSlots],
-  "RM Owner": [
-    dashboard,
-    hiringManagement,
-    candidateManagement,
-    candidateApproval,
-    interviewSlots,
-    partnerSlotManagement,
-    candidateOnboarding,
-  ],
-  "Onboarding SPOC": [ candidateOnboarding],
+  "Hiring Manager": [dashboard, hiringManagement, interviewSlots],
+  "RM Owner": [dashboard, hiringManagement, candidateManagement, candidateApproval, interviewSlots, partnerSlotManagement, candidateOnboarding],
+  "Onboarding SPOC": [candidateOnboarding],
 };
-export const redirectBasedOnRole = (userRoles: any) => {
-    const roleNames = userRoles.map((r: any) => r.name);
-    if (roleNames.includes("ADMIN")) {
-      window.location.href = "/home/dashboard";
-    } else if (roleNames.includes("Vendor Manager")) {
-      window.location.href = "/home/dashboard";
-    } else if (roleNames.includes("Hiring Manager")) {
-      window.location.href = "/home/dashboard";
-    }
-     else if (roleNames.includes("PARTNER")) {
-      window.location.href = "/home/dashboard";
-    } else if (roleNames.includes("PANEL")) {
-      window.location.href = "/home/dashboard";
-    } else if (roleNames.includes("Domain Manager")) {
-      window.location.href = "/home/dashboard";
-    } else if (roleNames.includes("RM Owner")) {
-      window.location.href = "/home/dashboard";
-    } else if (roleNames.includes("BET Approver")) {
-      window.location.href = "/home/dashboard";
-    } else if (roleNames.includes("BET Member")) {
-      window.location.href = "/home/dashboard";
-    }
-    else if (roleNames.includes("Onboarding SPOC")) {
-      window.location.href = "/home/candidate-onboarding";
-    }   else {
-      toast.error("You do not have access to this application.");
-      return false;
-    }
-    return true;
-  };
+
+const HOME_BY_ROLE: Record<string, string> = {
+  ADMIN: "/home/dashboard",
+  "Vendor Manager": "/home/dashboard",
+  "Hiring Manager": "/home/dashboard",
+  PARTNER: "/home/dashboard",
+  PANEL: "/home/dashboard",
+  "Domain Manager": "/home/dashboard",
+  "RM Owner": "/home/dashboard",
+  "BET Approver": "/home/dashboard",
+  "BET Member": "/home/dashboard",
+  "Onboarding SPOC": "/home/candidate-onboarding",
+};
+
+/** Send the user to the first landing page their roles allow; false when they have none. */
+export const redirectBasedOnRole = (userRoles: { name: string }[]) => {
+  const roleNames = userRoles.map((r) => r.name);
+  const target = Object.keys(HOME_BY_ROLE).find((role) => roleNames.includes(role));
+  if (!target) {
+    toast.error("You do not have access to this application.");
+    return false;
+  }
+  window.location.href = HOME_BY_ROLE[target];
+  return true;
+};

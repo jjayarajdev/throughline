@@ -1,42 +1,43 @@
-import { Card } from "@/components/ui/card";
-import { FileText, Download } from "lucide-react";
-import Link from "next/link";
+"use client";
+import { Button, Card, List, Tooltip, Typography } from "antd";
+import { DownloadOutlined, FileTextOutlined } from "@ant-design/icons";
 
 interface DocumentsListProps {
   documents: any[];
 }
 
+/** Partner's uploaded files with a download link each. */
 export function DocumentsList({ documents }: DocumentsListProps) {
   return (
-    <Card className="p-4">
-      <div className="space-y-4">
-        {documents?.map((file: any, index: number) => (
-          <div key={index} className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-3 min-w-0 flex-1">
-              <FileText className="h-6 w-6 text-gray-600 shrink-0" />
-              <div className="min-w-0">
-                <div className="font-medium truncate max-w-xs sm:max-w-sm md:max-w-md lg:max-w-lg" title={file.attachmentName}>
+    <Card size="small">
+      <List
+        size="small"
+        dataSource={documents ?? []}
+        locale={{ emptyText: "No documents" }}
+        renderItem={(file: any) => (
+          <List.Item
+            actions={
+              file.attachmentURL
+                ? [
+                    <Tooltip title="Download" key="download">
+                      <Button type="text" icon={<DownloadOutlined />} href={file.attachmentURL} target="_blank" />
+                    </Tooltip>,
+                  ]
+                : undefined
+            }
+          >
+            <List.Item.Meta
+              avatar={<FileTextOutlined style={{ fontSize: 20 }} />}
+              title={
+                <Typography.Text ellipsis={{ tooltip: file.attachmentName }} style={{ maxWidth: 220 }}>
                   {file.attachmentName}
-                </div>
-                {file.size && (
-                  <div className="text-sm text-gray-500 truncate">{file.size}</div>
-                )}
-              </div>
-            </div>
-            <div className="flex gap-2 shrink-0">
-              {file.attachmentURL && (
-                <Link
-                  href={file.attachmentURL}
-                  target="_blank"
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  <Download className="h-5 w-5" />
-                </Link>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
+                </Typography.Text>
+              }
+              description={file.size ? <Typography.Text type="secondary">{file.size}</Typography.Text> : undefined}
+            />
+          </List.Item>
+        )}
+      />
     </Card>
   );
 }

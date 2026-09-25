@@ -1,10 +1,7 @@
-// components/SlotAllocationCard.tsx
-import { Card } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
-import { Users2, Building2, Code2 } from "lucide-react";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Badge } from "@/components/ui/badge";
-import { ErrorHandler } from "@/components/error/ErrorHandler";
+"use client";
+import type { ReactNode } from "react";
+import { Card, Empty, List, Space, Tag, Typography } from "antd";
+import { BankOutlined, TeamOutlined } from "@ant-design/icons";
 
 interface Partner {
   nickname: ReactNode;
@@ -14,65 +11,52 @@ interface Partner {
   contributions: number;
 }
 
-export function SlotAllocationCard({data}: {data?: Partner[]}) {
+/** Side card with the partners contributing candidates to the hiring request. */
+export function SlotAllocationCard({ data }: { data?: Partner[] }) {
   if (!data || data.length === 0) {
     return (
-      <Card className="h-[40vh] sm:h-[35vh] md:h-[30vh] lg:h-[35vh] xl:h-[40vh] p-2 flex flex-col">
-        <div className="flex items-center justify-between px-4 py-2 border-b dark:border-gray-700 flex-shrink-0">
-          <h4 className="font-semibold text-[#1677ff]">Partner Allocation</h4>
-        </div>
-        <div className="flex-1 flex items-center justify-center">
-          <ErrorHandler isEmpty={true} emptyMessage="There is not partner allocated"/>
-        </div>
+      <Card title="Partner Allocation" size="small">
+        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="There is not partner allocated" />
       </Card>
     );
   }
 
   return (
-    <Card className="bg-white h-[40vh] sm:h-[35vh] md:h-[30vh] lg:h-[35vh] xl:h-[40vh] dark:bg-gray-800 my-4 flex flex-col">
-      <div className="flex items-center justify-between px-4 py-2 border-b dark:border-gray-700 flex-shrink-0">
-        <h4 className="font-semibold text-[#1677ff]">Partner Allocation</h4>
-        <Badge variant="outline" className="text-xs">
-          {data.length} {data.length === 1 ? 'Partner' : 'Partners'}
-        </Badge>
-      </div>
-     
-      <div className="flex-1 overflow-hidden">
-        <ScrollArea className="h-full">
-          <div className="p-3 space-y-2">
-            {data?.map((partner) => {
-              return (
-                <div
-                  key={partner.partnerCode}
-                  className="bg-gray-50 shadow-sm border border-gray-100 dark:bg-gray-700 flex flex-col rounded-lg overflow-hidden hover:shadow-md transition-shadow"
-                >
-                  <div className="bg-[#1677ff]/5 p-3">
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-1.5 flex-1">
-                        <div className="flex items-center gap-2">
-                          <Building2 className="w-4 h-4 text-[#1677ff] flex-shrink-0" />
-                          <h3 className="font-medium text-gray-900 dark:text-[#00cc99] truncate">
-                            {partner.nickname}
-                          </h3>
-                        </div>
-                        <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-300">
-                          <Users2 className="w-4 h-4 text-[#1677ff] flex-shrink-0" />
-                          <span>{partner.contributions} Submissions</span>
-                        </div>
-                      </div>
-                      
-                      {/* Optional: Add partner code badge */}
-                      <Badge variant="secondary" className="text-xs ml-2 flex-shrink-0">
-                        {partner.partnerCode}
-                      </Badge>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </ScrollArea>
-      </div>
+    <Card
+      title="Partner Allocation"
+      size="small"
+      extra={
+        <Tag style={{ marginInlineEnd: 0 }}>
+          {data.length} {data.length === 1 ? "Partner" : "Partners"}
+        </Tag>
+      }
+    >
+      <List
+        size="small"
+        dataSource={data}
+        rowKey={(p) => p.partnerCode}
+        style={{ maxHeight: 320, overflowY: "auto" }}
+        renderItem={(partner) => (
+          <List.Item extra={<Tag style={{ marginInlineEnd: 0 }}>{partner.partnerCode}</Tag>}>
+            <List.Item.Meta
+              title={
+                <Space size={6}>
+                  <BankOutlined />
+                  {partner.nickname}
+                </Space>
+              }
+              description={
+                <Typography.Text type="secondary">
+                  <Space size={6}>
+                    <TeamOutlined />
+                    {partner.contributions} Submissions
+                  </Space>
+                </Typography.Text>
+              }
+            />
+          </List.Item>
+        )}
+      />
     </Card>
   );
 }

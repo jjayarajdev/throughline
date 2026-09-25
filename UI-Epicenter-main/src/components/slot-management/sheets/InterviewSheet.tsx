@@ -1,23 +1,16 @@
-import { Button } from "@/components/ui/button";
-import { Form } from "@/components/ui/form";
-import { TextareaField } from "@/components/form-fields/TextAreaField";
-import { Loader2 } from "lucide-react";
-import { SheetFooter } from "@/components/ui/sheet";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+"use client";
+import { useEffect } from "react";
+import { Button, Col, DatePicker, Form, Input, Row, Select, Space, TimePicker } from "antd";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import dayjs, { type Dayjs } from "dayjs";
 import * as z from "zod";
-import { CandidateDetailsSheet } from "@/components/shared/CandidateDetailsSheet";
 import { toast } from "@/lib/toast";
-import { useState, useEffect } from "react";
+import { validateWithZod, zodRules } from "@/lib/zodRules";
 import { slotApi } from "@/services/api/slot.api";
-import { DatePickerField } from "@/components/form-fields/DatePickerField";
-import { InputField } from "@/components/form-fields/InputField";
-import { SelectField } from "@/components/form-fields/SelectField";
 import { dropdownApi } from "@/services/api/master";
 import { MasterTypes } from "@/constants/masterTypes";
-import { MultiSelectField } from "@/components/form-fields/MultiSelectField";
 import { CandidateDetailsTypes } from "../types";
+import { CandidateDrawer } from "./CandidateDrawer";
 
 interface ScreeningSheetProps {
   isOpen: boolean;
@@ -25,21 +18,22 @@ interface ScreeningSheetProps {
   isEdit: boolean;
   selectedCandidate: CandidateDetailsTypes | null;
 }
+
 const hoursOptions = [
-  { id: "2", name: "2 hrs" },
-  { id: "4", name: "4 hrs" },
-  { id: "8", name: "8 hrs" },
-  { id: "12", name: "12 hrs" },
-  { id: "18", name: "18 hrs" },
-  { id: "24", name: "24 hrs" },
-  { id: "48", name: "48 hrs" },
-  { id: "72", name: "72 hrs" },
+  { value: "2", label: "2 hrs" },
+  { value: "4", label: "4 hrs" },
+  { value: "8", label: "8 hrs" },
+  { value: "12", label: "12 hrs" },
+  { value: "18", label: "18 hrs" },
+  { value: "24", label: "24 hrs" },
+  { value: "48", label: "48 hrs" },
+  { value: "72", label: "72 hrs" },
 ];
 const durationOptions = [
-  { name: "30 minutes", id: "30" },
-  { name: "45 minutes", id: "45" },
-  { name: "1 hour", id: "60" },
-  { name: "1.5 hours", id: "90" },
+  { value: "30", label: "30 minutes" },
+  { value: "45", label: "45 minutes" },
+  { value: "60", label: "1 hour" },
+  { value: "90", label: "1.5 hours" },
 ];
 
 const formSchema = z.object({
@@ -55,38 +49,43 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
-export function InterviewSheet({
-  isOpen,
-  onClose,
-  isEdit,
-  selectedCandidate,
-}: ScreeningSheetProps) {
-  const [actionType, setActionType] = useState<"accept" | "reject" | null>(
-    null
-  );
-  const queryClient = useQueryClient();
+/** Form values as Ant holds them: dayjs for the pickers, panel member ids for the multi-select. */
+interface FieldValues {
+  date?: Dayjs | null;
+  timeSlot?: Dayjs | null;
+  validityHours?: string;
+  duration?: string;
+  panelName?: number[];
+  comments?: string;
+}
 
-  const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      date: selectedCandidate?.date || "",
-      timeSlot: selectedCandidate?.time?.slice(0, 5) || "",
-      panelMember: "",
-      requestCreationDate: "",
-      validityHours: String(selectedCandidate?.validityHours) || "2",
-      duration: selectedCandidate?.duration
-        ? String(selectedCandidate.duration)
-        : "30",
-      panelName: [],
-      comments: "",
-    },
-  });
+type PanelOption = { id: number; name: string };
+
+/** Assign (or edit) an interview slot: date, time, validity, duration, additional panel and comments. */
+export function InterviewSheet({ isOpen, onClose, isEdit, selectedCandidate }: ScreeningSheetProps) {
+  const queryClient = useQueryClient();
+  const [form] = Form.useForm<FieldValues>();
+  const candidate = selectedCandidate as (CandidateDetailsTypes & { additionalPanel?: number[] }) | null;
+
+  const initialValues: FieldValues = {
+    date: candidate?.date ? dayjs(candidate.date) : null,
+    timeSlot: candidate?.time ? dayjs(candidate.time.slice(0, 5), "HH:mm") : null,
+    validityHours: candidate?.validityHours ? String(candidate.validityHours) : "2",
+    duration: candidate?.duration ? String(candidate.duration) : "30",
+    panelName: [],
+    comments: "",
+  };
+
+  const handleClose = () => {
+    form.resetFields();
+    onClose();
+  };
 
   const { mutate: createSlot, isPending } = useMutation({
     mutationKey: ["createSlot"],
     mutationFn: slotApi.assigSlot,
     onSuccess: (data) => {
-      form.reset();
+      form.resetFields();
       queryClient.invalidateQueries({ queryKey: ["interviewListData"] });
       queryClient.invalidateQueries({ queryKey: ["screeningData"] });
       toast.success(data?.message || "slot assigned");
@@ -97,11 +96,12 @@ export function InterviewSheet({
       console.error("Error creating partner:", error);
     },
   });
+
   const { mutate: updateSlot, isPending: pendingLoading } = useMutation({
     mutationKey: ["updateSlot"],
     mutationFn: slotApi.updateassigSlot,
     onSuccess: (data) => {
-      form.reset();
+      form.resetFields();
       queryClient.invalidateQueries({ queryKey: ["interviewListData"] });
       toast.success(data?.message || "slot assigned");
       handleClose();
@@ -111,159 +111,127 @@ export function InterviewSheet({
     },
   });
 
-  const handleClose = () => {
-    form.reset();
-    setActionType(null);
-    onClose();
-  };
-
-  useEffect(() => {
-    if (!isOpen) {
-      handleClose();
-    }
-  }, [isOpen]);
-
-  const handleAction = () => {
-    form.handleSubmit((data) => {
-      if (!selectedCandidate?.candidateId) {
-        toast.error("No candidate selected");
-        return;
-      }
-      const payloadAssign = {
-        hiringRequestId: selectedCandidate?.hiringRequestId,
-        candidateId: selectedCandidate?.candidateId,
-        date: data.date,
-        time: data.timeSlot+":00",
-        partnerId: selectedCandidate.partnerId,
-        currentRoundId: selectedCandidate?.currentRoundId,
-        isRescheduled:
-          selectedCandidate.candidateInterviewStatusName === "Rescheduled",
-        interviewStatusId: selectedCandidate.interviewStatusId ?? 0,
-        panel: data?.panelName?.map((p: any) => p.id) || [],
-        duration: data.duration,
-        validityHours: data.validityHours,
-        hmAdditionalComments: data.comments || "",
-      };
-      if (isEdit) {
-        const editPayload = {
-          ...payloadAssign,
-          interviewSlotId: selectedCandidate.interviewSlotId,
-          candidateInterviewStatusId:
-            selectedCandidate.candidateInterviewStatusId,
-        };
-        updateSlot(editPayload);
-      } else {
-        createSlot(payloadAssign);
-      }
-    })();
-  };
   const { data: ACTIVE_PANEL = [] } = useQuery({
     queryKey: ["ACTIVE_PANEL"],
     queryFn: () => dropdownApi.fetchDropdown(MasterTypes.ACTIVE_PANEL),
     enabled: true,
   });
+  const panelOptions = ACTIVE_PANEL as PanelOption[];
 
   useEffect(() => {
-    if (!isEdit || !selectedCandidate || ACTIVE_PANEL.length === 0) return;
-    if (isEdit && selectedCandidate && ACTIVE_PANEL.length > 0) {
-      const filteredData = ACTIVE_PANEL.filter((person: any) =>
-        selectedCandidate?.additionalPanel?.includes(person.id)
-      );
-      form.setValue("panelName", filteredData);
-    }
+    if (!isEdit || !candidate || panelOptions.length === 0) return;
+    const ids = panelOptions.filter((p) => candidate.additionalPanel?.includes(p.id)).map((p) => p.id);
+    form.setFieldValue("panelName", ids);
     return () => {
-      form.resetField("panelName");
+      form.resetFields(["panelName"]);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCandidate, ACTIVE_PANEL]);
 
+  const onFinish = (values: FieldValues) => {
+    const candidateValues: FormValues = {
+      date: values.date ? values.date.format("YYYY-MM-DD") : "",
+      timeSlot: values.timeSlot ? values.timeSlot.format("HH:mm") : "",
+      panelMember: "",
+      requestCreationDate: "",
+      validityHours: values.validityHours ?? "",
+      duration: values.duration ?? "",
+      panelName: (values.panelName ?? [])
+        .map((id) => panelOptions.find((p) => p.id === id))
+        .filter((p): p is PanelOption => !!p)
+        .map((p) => ({ id: p.id, name: p.name })),
+      comments: values.comments ?? "",
+    };
+    const data = validateWithZod(formSchema, form, candidateValues);
+    if (!data) return;
+    if (!selectedCandidate?.candidateId) {
+      toast.error("No candidate selected");
+      return;
+    }
+    const payloadAssign = {
+      hiringRequestId: selectedCandidate.hiringRequestId,
+      candidateId: selectedCandidate.candidateId,
+      date: data.date,
+      time: data.timeSlot + ":00",
+      partnerId: selectedCandidate.partnerId,
+      currentRoundId: selectedCandidate.currentRoundId,
+      isRescheduled: selectedCandidate.candidateInterviewStatusName === "Rescheduled",
+      interviewStatusId: selectedCandidate.interviewStatusId ?? 0,
+      panel: data.panelName?.map((p) => p.id) || [],
+      duration: data.duration,
+      validityHours: data.validityHours,
+      hmAdditionalComments: data.comments || "",
+    };
+    if (isEdit) {
+      updateSlot({
+        ...payloadAssign,
+        interviewSlotId: selectedCandidate.interviewSlotId,
+        candidateInterviewStatusId: selectedCandidate.candidateInterviewStatusId,
+      } as any);
+    } else {
+      createSlot(payloadAssign as any);
+    }
+  };
+
+  const submitting = isPending || pendingLoading;
+
   return (
-    <CandidateDetailsSheet
+    <CandidateDrawer
       isOpen={isOpen}
       onClose={handleClose}
       candidate={selectedCandidate}
       title="Interview Details"
+      footer={
+        selectedCandidate ? (
+          <Space style={{ display: "flex", justifyContent: "flex-end" }}>
+            <Button type="primary" loading={submitting} onClick={() => form.submit()}>
+              Submit
+            </Button>
+          </Space>
+        ) : null
+      }
     >
-      {selectedCandidate ? (
-        <Form {...form}>
-          <form className="mt-6 space-y-6" onSubmit={(e) => e.preventDefault()}>
-            <div className="grid grid-cols-2 gap-4">
-              <DatePickerField
-                control={form.control}
-                name="date"
-                label="Interview date"
-                required
+      <Form form={form} layout="vertical" className="mt-6" onFinish={onFinish} initialValues={initialValues}>
+        <Row gutter={[16, 8]}>
+          <Col xs={24} md={12}>
+            <Form.Item name="date" label="Interview date" rules={[{ required: true, message: "Date is required" }]}>
+              <DatePicker className="w-full" format="YYYY-MM-DD" disabledDate={(d) => d.isBefore(dayjs().startOf("day"))} />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={12}>
+            <Form.Item name="timeSlot" label="Interview Time" rules={[{ required: true, message: "Time is required" }]}>
+              <TimePicker className="w-full" format="HH:mm" placeholder="Select time slot" needConfirm={false} />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={12}>
+            <Form.Item name="validityHours" label="Validity hours" rules={zodRules(formSchema, "validityHours")}>
+              <Select placeholder="Select time slot" options={hoursOptions} />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={12}>
+            <Form.Item name="duration" label="Interview duration" rules={zodRules(formSchema, "duration")}>
+              <Select placeholder="Select duration" options={durationOptions} />
+            </Form.Item>
+          </Col>
+          <Col span={24}>
+            <Form.Item name="panelName" label="Additional Panel Name">
+              <Select
+                mode="multiple"
+                allowClear
+                showSearch
+                optionFilterProp="label"
+                placeholder="Additional panel"
+                options={panelOptions.map((p) => ({ value: p.id, label: p.name }))}
               />
-
-              <InputField
-                control={form.control}
-                name="timeSlot"
-                label="Interview Time"
-                placeholder="Select time slot"
-                type="time"
-                required
-              />
-              <SelectField
-                control={form.control}
-                name="validityHours"
-                label="Validity hours"
-                placeholder="Select time slot"
-                options={hoursOptions}
-                required
-              />
-              <SelectField
-                control={form.control}
-                name="duration"
-                label="Interview duration"
-                placeholder="Select duration"
-                options={durationOptions}
-                required
-              />
-              <div className="col-span-2">
-                <MultiSelectField
-                  control={form.control}
-                  placeholder="Additional panel"
-                  name="panelName"
-                  label="Additional Panel Name"
-                  options={ACTIVE_PANEL}
-                />
-              </div>
-              <div className="col-span-2">
-                <TextareaField
-                  control={form.control}
-                  name="comments"
-                  label="Comments"
-                  placeholder="Enter your comments here..."
-                />
-              </div>
-            </div>
-
-            <SheetFooter className="flex gap-4 pt-6 border-t">
-              <div className="flex w-full gap-4">
-                <Button
-                  type="submit"
-                  variant="hpButton"
-                  disabled={isPending || pendingLoading}
-                  onClick={() => handleAction()}
-                  className="w-full h-11"
-                >
-                  {isPending || pendingLoading ? (
-                    <div className="flex items-center gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span>Submitting...</span>
-                    </div>
-                  ) : (
-                    <span>Submit</span>
-                  )}
-                </Button>
-              </div>
-            </SheetFooter>
-          </form>
-        </Form>
-      ) : (
-        <div className="mt-6 text-center text-gray-500">
-          No candidate selected
-        </div>
-      )}
-    </CandidateDetailsSheet>
+            </Form.Item>
+          </Col>
+          <Col span={24}>
+            <Form.Item name="comments" label="Comments">
+              <Input.TextArea rows={3} placeholder="Enter your comments here..." />
+            </Form.Item>
+          </Col>
+        </Row>
+      </Form>
+    </CandidateDrawer>
   );
 }

@@ -46,7 +46,7 @@ const AppSidebar: React.FC = () => {
 
   const menuItems: MenuProps["items"] = items.map((item) => ({
     key: item.href,
-    icon: <span className="anticon">{item.icon}</span>,
+    icon: item.icon,
     label: <Link href={item.href}>{item.label}</Link>,
   }));
 

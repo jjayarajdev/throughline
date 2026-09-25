@@ -1,26 +1,18 @@
 "use client";
-
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import * as z from "zod";
-import { Button } from "@/components/ui/button";
-import { Form } from "@/components/ui/form";
-import { InputField } from "../form-fields/InputField";
-import { SelectField } from "../form-fields/SelectField";
-import { Switch } from "@/components/ui/switch";
-import { useHiringDropdownData } from "./hooks/useHiringFormData";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { Hiring, hiringApi } from "../../services/api/hiring.api";
 import { useEffect, useState } from "react";
-import { toast } from "@/lib/toast";
-import { useHiringStore } from "@/store/useHiringStore";
 import { usePathname, useRouter } from "next/navigation";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { Button, Col, DatePicker, Flex, Form, Input, InputNumber, Radio, Row, Select, Spin } from "antd";
+import * as z from "zod";
+import { toast } from "@/lib/toast";
+import { validateWithZod, zodRules } from "@/lib/zodRules";
+import { Hiring, hiringApi } from "../../services/api/hiring.api";
+import { useHiringStore } from "@/store/useHiringStore";
+import { useUserStore } from "@/store/userStore";
+import { useHiringDropdownData } from "./hooks/useHiringFormData";
 import { RCMSValidationForm } from "./RCMSValidationForm";
 import { getHiringType } from "./types";
-import SubmitFormLoader from "../common/SubmitFormLoader";
-import { DatePickerField } from "../form-fields/DatePickerField";
-import { useUserStore } from "@/store/userStore";
-
+import { dateItem, toOptions } from "./shared";
 
 const formSchema = z.object({
   jobTitle: z.string().min(1, "Role Hired For is required"),
@@ -28,9 +20,7 @@ const formSchema = z.object({
   hiringManagerName: z.string().min(1, "Hiring Manager is required"),
   hrqId: z.string(),
   rcmsProjectId: z.string().min(1, "RCMS Project ID is required"),
-  rcMsResourceRequestId: z
-    .string()
-    .min(1, "RCMS Resource Request ID is required"),
+  rcMsResourceRequestId: z.string().min(1, "RCMS Resource Request ID is required"),
   projectName: z.string().min(1, "Project Name is required"),
   businessId: z.string().min(1, "businessId is required"),
   requestStartDate: z.string().min(1, "Request Start Date is required"),
@@ -51,6 +41,31 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
+const defaultValues: FormValues = {
+  jobTitle: "",
+  rmOwnerName: "",
+  hiringManagerName: "",
+  hrqId: "",
+  rcmsProjectId: "",
+  rcMsResourceRequestId: "",
+  projectName: "",
+  businessId: "",
+  requestStartDate: "",
+  requestCreationDate: new Date().toISOString().split("T")[0],
+  projectDurationMonths: "",
+  hiringTypeId: "",
+  hiringStatusName: "New",
+  isMultiplePositions: false,
+  numberOfPositions: 1,
+  approverEmail: "",
+  employeeId: "",
+  referredHrqId: "",
+  domainManager: "",
+  domainId: "",
+  recordTypeId: 23001,
+  hiringMangerId: NaN,
+};
+
 interface RCMSFormProps {
   onNext?: () => void;
   onPrevious?: () => void;
@@ -58,47 +73,21 @@ interface RCMSFormProps {
   isLoading: boolean;
 }
 
-export default function HiringForm({
-  onNext,
-  onPrevious,
-  HiringDatabyid,
-  isLoading,
-}: RCMSFormProps) {
+/** Step 1 of the hiring request: RCMS validation (create mode) and the request header fields. */
+export default function HiringForm({ HiringDatabyid, isLoading }: RCMSFormProps) {
   const { business, hiringType, domain } = useHiringDropdownData();
   const { userId } = useUserStore();
+  const { setJobTitle } = useHiringStore();
   const pathname = usePathname();
+  const router = useRouter();
   const isAddMode = pathname.includes("create-hiring");
+  const [form] = Form.useForm<FormValues>();
+  const [valdate, setValidate] = useState(false);
 
-  const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      jobTitle:  "",
-      rmOwnerName: "",
-      hiringManagerName: "",
-      hrqId: "",
-      rcmsProjectId: "",
-      rcMsResourceRequestId: "",
-      projectName: "",
-      businessId: "",
-      requestStartDate: "",
-      requestCreationDate: new Date().toISOString().split("T")[0],
-      projectDurationMonths: "",
-      hiringTypeId: "",
-      hiringStatusName: "New",
-      isMultiplePositions: false,
-      numberOfPositions: 1,
-      approverEmail: "",
-      employeeId: "",
-      referredHrqId: "",
-      domainManager: "",
-      domainId: "",
-      recordTypeId: 23001,
-      hiringMangerId: NaN,
-    },
-  });
+  const isMultiplePositions = Form.useWatch("isMultiplePositions", form);
+  const isemployeeId = Form.useWatch("hiringTypeId", form);
+  const domainId = Form.useWatch("domainId", form);
 
-  const { getValues,formState } = form;
- 
   const { data: BeteamApprover } = useQuery({
     queryKey: ["BeTeamApprover"],
     queryFn: () => hiringApi.getBETeamApprover(),
@@ -106,21 +95,18 @@ export default function HiringForm({
   });
 
   useEffect(() => {
-    if (BeteamApprover) {
-      form.setValue("approverEmail", BeteamApprover?.email);
-    }
+    if (BeteamApprover) form.setFieldValue("approverEmail", BeteamApprover?.email);
   }, [BeteamApprover, form]);
-
-  const [valdate, setValidate] = useState(false);
 
   useEffect(() => {
     if (!isAddMode && HiringDatabyid) {
       setValidate(true);
       setJobTitle(HiringDatabyid.jobTitle);
-      const data = HiringDatabyid;
-      form.reset({
+      const data = HiringDatabyid as any;
+      form.resetFields();
+      form.setFieldsValue({
         jobTitle: data?.jobTitle,
-        rmOwnerName: data?.rmOwnerName || "--", // optional field
+        rmOwnerName: data?.rmOwnerName || "--",
         hiringManagerName: data?.hiringManagerName || "--",
         hrqId: data?.hrqId,
         rcmsProjectId: data?.rcMsProjectId,
@@ -128,7 +114,7 @@ export default function HiringForm({
         projectName: data?.projectName,
         businessId: String(data?.businessId),
         requestStartDate: data?.requestStartDate,
-        requestCreationDate: data?.requestCreationDate, // format date if needed
+        requestCreationDate: data?.requestCreationDate,
         hiringTypeId: String(data?.hiringTypeId) || "",
         projectDurationMonths: String(data?.projectDurationMonths) || "",
         hiringStatusName: String(data?.hiringStatusName) || "",
@@ -139,52 +125,41 @@ export default function HiringForm({
         referredHrqId: data?.referredHrqId || "",
         domainId: String(data?.domainId) || "",
         domainManager: String(data?.domainManager) || "",
-        hiringMangerId: (data?.hiringMangerId) || "",
-      });
+        hiringMangerId: data?.hiringMangerId || "",
+      } as any);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form, HiringDatabyid, isAddMode]);
-
-  const isMultiplePositions = form.watch("isMultiplePositions");
-  const isemployeeId = form.watch("hiringTypeId");
 
   const handleValidate = async (data: Hiring, mode: string) => {
     const recordTypeId = mode === "replica" ? 23002 : 23001;
-    if (data) {
-      setValidate(true);
-      form.reset({
-        jobTitle: data?.jobTitle || "NA",
-        rmOwnerName: data?.rmOwnerName || "Na", // optional field
-        hiringManagerName:
-          data.hiringManagerName != undefined
-            ? String(data.hiringManagerName)
-            : "",
-        hrqId: mode === "replica" ? "NA" : data?.hrqId || "NA",
-        businessId: data.businessId != undefined ? String(data.businessId) : "",
-        rcmsProjectId: data?.rcMsProjectId || "",
-        rcMsResourceRequestId: data?.rcMsResourceRequestId || "NA",
-        projectName: data?.projectName,
-        requestStartDate: new Date().toISOString().split("T")[0],
-        requestCreationDate: new Date().toISOString().split("T")[0],
-        isMultiplePositions: data?.isMultiplePositions,
-        numberOfPositions: Number(data?.numberOfPositions) || 1,
-        approverEmail: data?.approverEmail || "",
-        hiringTypeId:
-          data.hiringTypeId != undefined ? String(data.hiringTypeId) : "",
-        projectDurationMonths:
-          data.projectDurationMonths != undefined
-            ? String(data.projectDurationMonths)
-            : "",
-        hiringStatusName: "New",
-        employeeId: data?.employeeId || "",
-        referredHrqId: data?.hrqId || "",
-        domainId: data.domainId != undefined ? String(data.domainId) : "",
-        recordTypeId: recordTypeId,
-        hiringMangerId: data?.hiringMangerId,
-      });
-    }
+    if (!data) return;
+    setValidate(true);
+    form.resetFields();
+    form.setFieldsValue({
+      jobTitle: data?.jobTitle || "NA",
+      rmOwnerName: data?.rmOwnerName || "Na",
+      hiringManagerName: data.hiringManagerName != undefined ? String(data.hiringManagerName) : "",
+      hrqId: mode === "replica" ? "NA" : data?.hrqId || "NA",
+      businessId: data.businessId != undefined ? String(data.businessId) : "",
+      rcmsProjectId: data?.rcMsProjectId || "",
+      rcMsResourceRequestId: data?.rcMsResourceRequestId || "NA",
+      projectName: data?.projectName,
+      requestStartDate: new Date().toISOString().split("T")[0],
+      requestCreationDate: new Date().toISOString().split("T")[0],
+      isMultiplePositions: data?.isMultiplePositions,
+      numberOfPositions: Number(data?.numberOfPositions) || 1,
+      approverEmail: data?.approverEmail || "",
+      hiringTypeId: data.hiringTypeId != undefined ? String(data.hiringTypeId) : "",
+      projectDurationMonths: data.projectDurationMonths != undefined ? String(data.projectDurationMonths) : "",
+      hiringStatusName: "New",
+      employeeId: data?.employeeId || "",
+      referredHrqId: data?.hrqId || "",
+      domainId: (data as any).domainId != undefined ? String((data as any).domainId) : "",
+      recordTypeId,
+      hiringMangerId: data?.hiringMangerId,
+    } as any);
   };
-
-  const { setJobTitle } = useHiringStore();
 
   const { mutate: createHiringRequest, isPending } = useMutation({
     mutationKey: ["createHiringRequest"],
@@ -192,10 +167,8 @@ export default function HiringForm({
     onSuccess: (data) => {
       setJobTitle(data.data.jobTitle);
       setValidate(false);
-      form.reset();
-      toast.success(
-        data?.message || "REC Created successfully || moved to Hiring Bin"
-      );
+      form.resetFields();
+      toast.success(data?.message || "REC Created successfully || moved to Hiring Bin");
       router.back();
     },
     onError: (error) => {
@@ -204,276 +177,158 @@ export default function HiringForm({
     },
   });
 
-  const router = useRouter();
-
   const handleSave = async () => {
-    const valid = await form.trigger();
-    if (valid) {
-      const payload = {
-        ...getValues(),
-        requestorId: userId,
-        betApproverId: BeteamApprover.userId,
-      };
-      createHiringRequest(payload);
-    } else {
+    try {
+      await form.validateFields();
+    } catch {
       toast.error("Please fill all required fields correctly.");
+      return;
     }
+    const values = form.getFieldsValue(true) as FormValues;
+    if (!validateWithZod(formSchema, form, values)) {
+      toast.error("Please fill all required fields correctly.");
+      return;
+    }
+    createHiringRequest({ ...values, requestorId: userId, betApproverId: BeteamApprover?.userId } as any);
   };
 
-  const onSubmit = (values: FormValues) => {};
-
   useEffect(() => {
-    const domainManager = domain.find(
-      (domain: { id: number }) => domain.id === Number(form.watch("domainId"))
-    );
-
-    if (domainManager) {
-      form.setValue("domainManager", String(domainManager.domainManagerName));
-    }
-  }, [form.watch("domainId"), domain]);
+    const domainManager = (domain as { id: number; domainManagerName?: string }[]).find((d) => d.id === Number(domainId));
+    if (domainManager) form.setFieldValue("domainManager", String(domainManager.domainManagerName));
+  }, [domainId, domain, form]);
 
   return (
-    <>
-      <div className="flex items-center mb-6"></div>
-      <Form {...form}>
-        {isAddMode && (
-          <RCMSValidationForm
-            setValidate={setValidate}
-            onValidationSuccess={handleValidate}
-          />
-        )}
-        <form
-          onSubmit={form.handleSubmit(onSubmit)}
-          className="relative space-y-6"
-        >
-          {valdate && (
-            <div>
-              {(isPending || isLoading) && <SubmitFormLoader />}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <InputField
-                  control={form.control}
-                  name="jobTitle"
-                  label="Role Hired For"
-                  placeholder="Title Name"
+    <Flex vertical gap={16}>
+      {isAddMode && <RCMSValidationForm setValidate={setValidate} onValidationSuccess={handleValidate} />}
+      <Form form={form} layout="vertical" initialValues={defaultValues}>
+        {valdate && (
+        <Spin spinning={isPending || isLoading}>
+          <Row gutter={[16, 8]}>
+            <Col xs={24} md={12}>
+              <Form.Item name="jobTitle" label="Role Hired For" rules={zodRules(formSchema, "jobTitle")}>
+                <Input placeholder="Title Name" disabled={!isAddMode} />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item name="rmOwnerName" label="RM Owner" required rules={zodRules(formSchema, "rmOwnerName")}>
+                <Input placeholder="Owner" disabled />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item name="hiringManagerName" label="Hiring Manager" rules={zodRules(formSchema, "hiringManagerName")}>
+                <Input placeholder="Name" disabled />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item name="hrqId" label="HRQ ID" rules={zodRules(formSchema, "hrqId")}>
+                <Input placeholder="hrqId" disabled />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item name="rcmsProjectId" label="RCMS Project ID" rules={zodRules(formSchema, "rcmsProjectId")}>
+                <Input disabled />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item name="rcMsResourceRequestId" label="RCMS Resource Request ID" rules={zodRules(formSchema, "rcMsResourceRequestId")}>
+                <Input disabled />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item name="projectName" label="Project Name" rules={zodRules(formSchema, "projectName")}>
+                <Input disabled={!isAddMode} />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item name="businessId" label="Business Unit" rules={zodRules(formSchema, "businessId")}>
+                <Select showSearch optionFilterProp="label" placeholder="Select Business" options={toOptions(business)} disabled={!isAddMode} />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item name="requestStartDate" label="Request Start Date" rules={zodRules(formSchema, "requestStartDate")} {...dateItem}>
+                <DatePicker className="w-full" format="YYYY-MM-DD" disabled={!isAddMode} />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item name="requestCreationDate" label="Req Creation Date" rules={zodRules(formSchema, "requestCreationDate")} {...dateItem}>
+                <DatePicker className="w-full" format="YYYY-MM-DD" disabled />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item name="hiringTypeId" label="Hiring Type" rules={zodRules(formSchema, "hiringTypeId")}>
+                <Select showSearch optionFilterProp="label" placeholder="Select Hiring Type" options={toOptions(hiringType)} disabled={!isAddMode} />
+              </Form.Item>
+            </Col>
+            {isemployeeId == "13003" && (
+              <>
+                <Col xs={24} md={12}>
+                  <Form.Item name="employeeId" label="Employee ID" rules={zodRules(formSchema, "employeeId")}>
+                    <Input placeholder="Enter employee id" disabled={!isAddMode} />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} md={12}>
+                  <Form.Item name="referredHrqId" label="Referred HRQ id" rules={zodRules(formSchema, "referredHrqId")}>
+                    <Input placeholder="Enter HRQ id" disabled={!isAddMode} />
+                  </Form.Item>
+                </Col>
+              </>
+            )}
+            <Col xs={24} md={12}>
+              <Form.Item name="projectDurationMonths" label="Project Duration (Months)" rules={zodRules(formSchema, "projectDurationMonths")}>
+                <Input type="number" placeholder="Enter Duration" disabled={!isAddMode} />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item name="hiringStatusName" label="Status" required rules={zodRules(formSchema, "hiringStatusName")}>
+                <Input placeholder="New" disabled />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item name="isMultiplePositions" label="Position Category">
+                <Radio.Group
+                  optionType="button"
+                  buttonStyle="solid"
                   disabled={!isAddMode}
-                  required
+                  options={[
+                    { value: false, label: "Single" },
+                    { value: true, label: "Multiple" },
+                  ]}
                 />
-
-                <InputField
-                  control={form.control}
-                  name="rmOwnerName"
-                  label="RM Owner"
-                  placeholder="Owner"
-                  disabled
-                  required
-                />
-
-                <InputField
-                  control={form.control}
-                  name="hiringManagerName"
-                  label="Hiring Manager"
-                  placeholder="Name"
-                  disabled
-                  required
-                />
-
-                <InputField
-                  control={form.control}
-                  name="hrqId"
-                  label="HRQ ID"
-                  placeholder="hrqId"
-                  disabled
-                  required
-                />
-
-                <InputField
-                  control={form.control}
-                  name="rcmsProjectId"
-                  label="RCMS Project ID"
-                  placeholder=""
-                  disabled
-                  required
-                />
-
-                <InputField
-                  control={form.control}
-                  name="rcMsResourceRequestId"
-                  label="RCMS Resource Request ID"
-                  placeholder=""
-                  disabled
-                  required
-                />
-                <InputField
-                  control={form.control}
-                  name="projectName"
-                  label="Project Name"
-                  placeholder=""
-                  disabled={!isAddMode}
-                  required
-                />
-
-                <SelectField
-                  control={form.control}
-                  name="businessId"
-                  label="Business Unit"
-                  placeholder="Select Business"
-                  options={business}
-                  disabled={!isAddMode}
-                  required
-                />
-
-                <DatePickerField
-                  control={form.control}
-                  name="requestStartDate"
-                  label="Request Start Date"
-                  disabled={!isAddMode}
-                  required
-                />
-
-                <DatePickerField
-                  control={form.control}
-                  name="requestCreationDate"
-                  label="Req Creation Date"
-                  disabled={true}
-                  required
-                />
-
-                <SelectField
-                  control={form.control}
-                  name="hiringTypeId"
-                  label="Hiring Type"
-                  placeholder="Select Hiring Type"
-                  options={hiringType}
-                  disabled={!isAddMode}
-                  required
-                />
-                {isemployeeId == "13003" && (
-                  <>
-                    <InputField
-                      control={form.control}
-                      name="employeeId"
-                      label="Employee ID"
-                      placeholder="Enter employee id"
-                      type="text"
-                      disabled={!isAddMode}
-                    />
-                    <InputField
-                      control={form.control}
-                      name="referredHrqId"
-                      label="Referred HRQ id"
-                      placeholder="Enter HRQ id"
-                      type="text"
-                      disabled={!isAddMode}
-                    />
-                  </>
-                )}
-
-                <InputField
-                  control={form.control}
-                  name="projectDurationMonths"
-                  label="Project Duration (Months)"
-                  placeholder="Enter Duration"
-                  type="number"
-                  disabled={!isAddMode}
-                  required
-                />
-                <InputField
-                  control={form.control}
-                  name="hiringStatusName"
-                  label="Status"
-                  placeholder="New"
-                  disabled
-                  required
-                />
-
-                <div className="border rounded-md p-4 max-w-3xl">
-                  <label className="block text-sm mb-2">
-                    Position Category
-                  </label>
-                  <div className="flex items-center space-x-6">
-                    <div className="flex items-center space-x-2">
-                      <Switch
-                        disabled={!isAddMode}
-                        checked={!isMultiplePositions}
-                        onCheckedChange={(val: boolean) =>
-                          form.setValue("isMultiplePositions", !val)
-                        }
-                      />
-                      <span className="text-sm">Single</span>
-                    </div>
-
-                    <div className="flex items-center space-x-2">
-                      <Switch
-                        disabled={!isAddMode}
-                        checked={isMultiplePositions}
-                        onCheckedChange={(val: boolean) =>
-                          form.setValue("isMultiplePositions", val)
-                        }
-                        className="bg-[#00A76F]"
-                      />
-                      <span className="text-sm">Multiple</span>
-                    </div>
-                  </div>
-                </div>
-                {isMultiplePositions && (
-                  <InputField
-                    control={form.control}
-                    name="numberOfPositions"
-                    label="No. of Positions"
-                    type="number"
-                    placeholder="0"
-                    disabled={!isAddMode}
-                  />
-                )}
-                <SelectField
-                  control={form.control}
-                  name="domainId"
-                  label="Domain"
-                  placeholder="Select Type"
-                  options={domain}
-                  disabled={!isAddMode}
-                  required
-                />
-                <InputField
-                  control={form.control}
-                  name="domainManager"
-                  label="Domain Manager"
-                  placeholder="*****"
-                  disabled
-                  required
-                />
-                <div className="flex items-end space-x-3">
-                  <div className="flex-1">
-                    <div className="text-sm font-medium mb-2">
-                      BE Team Approver
-                    </div>
-                    <div className="text-sm h-10 w-full flex items-center px-3 rounded-md border border-input bg-gray-100 dark:bg-gray-700 dark:text-white">
-                      {isAddMode ? BeteamApprover?.firstName + " "+ BeteamApprover?.lastName  : HiringDatabyid.betApproverName}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Action buttons */}
-              <div className="flex justify-end pt-6">
-                <div className="flex gap-4 ">
-                  {!isAddMode ? null : (
-                    <Button
-                      variant="hpButton"
-                      type="button"
-                      onClick={handleSave}
-                      className="px-8"
-                      disabled={isPending}
-                    >
-                      {isPending ? "submitting..." : "Submit"}
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </div>
+              </Form.Item>
+            </Col>
+            {isMultiplePositions && (
+              <Col xs={24} md={12}>
+                <Form.Item name="numberOfPositions" label="No. of Positions" rules={zodRules(formSchema, "numberOfPositions")}>
+                  <InputNumber className="w-full" min={1} precision={0} placeholder="0" disabled={!isAddMode} />
+                </Form.Item>
+              </Col>
+            )}
+            <Col xs={24} md={12}>
+              <Form.Item name="domainId" label="Domain" rules={zodRules(formSchema, "domainId")}>
+                <Select showSearch optionFilterProp="label" placeholder="Select Type" options={toOptions(domain)} disabled={!isAddMode} />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item name="domainManager" label="Domain Manager" required rules={zodRules(formSchema, "domainManager")}>
+                <Input placeholder="*****" disabled />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item label="BE Team Approver">
+                <Input disabled value={isAddMode ? `${BeteamApprover?.firstName ?? ""} ${BeteamApprover?.lastName ?? ""}` : HiringDatabyid?.betApproverName ?? ""} />
+              </Form.Item>
+            </Col>
+          </Row>
+          {isAddMode && (
+            <Flex justify="flex-end" className="pt-4">
+              <Button type="primary" loading={isPending} onClick={handleSave}>
+                {isPending ? "submitting..." : "Submit"}
+              </Button>
+            </Flex>
           )}
-        </form>
+        </Spin>
+        )}
       </Form>
-    </>
+    </Flex>
   );
 }

@@ -2,7 +2,7 @@
 import React from "react";
 import { Button, Layout, Space, theme as antdTheme } from "antd";
 import { MenuFoldOutlined, MenuUnfoldOutlined } from "@ant-design/icons";
-import { ThemeToggleButton } from "@/components/common/theme-toggler";
+import { ThemeToggleButton } from "@/components/throughline/ThemeToggle";
 import UserDropdown from "@/components/header/UserDropdown";
 import { useSidebar } from "@/components/context/SidebarContext";
 

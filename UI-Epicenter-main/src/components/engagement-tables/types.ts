@@ -1,4 +1,4 @@
-interface EngagementItem {
+export interface EngagementItem {
     engagementStatusId: number;
     engagementTypeId: number;
     evaluationStartDate: string;
@@ -17,6 +17,7 @@ interface EngagementItem {
     businessUnitName: string;
     evaluationStatusName: string;
     partnerCode: string;
+    nickname?: string;
     id: number;
     isActive: boolean;
 }

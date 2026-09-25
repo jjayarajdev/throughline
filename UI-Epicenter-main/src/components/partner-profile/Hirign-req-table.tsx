@@ -1,142 +1,156 @@
 "use client";
+import React, { useMemo } from "react";
+import { useRouter } from "next/navigation";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Button, Dropdown, Result, Typography } from "antd";
+import type { MenuProps } from "antd";
+import { CloseOutlined, MoreOutlined, PlusOutlined } from "@ant-design/icons";
 
-import { hiringApi } from '@/services/api/hiring.api';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Button } from '../ui/button';
-import { Check, ChevronDown, Menu, X } from 'lucide-react';
+import DataTable, { type DataColumn } from "@/components/data-table/DataTable";
+import { useTableState } from "@/components/data-table/useTableState";
+import { useSearchColumns } from "@/components/data-table/useSearchColumns";
+import { StatusBadge } from "@/components/status-badge";
 import { toast } from "@/lib/toast";
 import api from "@/lib/axiosInstance";
+import { hiringApi } from "@/services/api/hiring.api";
+import { FilterTypeEnum } from "@/constants/FilterTypeEnum";
+import { formatDate } from "@/helpers/helper";
+import { isPartner, useUserStore } from "@/store/userStore";
 
 interface HrqTableProps {
-    id: number;
+  /** partner id whose assigned HRQs are listed */
+  id: number | string | null | undefined;
+  filterType?: FilterTypeEnum;
 }
 
 interface PartnerHrqItem {
-    id: number;
-    hrqId: string;
-    jobTitle: string;
-    businessName: string;
-    partnerAssignedDate: string;
-    rmOwnerName: string;
-    hiringRequestId: string;
+  [key: string]: any;
+  id: number;
+  hrqId: string;
+  jobTitle: string;
+  businessName: string;
+  rmOwnerName: string;
+  partnerAssignedDate: string;
+  numberOfPositions?: number;
+  currentStatusHeadCount?: number;
+  jobPriorityName?: string;
+  hiringStatusName?: string;
+  hiringRequestId: string | number;
+  isProxyPartner?: boolean;
 }
 
-interface PartnerHrqResponse {
-    data: {
-        items: PartnerHrqItem[];
-        totalCount: number;
-    };
-}
+/** Hiring requests assigned to a partner (profile "Hiring Details" tab). */
+const HirignReqTable = ({ id, filterType = FilterTypeEnum.PartnerProfileHiringDetails }: HrqTableProps) => {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const { partnerId } = useUserStore();
+  const t = useTableState({ pageSize: 50, searchColumn: "HrqId" });
+  const searchColumns = useSearchColumns(filterType);
 
-const HirignReqTable = ({ id }: HrqTableProps) => {
-    const queryClient = useQueryClient();
-
-    const { data: PartnerHrq, isFetching } = useQuery<PartnerHrqResponse>({
-        queryKey: ["PartnerHrq", id],
-        queryFn: () => hiringApi.getHiringRequestForPartners({
-            pageNumber: 1,
-            pageSize: 10,
-        }, id),
-        enabled: !!id,
-    });
-
-    const unassignMutation = useMutation({
-        mutationFn: async (hiringRequestId: number) => {
-            const response = await api.patch(`/HiringRequest/partner-hrqs/remove-partner/${hiringRequestId}/${id}`);
-            return response.data;
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ["gethiringDetails", id, t.query],
+    queryFn: () =>
+      hiringApi.getHiringRequestForPartners(
+        {
+          pageNumber: t.query.pageNumber,
+          pageSize: t.query.pageSize,
+          searchColumn: t.query.searchColumn ?? "HrqId",
+          searchText: t.query.searchText || undefined,
         },
-        onSuccess: () => {
-            toast.success("Hiring Request unassigned successfully");
-            queryClient.invalidateQueries({ queryKey: ["PartnerHrq", id] });
-        },
-        onError: () => {
-            toast.error("Failed to unassign partner");
-        }
-    });
+        Number(id)
+      ),
+    enabled: !!id,
+    refetchOnWindowFocus: true,
+  });
 
-    const handleUnassign = (hiringRequestId: number) => {
-        unassignMutation.mutate(hiringRequestId);
-    };
+  const unassignMutation = useMutation({
+    mutationFn: async (hiringRequestId: number) => {
+      const response = await api.patch(`/HiringRequest/partner-hrqs/remove-partner/${hiringRequestId}/${id}`);
+      return response.data;
+    },
+    onSuccess: () => {
+      toast.success("Hiring Request unassigned successfully");
+      queryClient.invalidateQueries({ queryKey: ["gethiringDetails", id] });
+    },
+    onError: () => toast.error("Failed to unassign partner"),
+  });
 
-    const formatDate = (dateString: string) => {
-        if (!dateString) return '';
-        return new Date(dateString).toISOString().split('T')[0];
-    };
+  const adminMenu = (row: PartnerHrqItem): MenuProps["items"] => [
+    { key: "unassign", icon: <CloseOutlined />, label: "Unassign", danger: true, onClick: () => unassignMutation.mutate(parseInt(String(row.hiringRequestId))) },
+  ];
+  const partnerMenu = (row: PartnerHrqItem): MenuProps["items"] => [
+    { key: "add", icon: <PlusOutlined />, label: "Add Candidate", onClick: () => router.push(`/home/candidate-management/create-candidate?hrqid=${row.hrqId}`) },
+  ];
 
-    if (isFetching) {
-        return (
-            <div className="flex justify-center items-center h-80">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-        );
-    }
+  const columns = useMemo<DataColumn<PartnerHrqItem>[]>(
+    () => [
+      {
+        key: "hrqId",
+        title: "HRQID",
+        dataIndex: "hrqId",
+        render: (v: string) => <Typography.Link onClick={() => router.push(`/home/hiring-details?hrqid=${v}`)}>{v}</Typography.Link>,
+      },
+      { key: "jobTitle", title: "Role Hired For", dataIndex: "jobTitle" },
+      { key: "businessName", title: "Business Name", dataIndex: "businessName" },
+      { key: "rmOwnerName", title: "RM Owner", dataIndex: "rmOwnerName" },
+      { key: "partnerAssignedDate", title: "Assigned Date", dataIndex: "partnerAssignedDate", render: (v: string) => formatDate(v) },
+      { key: "numberOfPositions", title: "Total Positions", dataIndex: "numberOfPositions", align: "center" },
+      { key: "currentStatusHeadCount", title: "Current Positions", dataIndex: "currentStatusHeadCount", align: "center" },
+      { key: "jobPriorityName", title: "Priority", dataIndex: "jobPriorityName" },
+      { key: "hiringStatusName", title: "Status", dataIndex: "hiringStatusName", render: (v: string) => <StatusBadge status={v} /> },
+      ...(!isPartner
+        ? [
+            {
+              key: "actions",
+              title: "Actions",
+              locked: true,
+              align: "center",
+              width: 80,
+              render: (_: unknown, r: PartnerHrqItem) => (
+                <Dropdown menu={{ items: adminMenu(r) }} trigger={["click"]}>
+                  <Button size="small" icon={<MoreOutlined />} loading={unassignMutation.isPending && unassignMutation.variables === parseInt(String(r.hiringRequestId))} />
+                </Dropdown>
+              ),
+            } as DataColumn<PartnerHrqItem>,
+          ]
+        : []),
+      ...(isPartner && partnerId !== null
+        ? [
+            {
+              key: "partnerAction",
+              title: "Action",
+              locked: true,
+              align: "center",
+              width: 80,
+              render: (_: unknown, r: PartnerHrqItem) => (
+                <Dropdown menu={{ items: partnerMenu(r) }} trigger={["click"]} disabled={r.isProxyPartner}>
+                  <Button size="small" icon={<MoreOutlined />} disabled={r.isProxyPartner} />
+                </Dropdown>
+              ),
+            } as DataColumn<PartnerHrqItem>,
+          ]
+        : []),
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [partnerId, unassignMutation.isPending, unassignMutation.variables]
+  );
 
-    return (
-        <div className="overflow-x-auto h-80">
-            <table className="w-full border-collapse table-auto">
-                <thead>
-                    <tr className="bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
-                        <th className="px-4 py-2 text-left">HRQ ID</th>
-                        <th className="px-4 py-2 text-left">Role Hired For</th>
-                        <th className="px-4 py-2 text-left">BusinessName</th>
-                        <th className="px-4 py-2 text-left">Assigned Date</th>
-                        <th className="px-4 py-2 text-left">RM Owner</th>
-                        <th className="px-4 py-2 text-left">Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {!PartnerHrq?.data?.items?.length ? (
-                        <tr>
-                            <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
-                                No data available
-                            </td>
-                        </tr>
-                    ) : (
-                        PartnerHrq.data.items.map((poDetail: PartnerHrqItem) => (
-                            <tr key={poDetail.id} className="border-b hover:bg-gray-50">
-                                <td className="px-4 py-2">{poDetail.hrqId}</td>
-                                <td className="px-4 py-2">{poDetail.jobTitle}</td>
-                                <td className="px-4 py-2">{poDetail.businessName}</td>
-                                <td className="px-4 py-2">{formatDate(poDetail.partnerAssignedDate)}</td>
-                                <td className="px-4 py-2">{poDetail.rmOwnerName}</td>
-                                <td className="px-4 py-2">
-                                    <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                            <Button
-                                                variant="outline"
-                                                className="h-8 p-2"
-                                            >
-                                                <Menu className="h-4 w-4 mr-1" />
-                                                <ChevronDown className="h-4 w-4" />
-                                            </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent
-                                            align="end"
-                                            className="w-[160px]"
-                                        >
-                                            <DropdownMenuItem
-                                                onClick={() => handleUnassign(parseInt(poDetail.hiringRequestId))}
-                                                className="h-8 text-red-600 hover:text-red-700"
-                                            >
-                                                <X className="h-4 w-4 mr-2" />
-                                                Unassign
-                                            </DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
-                                </td>
-                            </tr>
-                        ))
-                    )}
-                </tbody>
-            </table>
-        </div>
-    );
+  if (error)
+    return <Result status="error" title="Could not load hiring requests" subTitle={(error as any)?.response?.data?.message || (error as Error).message} extra={<Button onClick={() => refetch()}>Retry</Button>} />;
+
+  return (
+    <DataTable<PartnerHrqItem>
+      storageKey="hirng-details"
+      rowKey={(r) => String(r.hiringRequestId ?? r.id)}
+      columns={columns}
+      data={data?.data?.items}
+      loading={isLoading}
+      pagination={{ current: t.pageNumber, pageSize: t.pageSize, total: data?.data?.totalCount ?? 0 }}
+      onChange={t.onTableChange}
+      search={{ columns: searchColumns, column: t.searchColumn, text: t.searchText, onChange: t.setSearch, placeholder: "Search by" }}
+      emptyText="No hiring Requests found"
+    />
+  );
 };
 
 export default HirignReqTable;

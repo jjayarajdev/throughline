@@ -1,15 +1,12 @@
-'use client';
+"use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ShieldCheck, FileText, FileDown, Download } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import InfoBlock from './InfoBlock';
-import { useQuery } from '@tanstack/react-query';
-import { MasterTypes } from '@/constants/masterTypes';
-import { dropdownApi } from '@/services/api/master';
-import { isPartner } from '@/store/userStore';
-import { TatIndicator } from '../ITPCSetup';
-
+import { Button, Card, Col, Descriptions, Flex, Input, List, Row, Tag, Typography } from "antd";
+import { DownloadOutlined, FileTextOutlined, SafetyCertificateOutlined } from "@ant-design/icons";
+import { useQuery } from "@tanstack/react-query";
+import { MasterTypes } from "@/constants/masterTypes";
+import { dropdownApi } from "@/services/api/master";
+import { isPartner } from "@/store/userStore";
+import { TatIndicator } from "../ITPCSetup";
 
 interface Attachment {
   attachmentName?: string;
@@ -29,177 +26,140 @@ interface BGVProfileData {
   bgvCategoryId?: string;
   bgvStatusId?: string;
   uploadBGVDoc?: Attachment;
-  candidateBGVCompleted?:boolean;
-  comments?:string;
+  candidateBGVCompleted?: boolean;
+  comments?: string;
 }
-interface IProps{
-  personalDetails:any
+interface IProps {
+  personalDetails: any;
 }
-export default function BGVViewProfile({ candidateData,personalDetails }: { candidateData: BGVProfileData ,personalDetails:IProps}) {
 
-  
-   const { data: bgvCategory = [] } = useQuery({
+export default function BGVViewProfile({ candidateData, personalDetails }: { candidateData: BGVProfileData; personalDetails: IProps }) {
+  const { data: bgvCategory = [] } = useQuery({
     queryKey: ["categoryPguData", MasterTypes.BGV_CATEGORY],
-    queryFn: async () => {
-      const res = await dropdownApi.fetchDropdown(MasterTypes.BGV_CATEGORY);
-      return res;
-    },
+    queryFn: () => dropdownApi.fetchDropdown(MasterTypes.BGV_CATEGORY),
     retry: 1,
   });
-
   const { data: bgvStatusTypes = [] } = useQuery({
     queryKey: ["categoryPguData", MasterTypes.BGV_STATUS_TYPES],
-    queryFn: async () => {
-      const res = await dropdownApi.fetchDropdown(MasterTypes.BGV_STATUS_TYPES);
-      return res;
-    },
+    queryFn: () => dropdownApi.fetchDropdown(MasterTypes.BGV_STATUS_TYPES),
     retry: 1,
   });
 
-   const categoryName = getLabelById(bgvCategory, Number(candidateData?.bgvCategoryId));
-     const bgvStatusName = getLabelById(bgvStatusTypes, Number(candidateData?.bgvStatusId));
+  const categoryName = getLabelById(bgvCategory, Number(candidateData?.bgvCategoryId));
+  const bgvStatusName = getLabelById(bgvStatusTypes, Number(candidateData?.bgvStatusId));
+  const dateOfJoining = (personalDetails as any)?.dateOfJoining;
+
+  const docs = [
+    ...(candidateData?.ndaAvailabilityDoc?.attachmentName ? [{ label: "NDA Document", doc: candidateData.ndaAvailabilityDoc }] : []),
+    ...(candidateData?.cdaAvailabilityDoc?.attachmentName ? [{ label: "CDA Document", doc: candidateData.cdaAvailabilityDoc }] : []),
+  ];
+
   return (
-    <Card className="shadow-xl rounded-2xl">
-      <CardHeader>
-        <CardTitle className="flex items-center text-xl">
-          <ShieldCheck className="h-6 w-6 mr-2 text-green-600" />
-          Background Verification (BGV)
-        </CardTitle>
-      </CardHeader>
-
-      <CardContent className="space-y-10">
-
-        {/* ✅ Section 1: Basic Information */}
+    <Card
+      title={
+        <span className="inline-flex items-center gap-2">
+          <SafetyCertificateOutlined /> Background Verification (BGV)
+        </span>
+      }
+    >
+      <Flex vertical gap={24}>
         <div>
-           {!isPartner && <div className="flex flex-col md:flex-row md:items-center md:justify-between pb-4">
-                 <h3 className="text-lg font-semibold text-gray-700 mb-4">Basic Information</h3>
-                  <div>
-                   {/* <h3 className="text-sm font-medium text-gray-600">Background Verification TAT</h3> */}
-                    <p className="text-sm text-gray-900">
-                     <TatIndicator
-                      startDate={personalDetails?.dateOfJoining}
-                      endDate={candidateData?.bgvCompletionDate}
-                      />
-                    </p>
-                  </div>
-                </div>}
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <InfoBlock label="Start Date" value={formatDate(candidateData?.startDate)} />
-            <InfoBlock label="Vendor" value={candidateData?.vendorName || 'N/A'} />
-            <InfoBlock label="PGU ID" value={candidateData?.pguName || 'N/A'} />
-            <InfoBlock label="NDA Availability" value={renderBool(candidateData?.ndaAvailability)} />
-            <InfoBlock label="CDA Availability" value={renderBool(candidateData?.cdaAvailability)} />
-          </div>
-    <div className="flex gap-6 mt-4">
-
-  <div className="space-y-4 max-w-[540px] flex-1">
-    {candidateData?.ndaAvailabilityDoc?.attachmentName && (
-      <DownloadRow
-        label="NDA Document"
-        doc={candidateData.ndaAvailabilityDoc}
-      />
-    )}
-    {candidateData?.cdaAvailabilityDoc?.attachmentName && (
-      <DownloadRow
-        label="CDA Document"
-        doc={candidateData.cdaAvailabilityDoc}
-      />
-    )}
-  </div>
-
-  {/* Right: Action By + Comments */}
-  <div className="w-[550px] border rounded-lg p-3 space-y-2">
-    <h3 className="text-sm font-semibold">Status</h3>
-   <p
-  className={`${
-    candidateData?.candidateBGVCompleted ? "text-green-700" : "text-red-700"
-  } text-base font-bold`}
->
-  {candidateData?.candidateBGVCompleted ? "Accept" : "Reject"}
-</p>
-
-
-    <h3 className="text-sm font-semibold mt-3">Comments</h3>
-    <textarea
-      placeholder="Add comments..."
-      className="w-full text-lg font-medium leading-relaxed border rounded p-2"
-      value={candidateData?.comments}
-      rows={4}
-    />
-  </div>
-</div>
-
+          {!isPartner && (
+            <Flex justify="space-between" align="center" wrap gap={8} className="mb-3">
+              <Typography.Title level={5} style={{ margin: 0 }}>
+                Basic Information
+              </Typography.Title>
+              <TatIndicator startDate={dateOfJoining} endDate={candidateData?.bgvCompletionDate} />
+            </Flex>
+          )}
+          <Descriptions
+            bordered
+            size="small"
+            column={{ xs: 1, md: 2, lg: 3 }}
+            items={[
+              { key: "startDate", label: "Start Date", children: formatDate(candidateData?.startDate) },
+              { key: "vendor", label: "Vendor", children: candidateData?.vendorName || "N/A" },
+              { key: "pgu", label: "PGU ID", children: candidateData?.pguName || "N/A" },
+              { key: "nda", label: "NDA Availability", children: renderBool(candidateData?.ndaAvailability) },
+              { key: "cda", label: "CDA Availability", children: renderBool(candidateData?.cdaAvailability) },
+            ]}
+          />
+          <Row gutter={[16, 16]} className="mt-4">
+            <Col xs={24} lg={12}>
+              {docs.length > 0 && <DocumentList docs={docs} />}
+            </Col>
+            <Col xs={24} lg={12}>
+              <Card size="small" title="Status">
+                <Tag color={candidateData?.candidateBGVCompleted ? "green" : "red"}>{candidateData?.candidateBGVCompleted ? "Accept" : "Reject"}</Tag>
+                <Typography.Text strong className="mt-3" style={{ display: "block" }}>
+                  Comments
+                </Typography.Text>
+                <Input.TextArea placeholder="Add comments..." value={candidateData?.comments} rows={4} readOnly className="mt-1" />
+              </Card>
+            </Col>
+          </Row>
         </div>
 
-        {/* ✅ Section 2: BGV Status */}
         <div>
-          <h3 className="text-lg font-semibold text-gray-700 mb-4">BGV Status</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <InfoBlock
-              label="BGV Available With Partner"
-              value={renderBool(candidateData?.isBGVAvailableWithPartner)}
-            />
-            <InfoBlock
-              label="BGV Completion Date"
-              value={formatDate(candidateData?.bgvCompletionDate)}
-            />
-            <InfoBlock
-              label="BGV Category ID"
-              value={categoryName || 'N/A'}
-            />
-            <InfoBlock
-              label="BGV Status ID"
-              value={bgvStatusName || 'N/A'}
-            />
-          </div>
-
-          <div className="space-y-4 mt-4">
-            {candidateData?.uploadBGVDoc?.attachmentName && (
-              <DownloadRow label="BGV Document" doc={candidateData.uploadBGVDoc} />
-            )}
-          </div>
+          <Typography.Title level={5}>BGV Status</Typography.Title>
+          <Descriptions
+            bordered
+            size="small"
+            column={{ xs: 1, md: 2, lg: 3 }}
+            items={[
+              { key: "withPartner", label: "BGV Available With Partner", children: renderBool(candidateData?.isBGVAvailableWithPartner) },
+              { key: "completionDate", label: "BGV Completion Date", children: formatDate(candidateData?.bgvCompletionDate) },
+              { key: "category", label: "BGV Category ID", children: categoryName || "N/A" },
+              { key: "status", label: "BGV Status ID", children: bgvStatusName || "N/A" },
+            ]}
+          />
+          {candidateData?.uploadBGVDoc?.attachmentName && (
+            <div className="mt-4">
+              <DocumentList docs={[{ label: "BGV Document", doc: candidateData.uploadBGVDoc }]} />
+            </div>
+          )}
         </div>
-
-      </CardContent>
+      </Flex>
     </Card>
   );
 }
 
-// Utils
+function DocumentList({ docs }: { docs: { label: string; doc: Attachment }[] }) {
+  return (
+    <List
+      size="small"
+      bordered
+      dataSource={docs}
+      renderItem={({ label, doc }) => (
+        <List.Item actions={[<Button key="dl" size="small" icon={<DownloadOutlined />} href={doc.attachmentURL} target="_blank" rel="noopener noreferrer" />]}>
+          <List.Item.Meta
+            avatar={<FileTextOutlined />}
+            title={
+              <Typography.Text ellipsis>
+                {label}: {doc.attachmentName}
+              </Typography.Text>
+            }
+          />
+        </List.Item>
+      )}
+    />
+  );
+}
+
 function formatDate(dateStr?: string): string {
-  if (!dateStr) return 'N/A';
+  if (!dateStr) return "N/A";
   const date = new Date(dateStr);
-  return date.toLocaleDateString('en-IN', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
+  return date.toLocaleDateString("en-IN", { year: "numeric", month: "short", day: "numeric" });
 }
 
 function renderBool(value?: boolean): string {
-  if (value === true) return 'Yes ✅';
-  if (value === false) return 'No ❌';
-  return 'N/A';
+  if (value === true) return "Yes";
+  if (value === false) return "No";
+  return "N/A";
 }
 
-function DownloadRow({ label, doc }: { label: string; doc: Attachment }) {
-  return (
-    <div className="flex items-center gap-3 p-2 rounded-lg border border-muted">
-      <FileText className="h-4 w-4 text-muted-foreground" />
-      <span className="text-sm font-medium flex-1 truncate">
-        {label}: {doc.attachmentName}
-      </span>
-      <Button variant="outline" size="sm" asChild>
-        <a href={doc.attachmentURL} target="_blank" rel="noopener noreferrer">
-           <Download className="h-4 w-4" />
-        </a>
-      </Button>
-    </div>
-  );
-}
 function getLabelById(list: { id: number; name: string }[], id?: number): string {
   if (!id) return "N/A";
-  const item = list.find(option => option.id === Number(id));
+  const item = list.find((option) => option.id === Number(id));
   return item?.name || "N/A";
 }

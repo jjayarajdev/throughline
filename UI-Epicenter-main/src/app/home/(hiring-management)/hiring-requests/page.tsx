@@ -1,12 +1,10 @@
-import CartPage from '@/components/hiring-forms/CartTable'
-import React from 'react'
+import { Flex } from "antd";
+import CartPage from "@/components/hiring-forms/CartTable";
 
-function page() {
+export default function HiringRequestsPage() {
   return (
-    <>
-    <CartPage/>
-    </>
-  )
+    <Flex vertical gap={16} className="p-4">
+      <CartPage />
+    </Flex>
+  );
 }
-
-export default page

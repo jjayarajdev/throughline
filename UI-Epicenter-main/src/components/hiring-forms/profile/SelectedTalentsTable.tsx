@@ -1,30 +1,21 @@
-import {
-  Table,
-  TableHeader,
-  TableRow,
-  TableHead,
-  TableBody,
-  TableCell,
-} from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { MoveHorizontal } from "lucide-react";
-import { ErrorHandler } from "@/components/error/ErrorHandler";
-import { Button } from "@/components/ui/button";
-import { CandidateDetailsTypes } from "@/components/slot-management/types";
+"use client";
 import { useState } from "react";
-import TransferCandidateSheet from "@/components/hiring-forms/profile/sheets/TransferCandidateSheet";
-import { Checkbox } from "@/components/ui/checkbox";
 import { useRouter } from "next/navigation";
+import { Button, Empty, Table, Typography } from "antd";
+import type { ColumnsType } from "antd/es/table";
+import { SwapOutlined } from "@ant-design/icons";
 import { StatusBadge } from "@/components/status-badge";
 import { tatFormat } from "@/helpers/helper";
 import { isAdmin, isRmowner, isVendorManager } from "@/store/userStore";
-import { ResumePreview } from "@/components/common/ResumePreview";
+import type { CandidateDetailsTypes } from "@/components/slot-management/types";
+import TransferCandidateSheet from "@/components/hiring-forms/profile/sheets/TransferCandidateSheet";
+import { DocumentPreview } from "../shared";
 
 interface Talent {
   candidateName: any;
   nickName: string;
   currentInterviewRoundName: string;
-  interviewTatDate(interviewTatDate: any): string;
+  interviewTatDate?: any;
   id: string;
   name: string;
   email: string;
@@ -35,9 +26,9 @@ interface Talent {
   partnerName: string;
   intakeStatusName: string;
   enableCandidateHrqTransfer?: boolean;
-  resume: {
+  resume?: {
     attachmentURL?: string;
-  }
+  };
 }
 
 interface SelectedTalentsTableProps {
@@ -47,115 +38,55 @@ interface SelectedTalentsTableProps {
   actionVisible?: boolean;
 }
 
-export function SelectedTalentsTable({
-  talents,
-  onToggleAll,
-  onToggleOne,
-  actionVisible = false,
-}: SelectedTalentsTableProps) {
-  const [isSheetOpen, setIsSheetOpen] = useState(false);
-  const [selectedCandidate, setSelectedCandidate] =
-    useState<CandidateDetailsTypes | null>(null);
-
-  const handleOpenSheet = (data: CandidateDetailsTypes) => {
-    if (!data) return; // Add guard clause
-    setSelectedCandidate(data);
-    setIsSheetOpen(true);
-  };
-  if (!talents || talents.length === 0) {
-    return (
-      <ErrorHandler
-        isEmpty={true}
-        emptyMessage="There are no candidates at the moment."
-      />
-    );
-  }
+/** Candidates attached to a hiring request (talent pool / pipeline / identified / rejected). */
+export function SelectedTalentsTable({ talents, actionVisible = false }: SelectedTalentsTableProps) {
   const router = useRouter();
+  const [selectedCandidate, setSelectedCandidate] = useState<CandidateDetailsTypes | null>(null);
+
+  if (!talents || talents.length === 0) {
+    return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="There are no candidates at the moment." />;
+  }
+
+  const showActions = actionVisible && (isRmowner || isAdmin || isVendorManager);
+
+  const columns: ColumnsType<Talent> = [
+    {
+      key: "candidateCode",
+      title: "Candidate ID",
+      dataIndex: "candidateCode",
+      render: (v: string) => <Typography.Link onClick={() => router.push(`/home/candidate-management/candidate-profile?id=${v}`)}>{v}</Typography.Link>,
+    },
+    { key: "fullName", title: "Candidate Name", dataIndex: "fullName" },
+    { key: "email", title: "Candidate Email", dataIndex: "email" },
+    { key: "nickName", title: "Partner", dataIndex: "nickName" },
+    { key: "intakeStatusName", title: "Intake Status", dataIndex: "intakeStatusName", render: (v: string) => <StatusBadge status={v} /> },
+    {
+      key: "resume",
+      title: "Resume",
+      render: (_: unknown, t) => (t.resume?.attachmentURL ? <DocumentPreview url={t.resume.attachmentURL} fileName={`${t.candidateName}'s Resume`} /> : null),
+    },
+    { key: "tat", title: "TAT (Hours/Days)", render: (_: unknown, t) => <StatusBadge status={tatFormat(t.interviewTatDate as any)} /> },
+    ...(showActions
+      ? [
+          {
+            key: "actions",
+            title: "Actions",
+            width: 130,
+            render: (_: unknown, t: Talent) =>
+              t.enableCandidateHrqTransfer ? (
+                <Button type="primary" size="small" icon={<SwapOutlined />} onClick={() => setSelectedCandidate(t as unknown as CandidateDetailsTypes)}>
+                  Transfer
+                </Button>
+              ) : null,
+          } as ColumnsType<Talent>[number],
+        ]
+      : []),
+  ];
+
   return (
     <>
-      <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm">
-        <div className="flex items-center mb-4"></div>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-10"></TableHead>
-              <TableHead>Candidate ID</TableHead>
-              <TableHead>Candidate Name</TableHead>
-              <TableHead>Candidate Email</TableHead>
-              <TableHead>Partner</TableHead>
-              {/* <TableHead>Round Name</TableHead> */}
-              <TableHead>Intake Status</TableHead>
-              <TableHead>Resume</TableHead>
-              <TableHead>TAT (Hours/Days)</TableHead>
-              {(actionVisible && (isRmowner || isAdmin || isVendorManager)) && (
-                <TableHead className="w-32">Actions</TableHead>
-              )}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {talents?.map((t) => (
-              <TableRow key={t.id}>
-                <TableCell className="w-10">
-                  {/* <Checkbox
-                  onCheckedChange={(val) => onToggleOne?.(t.id, !!val)}
-                /> */}
-                </TableCell>
-                <TableCell
-                  className="text-green-700 hover:cursor-pointer"
-                  onClick={() =>
-                    router.push(
-                      `/home/candidate-management/candidate-profile?id=${t?.candidateCode}`
-                    )
-                  }
-                >
-                  {t?.candidateCode}
-                </TableCell>
-                <TableCell>{t?.fullName}</TableCell>
-                <TableCell>{t?.email}</TableCell>
-                <TableCell>{t?.nickName}</TableCell>
-                {/* <TableCell>{t?.currentInterviewRoundName}</TableCell> */}
-                <TableCell>
-                  <StatusBadge status={t?.intakeStatusName as any} />
-                </TableCell>
-
-                {t?.resume?.attachmentURL && (
-                  <ResumePreview
-                    url={t?.resume?.attachmentURL}
-                    fileName={`${t?.candidateName}'s Resume`}
-                  />
-                )}
-
-                <TableCell>
-                  <StatusBadge status={tatFormat(t?.interviewTatDate as any)} />
-                </TableCell>
-                {t?.enableCandidateHrqTransfer && (
-                  <TableCell>
-                    <Button
-                      variant="hpButton"
-                      size="sm"
-                      className="flex items-center space-x-1"
-                      onClick={() => handleOpenSheet(t)}
-                    >
-                      <MoveHorizontal className="w-4 h-4" />
-                      <span>Transfer</span>
-                    </Button>
-                  </TableCell>
-                )}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-      {selectedCandidate && (
-        <TransferCandidateSheet
-          isOpen={isSheetOpen}
-          onClose={() => {
-            setIsSheetOpen(false);
-            setSelectedCandidate(null);
-          }}
-          selectedCandidate={selectedCandidate}
-        />
-      )}
+      <Table<Talent> size="middle" rowKey="id" columns={columns} dataSource={talents} pagination={false} scroll={{ x: "max-content" }} />
+      {selectedCandidate && <TransferCandidateSheet isOpen onClose={() => setSelectedCandidate(null)} selectedCandidate={selectedCandidate} />}
     </>
   );
 }

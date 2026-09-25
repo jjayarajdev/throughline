@@ -361,32 +361,33 @@ What changed in `UI-Epicenter-main`:
   `AppHeader.tsx`, `UserDropdown.tsx`, `theme-toggler.tsx`; the login page is an antd `Form`.
 - Fixed: `SidebarContext` hard-coded "mobile", so the sider could never expand.
 
-**Shared primitives migrated to Ant Design (25 Sep 2026).** Every file in
-`src/components/ui/*` is now a thin wrapper over an Ant component that keeps the shadcn/Radix
-API the ~260 consumer files were written against, so no page had to change:
+**Full native rewrite on Ant Design 6 (25 Sep 2026).** The shadcn/Radix compatibility layer is
+gone; every page and component is written directly against Ant components:
 
-| Primitive | Ant component | Notes |
-|---|---|---|
-| Button, Badge | Button (`color`/`variant`), Tag | `variant="hpButton"` = primary, `hpReject` = danger, `hpPending` = orange; `asChild` still supported |
-| Input, Textarea, Checkbox, Switch, RadioGroup, Label | Input / Input.Password / TextArea, Checkbox, Switch, Radio.Group | `onCheckedChange` / `onValueChange` contracts kept; `type="file"` stays native |
-| Select, DropdownMenu, Tabs, Accordion, Alert, Avatar, Tooltip, Popover | Select, Dropdown, Tabs, Collapse, Alert, Avatar, Tooltip, Popover | Compound JSX (`<SelectItem>`, `<DropdownMenuItem>`, `<TabsTrigger>` …) is read by the parent and turned into Ant `options` / `items`; `TabsContent` still renders where it sits |
-| Dialog, Sheet | Modal, Drawer | `open` / `onOpenChange` / `DialogTrigger asChild` kept; Drawer width is derived from the `w-[…px]` / `max-w-*` class the consumer passes |
-| Card, Table, Separator, Progress, Skeleton, ScrollArea | Card, semantic table styled by `.tl-table` (globals.css), Divider, Progress, div | Table stays composable for @tanstack/react-table |
-| Form | react-hook-form bindings, Ant error tokens | unchanged API (`FormField`, `FormControl`, `useFormField`) |
+- `src/components/data-table/` — `DataTable` (Ant Table + toolbar: search with the API's
+  searchable columns, filters slot, column chooser persisted per grid, export, server paging
+  and sorting), `useTableState` (page / size / sort / search state in the API's shape, plus
+  `sortColumns` for the endpoints that take it), `useSearchColumns`.
+- `src/lib/zodRules.ts` — the existing zod schemas run as Ant `Form` rules (`zodRules`) and on
+  submit (`validateWithZod`), so validation logic and payload shapes are unchanged.
+- `src/lib/toast.ts` + `ToastBridge` — Ant message/notification behind the old
+  `toast.success/error` call sites.
+- `StatusBadge` on Ant `Tag`; icons from `@ant-design/icons`; layout via `Flex/Row/Col/Card/
+  Descriptions/Tabs/Drawer/Modal`; Tailwind is only used for spacing/sizing utilities.
+- Removed: `src/components/ui`, `form-fields`, `common`, `skelton`, `error`, react-hook-form,
+  @hookform/resolvers, lucide-react, all @radix-ui packages, class-variance-authority,
+  tailwind-merge, @tanstack/react-table, react-day-picker, cmdk, sonner, react-select, and the
+  other unused packages. `npx tsc --noEmit` is clean (0 errors; it was 252 before).
+- `/home` renders client-side only (`src/app/home/layout.tsx`) because roles live in
+  sessionStorage; this removed the hydration warnings.
+- Conventions for new code: `docs/ANT-CONVENTIONS.md`.
 
-The date and multi-select field wrappers moved to Ant directly: `DatePickerField`,
-`DayMonthPickerField` (DatePicker), `DateRangePicker` (RangePicker, keeps `{ from, to }`),
-`MultiSelectField` and `searchable-dropdown` (Select). `calendar`, `command`, `multiselect`,
-`chart` and `sonner` primitives were deleted; `react-day-picker`, `cmdk` and the unused
-Radix packages were removed. `@radix-ui/react-slot`, `-dialog`, `-radio-group`, `-label`
-remain because four feature files import them directly.
-
-Helpers for the compound pattern live in `src/components/ui/_internal.tsx`. Type check is
-at the pre-migration baseline (`npx tsc --noEmit`: 251 errors, all pre-existing).
-
-**Still shadcn-styled (Tailwind) but on Ant primitives**: the feature pages themselves. Next
-candidates for a native Ant rewrite: the grids (`HiringTable`, candidate tables → Ant `Table`),
-then forms (→ Ant `Form`), then onboarding.
+Behaviour fixes made during the rewrite (all intentional; see git log for detail): master grid
+now refreshes after edits (query-key mismatch), role removal asks for confirmation, approval
+grids no longer share one react-query key, page-size changes now refetch where the key omitted
+`pageSize`, error toasts no longer fire on every render, edit forms populate from loaded data
+instead of fixed `setTimeout`s. Grids sort by one column (the API still receives
+`sortColumns`); the old UI stacked up to three.
 Field labels that said "HPE Email ID" now read "Company Email ID"; the API field name
 `hpeEmailId` is unchanged (backend contract).
 

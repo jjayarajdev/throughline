@@ -1,20 +1,14 @@
-import { Button } from "@/components/ui/button";
-import { Form } from "@/components/ui/form";
-import { TextareaField } from "@/components/form-fields/TextAreaField";
-import { Loader2 } from "lucide-react";
-import { SheetFooter } from "@/components/ui/sheet";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+"use client";
+import { Button, Form, Input, Select, Space } from "antd";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as z from "zod";
-import { CandidateDetailsSheet } from "@/components/shared/CandidateDetailsSheet";
 import { toast } from "@/lib/toast";
-import { useState, useEffect } from "react";
+import { validateWithZod, zodRules } from "@/lib/zodRules";
 import { slotApi } from "@/services/api/slot.api";
 import { dropdownApi } from "@/services/api/master";
 import { MasterTypes } from "@/constants/masterTypes";
-import { SelectField } from "@/components/form-fields/SelectField";
 import { CandidateDetailsTypes } from "../types";
+import { CandidateDrawer } from "./CandidateDrawer";
 
 interface ScreeningSheetProps {
   isOpen: boolean;
@@ -29,23 +23,10 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
-export function FeedbackPendingSheet({
-  isOpen,
-  onClose,
-  selectedCandidate,
-}: ScreeningSheetProps) {
-  const [actionType, setActionType] = useState<"accept" | "reject" | null>(
-    null
-  );
+/** Record the interview outcome (Selected / Rejected / Onhold) and feedback for a slot. */
+export function FeedbackPendingSheet({ isOpen, onClose, selectedCandidate }: ScreeningSheetProps) {
   const queryClient = useQueryClient();
-
-  const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      feedback: "",
-      interviewStatusId: "",
-    },
-  });
+  const [form] = Form.useForm<FormValues>();
 
   const { data: Interviewstatus = [] } = useQuery({
     queryKey: ["Interviewstatus"],
@@ -53,102 +34,63 @@ export function FeedbackPendingSheet({
     enabled: !!selectedCandidate,
   });
 
+  const handleClose = () => {
+    form.resetFields();
+    onClose();
+  };
+
   const { mutate: addFeedback, isPending } = useMutation({
     mutationKey: ["addFeedback"],
     mutationFn: slotApi.addFeedbackInterviewList,
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["feedbackPending"]});
+      queryClient.invalidateQueries({ queryKey: ["feedbackPending"] });
       toast.success(data?.message || "Screening status updated successfully");
       handleClose();
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast.error(error?.message || "Failed to process screening");
       console.error("Error in screening:", error);
-      setActionType(null);
     },
   });
-  const handleClose = () => {
-    form.reset();
-    setActionType(null);
-    onClose();
-  };
 
-  useEffect(() => {
-    if (!isOpen) {
-      handleClose();
+  const onFinish = (values: FormValues) => {
+    const data = validateWithZod(formSchema, form, values);
+    if (!data) return;
+    if (!selectedCandidate?.candidateId) {
+      toast.error("No candidate selected");
+      return;
     }
-  }, [isOpen]);
-
-  const handleAction = () => {
-    form.handleSubmit((data) => {
-      if (!selectedCandidate?.candidateId) {
-        toast.error("No candidate selected");
-        return;
-      }
-      const payloadAssign = {
-         ...data,
-      interviewSlotId: selectedCandidate.interviewSlotId,
-      };
-      addFeedback(payloadAssign);
-    })();
+    addFeedback({ ...data, interviewSlotId: selectedCandidate.interviewSlotId } as any);
   };
-  const filteredStatuses = Interviewstatus.filter(
-    (status: { name: string }) =>
-      status.name === "Selected" || status.name === "Rejected" || status.name ==="Onhold"
-  );
+
+  const statusOptions = (Interviewstatus as { id: number; name: string }[])
+    .filter((s) => s.name === "Selected" || s.name === "Rejected" || s.name === "Onhold")
+    .map((s) => ({ value: String(s.id), label: s.name }));
+
   return (
-    <CandidateDetailsSheet
+    <CandidateDrawer
       isOpen={isOpen}
       onClose={handleClose}
       candidate={selectedCandidate}
       title="Feedback Pending"
+      footer={
+        selectedCandidate ? (
+          <Space style={{ display: "flex", justifyContent: "flex-end" }}>
+            <Button type="primary" loading={isPending} onClick={() => form.submit()}>
+              Submit Feedback
+            </Button>
+          </Space>
+        ) : null
+      }
     >
-      {selectedCandidate ? (
-        <Form {...form}>
-          <form className="mt-6 space-y-6" onSubmit={(e) => e.preventDefault()}>
-            <div className="pt-4 space-y-4">
-              <SelectField
-                control={form.control}
-                name="interviewStatusId"
-                label="Interview Status"
-                placeholder="Select interview status"
-                options={filteredStatuses}
-                required
-              />
-              <TextareaField
-                control={form.control}
-                name="feedback"
-                label="Feedback"
-                placeholder="Enter your feedback here..."
-                required
-              />
-            </div>
-
-            <SheetFooter className="flex pt-6 border-t">
-              <Button
-                type="submit"
-                variant="hpButton"
-                disabled={isPending}
-                onClick={() => handleAction()}
-                className="w-full h-11"
-              >
-                {isPending ? (
-                  <div className="flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>Submitting Feedback...</span>
-                  </div>
-                ) : (
-                  <span>Submit Feedback</span>
-                )}
-              </Button>
-            </SheetFooter>
-          </form>
-        </Form>
-      ) : (
-        <div className="mt-6 text-center text-gray-500">
-          No candidate selected
-        </div>
-      )}
-    </CandidateDetailsSheet>
+      <Form form={form} layout="vertical" className="mt-6" onFinish={onFinish} initialValues={{ feedback: "", interviewStatusId: undefined }}>
+        <Form.Item name="interviewStatusId" label="Interview Status" rules={zodRules(formSchema, "interviewStatusId")}>
+          <Select placeholder="Select interview status" options={statusOptions} showSearch optionFilterProp="label" />
+        </Form.Item>
+        <Form.Item name="feedback" label="Feedback" rules={zodRules(formSchema, "feedback")}>
+          <Input.TextArea rows={4} placeholder="Enter your feedback here..." />
+        </Form.Item>
+      </Form>
+    </CandidateDrawer>
   );
 }

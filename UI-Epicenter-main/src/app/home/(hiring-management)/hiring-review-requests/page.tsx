@@ -1,10 +1,10 @@
-import BinPage from '@/components/hiring-forms/BinPage'
-import React from 'react'
+import { Flex } from "antd";
+import BinPage from "@/components/hiring-forms/BinPage";
 
-export default function page() {
+export default function HiringReviewRequestsPage() {
   return (
-    <div>
-        <BinPage />
-    </div>
-  )
+    <Flex vertical gap={16} className="p-4">
+      <BinPage />
+    </Flex>
+  );
 }

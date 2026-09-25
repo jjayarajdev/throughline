@@ -1,22 +1,15 @@
 "use client";
-
 import * as z from "zod";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { Button } from "@/components/ui/button";
-import { Form } from "@/components/ui/form";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { InputField } from "@/components/form-fields/InputField";
-import { DatePickerField } from "@/components/form-fields/DatePickerField";
-import { SelectField } from "@/components/form-fields/SelectField";
-import { ArrowLeft, CloudCog } from "lucide-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { toast } from "@/lib/toast";
-import { partnerApi } from "@/services/api/partner.profile.api";
-import { ErrorHandler } from "@/components/error/ErrorHandler";
 import { useEffect, useState } from "react";
-import CrHistoryDetails, { SowCR } from "./CRHistoryDetails";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Button, Card, Col, DatePicker, Form, Input, InputNumber, Result, Row, Select, Space, Typography } from "antd";
+import { ArrowLeftOutlined } from "@ant-design/icons";
+import dayjs from "dayjs";
+import { toast } from "@/lib/toast";
+import { validateWithZod, zodRules } from "@/lib/zodRules";
+import { partnerApi } from "@/services/api/partner.profile.api";
 import { onboarding } from "@/services/api/onboarding.api";
+import CrHistoryDetails, { SowCR } from "./CRHistoryDetails";
 
 interface PODetails {
   poNumber: string;
@@ -27,12 +20,11 @@ interface PODetails {
   endDate: string;
   poValue: number;
   sowId: number;
-  extendedDate: string
-  comments: string
-  crNumber?:string;
-  crRequestDate?:string
+  extendedDate: string;
+  comments: string;
+  crNumber?: string;
+  crRequestDate?: string;
 }
-
 
 export interface PoPayload {
   id: number;
@@ -45,9 +37,10 @@ export interface PoPayload {
   extendedDate?: string;
   comments?: string;
   crTypeId: number;
-  crNumber:number;
-  crRequestDate:string
+  crNumber: number;
+  crRequestDate: string;
 }
+
 interface SOWDetails {
   sowNumber: string;
   startDate: string;
@@ -67,544 +60,335 @@ let crFlagsGlobalForPO: {
   isOthers?: boolean;
 } = {};
 
-export const poFormSchema = z
-  .object({
-    poNumber: z.string().min(1, "PO number is required"),
-    startDate: z.string().min(1, "Start Date is required"),
-    endDate: z.string().min(1, "End Date is required"),
-    poValue: z
-      .string()
-      .min(1, "PO value is required")
-      .refine((val) => parseFloat(val) > 0, {
-        message: "PO value must be greater than 0",
-      }),
-    status: z.enum(["Active", "Inactive"], {
-      required_error: "Status is required",
-    }),
-    extendedDate: z.string().optional(),
-    crComments: z.string().optional(),
-    crNumber: z.string().optional(),
-    crRequestDate: z.string().optional(),
-    crValue:z.string().optional()
-  })
-  .refine((data) => {
-    const start = new Date(data.startDate);
-    const end = new Date(data.endDate);
-    return !isNaN(start.getTime()) && !isNaN(end.getTime()) && end > start;
-  }, {
-    message: "End date must be after start date",
-    path: ["endDate"],
-  })
+const poBaseSchema = z.object({
+  poNumber: z.string().min(1, "PO number is required"),
+  startDate: z.string().min(1, "Start Date is required"),
+  endDate: z.string().min(1, "End Date is required"),
+  poValue: z
+    .string()
+    .min(1, "PO value is required")
+    .refine((val) => parseFloat(val) > 0, { message: "PO value must be greater than 0" }),
+  status: z.enum(["Active", "Inactive"], { required_error: "Status is required" }),
+  extendedDate: z.string().optional(),
+  crComments: z.string().optional(),
+  crNumber: z.string().optional(),
+  crRequestDate: z.string().optional(),
+  crValue: z.string().optional(),
+});
+
+export const poFormSchema = poBaseSchema
+  .refine(
+    (data) => {
+      const start = new Date(data.startDate);
+      const end = new Date(data.endDate);
+      return !isNaN(start.getTime()) && !isNaN(end.getTime()) && end > start;
+    },
+    { message: "End date must be after start date", path: ["endDate"] }
+  )
   .superRefine((data, ctx) => {
     const flags = crFlagsGlobalForPO;
-
     if (flags.isValidityExtension && !data.extendedDate) {
-      ctx.addIssue({
-        path: ["extendedDate"],
-        message: "Extended End Date is required",
-        code: z.ZodIssueCode.custom,
-      });
+      ctx.addIssue({ path: ["extendedDate"], message: "Extended End Date is required", code: z.ZodIssueCode.custom });
     }
     if (flags.isValueChange && !data.crValue) {
-      ctx.addIssue({
-        path: ["crValue"],
-        message: "CR Value is required",
-        code: z.ZodIssueCode.custom,
-      });
+      ctx.addIssue({ path: ["crValue"], message: "CR Value is required", code: z.ZodIssueCode.custom });
     }
-
     if (flags.isOthers && !data.crComments?.trim()) {
-      ctx.addIssue({
-        path: ["crComments"],
-        message: "Comments are required",
-        code: z.ZodIssueCode.custom,
-      });
+      ctx.addIssue({ path: ["crComments"], message: "Comments are required", code: z.ZodIssueCode.custom });
     }
-
-    if (
-      flags.isRateChange ||
-      flags.isValueChange ||
-      flags.isValidityExtension ||
-      flags.isOthers
-    ) {
+    if (flags.isRateChange || flags.isValueChange || flags.isValidityExtension || flags.isOthers) {
       if (!data.crNumber?.trim()) {
-        ctx.addIssue({
-          path: ["crNumber"],
-          message: "CR Number is required",
-          code: z.ZodIssueCode.custom,
-        });
+        ctx.addIssue({ path: ["crNumber"], message: "CR Number is required", code: z.ZodIssueCode.custom });
       }
-
       if (!data.crRequestDate) {
-        ctx.addIssue({
-          path: ["crRequestDate"],
-          message: "CR Request Date is required",
-          code: z.ZodIssueCode.custom,
-        });
+        ctx.addIssue({ path: ["crRequestDate"], message: "CR Request Date is required", code: z.ZodIssueCode.custom });
       }
     }
   });
 
-
 type FormValues = z.infer<typeof poFormSchema>;
 
 interface AddPoFormProps {
-  
   onCancel: () => void;
   sowData: SOWDetails;
   initialData?: PODetails;
   isEditing?: boolean;
   crType?: "validity-extension" | "value-change" | "others" | string;
-  addPo: boolean
-  selectedCrType: number
-  sowNumber:number
+  addPo: boolean;
+  selectedCrType: number;
+  sowNumber: number;
 }
 
-interface POFormData {
-  poNumber: string;
-  startDate: string;
-  endDate: string;
-  value: string;
-  status: "Active" | "Inactive";
-}
+/** Form values keep the API's "YYYY-MM-DD" string while the picker shows a dayjs. */
+const dateValueProps = {
+  getValueProps: (v: string) => ({ value: v ? dayjs(v) : null }),
+  normalize: (d: dayjs.Dayjs | null) => (d ? d.format("YYYY-MM-DD") : ""),
+};
 
-export function AddPoForm({
- 
-  onCancel,
-  sowData,
-  initialData,
-  isEditing,
-  crType,
-  addPo,
-  selectedCrType,
-  sowNumber
-}: AddPoFormProps) {
+const STATUS_OPTIONS = [
+  { value: "Active", label: "Active" },
+  { value: "Inactive", label: "Inactive" },
+];
+
+/** Create / edit a PO under a SOW, or raise a change request (CR) against it. */
+export function AddPoForm({ onCancel, sowData, initialData, isEditing, crType, addPo, selectedCrType, sowNumber }: AddPoFormProps) {
   const queryClient = useQueryClient();
- const [showDetails, setShowDetails] = useState(false);
-const [selectedCrData, setSelectedCrData] = useState<SowCR | null>(null);
-const selectedCategory = crType === "validity-extension"
-    ? "Validity Extension"
-    : crType === "value-change" 
-    ? "Value Change"
-    : crType === "others"
-    ? "Others"
-    : "";
-  const handleViewDetails = () => {
-    setShowDetails(!showDetails);
-  };
-  const form = useForm<FormValues>({
-    resolver: zodResolver(poFormSchema),
-    defaultValues: {
-      poNumber: initialData?.poNumber || "",
-      startDate:
-        initialData?.startDate,
-      endDate:
-        initialData?.endDate,
-      poValue: initialData?.poValue?.toString() || "",
-      status: initialData?.status !== undefined ? (initialData.status ? "Active" : "Inactive") : "Active",
-      crNumber:initialData?.crNumber,
-      crRequestDate:initialData?.crRequestDate,
-      extendedDate:initialData?.extendedDate,
-    },
+  const [form] = Form.useForm<FormValues>();
+  const [showDetails, setShowDetails] = useState(false);
+  const [selectedCrData, setSelectedCrData] = useState<SowCR | null>(null);
+
+  const selectedCategory = crType === "validity-extension" ? "Validity Extension" : crType === "value-change" ? "Value Change" : crType === "others" ? "Others" : "";
+
+  const { data: getCRdata, refetch: reFetchData } = useQuery({
+    queryKey: ["getCRdata", initialData?.id],
+    queryFn: () => onboarding.getPo(initialData?.id as number),
+    enabled: !!initialData?.id,
   });
 
-  const {
-  data: getCRdata,
-  refetch: reFetchData,
-  isPending,
-} = useQuery({
-  queryKey: ["getCRdata", initialData?.id],
-  queryFn: () => onboarding.getPo(initialData?.id),
-  enabled: !!initialData?.id,
-});
+  useEffect(() => {
+    if (getCRdata?.poValue) form.setFieldsValue({ poValue: getCRdata.poValue.toString() } as any);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [getCRdata?.poValue]);
 
-useEffect(() => {
-  if (getCRdata?.poValue) {
-    form.reset({
-      ...form.getValues(),
-      poValue: getCRdata.poValue.toString(),
-    });
-  }
-}, [getCRdata?.poValue]);
- 
   const createpo = useMutation({
     mutationFn: partnerApi.createPo,
     onSuccess: (newPo) => {
-      reFetchData()
+      reFetchData();
       toast.success(newPo?.message || "PO created successfully");
       queryClient.invalidateQueries({ queryKey: ["getsowData"] });
-      form.reset();
+      form.resetFields();
       onCancel();
     },
     onError: (error: any) => {
-      const message =
-      error?.response?.data?.message ||
-      error?.message ||                 
-      "Failed to create PO";
-      
-      toast.error(message);
+      toast.error(error?.response?.data?.message || error?.message || "Failed to create PO");
       console.error("Error creating PO:", error);
     },
   });
 
   const computedFlags = selectedCrData
-  ? {
-      isValidityExtension: !!selectedCrData.extendedDate,
-      isOthers: !!selectedCrData.comments,
-      isValueChange:
-        !selectedCrData.extendedDate && !selectedCrData.comments,
-    }
-  : {
-      isValidityExtension: crType === "validity-extension",
-      isOthers: crType === "others",
-      isValueChange: crType === "value-change",
-    };
+    ? {
+        isValidityExtension: !!selectedCrData.extendedDate,
+        isOthers: !!selectedCrData.comments,
+        isValueChange: !selectedCrData.extendedDate && !selectedCrData.comments,
+      }
+    : {
+        isValidityExtension: crType === "validity-extension",
+        isOthers: crType === "others",
+        isValueChange: crType === "value-change",
+      };
 
-function clearCrFields(form:any) {
-  form.setValue("extendedDate", "");
-  form.setValue("crComments", "");
-  form.setValue("isRateChanged", false);
-  form.setValue("crNumber", "");
-  form.setValue("crRequestDate", "");
-  form.setValue("crValue", "");
-}
-  const { mutate: updatePo, isPending: updateLoading, isError, error } = useMutation({
-    mutationFn: (values: PoPayload) =>
-      partnerApi.updatePo(Number(initialData?.id), values),
+  const clearCrFields = () =>
+    form.setFieldsValue({ extendedDate: "", crComments: "", crNumber: "", crRequestDate: "", crValue: "" } as any);
+
+  const {
+    mutate: updatePo,
+    isPending: updateLoading,
+    isError,
+    error,
+  } = useMutation({
+    mutationFn: (values: PoPayload) => partnerApi.updatePo(Number(initialData?.id), values),
     onSuccess: (data) => {
-      reFetchData()
+      reFetchData();
       queryClient.invalidateQueries({ queryKey: ["getsowData"] });
       if (selectedCrData) {
-      toast.success("CR updated successfully");
-      clearCrFields(form)
-    } else if (computedFlags?.isValueChange || computedFlags?.isValidityExtension || computedFlags?.isOthers) {
-      toast.success("CR created successfully");
-      clearCrFields(form)
-    } else {
-      toast.success(data?.message || "PO created successfully");
-      clearCrFields(form)
-      onCancel(); 
-    }
+        toast.success("CR updated successfully");
+        clearCrFields();
+      } else if (computedFlags?.isValueChange || computedFlags?.isValidityExtension || computedFlags?.isOthers) {
+        toast.success("CR created successfully");
+        clearCrFields();
+      } else {
+        toast.success(data?.message || "PO created successfully");
+        clearCrFields();
+        onCancel();
+      }
     },
-    onError: (error) => {
-      toast.error("Failed to update PO");
-     
-    },
+    onError: () => toast.error("Failed to update PO"),
   });
 
-
-
-const handleEditCR = (cr: SowCR) => {
-   const actualCategory = cr?.comments
-    ? "Others"
-    : cr?.extendedDate
-    ? "Validity Extension"
-    : cr?.isRateChanged
-    ? "Rate Change"
-    : "Value Change";
-
-  
-
-  if (selectedCategory !== actualCategory) {
-    toast.warning(
-      `This CR belongs to "${actualCategory}". You can only edit "${selectedCategory}" CRs.`
-    );
-    return;
-  }
-  setSelectedCrData(cr);
-
-  form.setValue("crNumber", cr.crNumber || "");
-  form.setValue("crRequestDate", cr.crRequestDate || "");
-
-  
-
-  if (cr.extendedDate) {
-    form.setValue("extendedDate", cr.extendedDate);
-  }
-
-  if (cr.comments) {
-    form.setValue("crComments", cr.comments);
-  }
-  if (cr.crValue) {
-    form.setValue("crValue", cr.crValue?.toString());
-  }
-};
+  const handleEditCR = (cr: SowCR) => {
+    const actualCategory = cr?.comments ? "Others" : cr?.extendedDate ? "Validity Extension" : cr?.isRateChanged ? "Rate Change" : "Value Change";
+    if (selectedCategory !== actualCategory) {
+      toast.warning(`This CR belongs to "${actualCategory}". You can only edit "${selectedCategory}" CRs.`);
+      return;
+    }
+    setSelectedCrData(cr);
+    const patch: Partial<FormValues> = { crNumber: cr.crNumber || "", crRequestDate: cr.crRequestDate || "" };
+    if (cr.extendedDate) patch.extendedDate = cr.extendedDate;
+    if (cr.comments) patch.crComments = cr.comments;
+    if (cr.crValue) patch.crValue = cr.crValue?.toString();
+    form.setFieldsValue(patch as any);
+  };
 
   const handleSubmit = (data: FormValues) => {
-
     let finalTcValue = Number(data.poValue || 0);
-
-if (selectedCrData && data.crValue) {
-  const previousCrValue = Number(selectedCrData.crValue || 0);
-  const newCrValue = Number(data.crValue || 0);
-  const delta = newCrValue - previousCrValue;
-  finalTcValue += delta;
-} else if (!selectedCrData && data.crValue) {
-  
-  finalTcValue += Number(data.crValue);
-}
-    const isCR =
-        crType === "validity-extension" ||
-        crType === "value-change" ||
-        crType === "others" ||
-        crType === "rate-change";
-        const poCRPayload = isCR
-        ? [
-            { 
-              ...(selectedCrData?.id ? { id: selectedCrData.id } : {}),
-              crTypeId: selectedCrType,
-              crNumber: data.crNumber,
-              crRequestDate: data.crRequestDate,
-              ...(crType === "validity-extension" && data.extendedDate
-                ? { extendedDate: data.extendedDate }
-                : {}),
-              ...(crType === "others" && data.crComments
-                ? { comments: data.crComments }
-                : {}),
-              ...(crType === "value-change" && data.crValue
-                ? { crValue:Number(data.crValue) }
-                : {}),
-              poId: initialData?.id ?? 0,
-            },
-          ]
-        : [];
-    const commonPayload: PoPayload = {
+    if (selectedCrData && data.crValue) {
+      finalTcValue += Number(data.crValue || 0) - Number(selectedCrData.crValue || 0);
+    } else if (!selectedCrData && data.crValue) {
+      finalTcValue += Number(data.crValue);
+    }
+    const isCR = crType === "validity-extension" || crType === "value-change" || crType === "others" || crType === "rate-change";
+    const poCRPayload = isCR
+      ? [
+          {
+            ...(selectedCrData?.id ? { id: selectedCrData.id } : {}),
+            crTypeId: selectedCrType,
+            crNumber: data.crNumber,
+            crRequestDate: data.crRequestDate,
+            ...(crType === "validity-extension" && data.extendedDate ? { extendedDate: data.extendedDate } : {}),
+            ...(crType === "others" && data.crComments ? { comments: data.crComments } : {}),
+            ...(crType === "value-change" && data.crValue ? { crValue: Number(data.crValue) } : {}),
+            poId: initialData?.id ?? 0,
+          },
+        ]
+      : [];
+    const commonPayload = {
       poNumber: data.poNumber,
       startDate: data.startDate,
       endDate: data.endDate,
-      poValue:finalTcValue,
+      poValue: finalTcValue,
       status: data.status === "Active",
       sowId: initialData?.sowId ? initialData?.sowId : sowData?.id,
       id: initialData?.id ?? 0,
-      pO_CRs:poCRPayload
-    };
-   
-    
-    if (isEditing || poCRPayload.length) {
+      pO_CRs: poCRPayload,
+    } as unknown as PoPayload;
 
-
-      updatePo(commonPayload);
-
-    } else {
-
-      createpo.mutate(commonPayload);
-    }
-
+    if (isEditing || poCRPayload.length) updatePo(commonPayload);
+    else createpo.mutate(commonPayload);
   };
 
+  const onFinish = (values: FormValues) => {
+    crFlagsGlobalForPO = computedFlags;
+    const data = validateWithZod(poFormSchema, form, values);
+    if (data) handleSubmit(data);
+  };
 
+  crFlagsGlobalForPO = computedFlags;
 
-  
+  const isFieldDisabled = (): boolean => {
+    const isCR = crType === "validity-extension" || crType === "value-change" || crType === "others";
+    if (isEditing) return isCR;
+    if (addPo) return false;
+    if (isCR) return true;
+    return true;
+  };
+  const disabled = isFieldDisabled();
 
-crFlagsGlobalForPO = computedFlags;
-
- const isFieldDisabled = (field: string): boolean => {
-  const isCR =
-    crType === "validity-extension" ||
-    crType === "value-change" ||
-    crType === "others";
-
-  
-  if (isEditing) {
-    return  crType === "validity-extension" ||
-    crType === "value-change" ||
-    crType === "others" ? true : false;
-  }
-
-  
-  if (addPo) return false;
-
- 
-  if (isCR) {
-    return  true;
-  }
-
-  
-  return true;
-};
-
-  const submitLabel =
-  selectedCrData
-    ? `Update ${selectedCategory || "CR"}`
-    : selectedCategory
-    ? `Create ${selectedCategory || "CR"}`
-    : isEditing
-    ? "Update PO"
-    : "Create PO";
+  const submitLabel = selectedCrData ? `Update ${selectedCategory || "CR"}` : selectedCategory ? `Create ${selectedCategory || "CR"}` : isEditing ? "Update PO" : "Create PO";
+  const busy = createpo.isPending || updateLoading;
+  const title =
+    crType === "validity-extension" ? "Validity Extension" : crType === "value-change" ? "Value Change" : crType === "others" ? "Others" : isEditing ? "Edit PO" : !initialData?.id ? "Add New PO" : "PO Details";
 
   return (
-    <Card>
-      <CardHeader className="border-b">
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onCancel}
-            className="hover:bg-transparent p-0"
-          >
-            <ArrowLeft className="h-4 w-4" />
+    <Card
+      title={
+        <Space direction="vertical" size={0}>
+          <Space>
+            <Button type="text" icon={<ArrowLeftOutlined />} onClick={onCancel} />
+            <Typography.Title level={5} style={{ margin: 0 }}>
+              {title}
+            </Typography.Title>
+          </Space>
+          <Typography.Text type="secondary">SOW Number: {sowNumber}</Typography.Text>
+        </Space>
+      }
+    >
+      {isError && <Result status="error" title="Failed to update PO" subTitle={(error as any)?.response?.data?.message || (error as Error)?.message} />}
+      <Form<FormValues>
+        form={form}
+        layout="vertical"
+        onFinish={onFinish}
+        initialValues={{
+          poNumber: initialData?.poNumber || "",
+          startDate: initialData?.startDate,
+          endDate: initialData?.endDate,
+          poValue: initialData?.poValue?.toString() || "",
+          status: initialData?.status !== undefined ? (initialData.status ? "Active" : "Inactive") : "Active",
+          crNumber: initialData?.crNumber,
+          crRequestDate: initialData?.crRequestDate,
+          extendedDate: initialData?.extendedDate,
+        }}
+      >
+        <Row gutter={[16, 8]}>
+          <Col xs={24} md={12}>
+            <Form.Item name="poNumber" label="PO Number" rules={zodRules(poBaseSchema, "poNumber")}>
+              <Input placeholder="Enter PO number" disabled={disabled} />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={12}>
+            <Form.Item name="startDate" label="Start Date" rules={zodRules(poBaseSchema, "startDate")} {...dateValueProps}>
+              <DatePicker className="w-full" format="YYYY-MM-DD" disabled={disabled} />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={12}>
+            <Form.Item name="endDate" label="End Date" rules={zodRules(poBaseSchema, "endDate")} {...dateValueProps}>
+              <DatePicker className="w-full" format="YYYY-MM-DD" disabled={disabled} />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={12}>
+            <Form.Item name="poValue" label="PO Value" rules={zodRules(poBaseSchema, "poValue")} normalize={(v) => v ?? ""}>
+              <InputNumber stringMode className="w-full" placeholder="Enter PO value" disabled={disabled} />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={12}>
+            <Form.Item name="status" label="Status" rules={zodRules(poBaseSchema, "status")}>
+              <Select options={STATUS_OPTIONS} disabled={disabled} />
+            </Form.Item>
+          </Col>
+          {computedFlags.isValidityExtension && (
+            <Col xs={24} md={12}>
+              <Form.Item name="extendedDate" label="Extended Validity Date" required {...dateValueProps}>
+                <DatePicker className="w-full" format="YYYY-MM-DD" />
+              </Form.Item>
+            </Col>
+          )}
+          {computedFlags.isOthers && (
+            <Col xs={24} md={12}>
+              <Form.Item name="crComments" label="Change Request Comments" required>
+                <Input placeholder="Enter reason for CR" />
+              </Form.Item>
+            </Col>
+          )}
+          {computedFlags.isValueChange && (
+            <Col xs={24} md={12}>
+              <Form.Item name="crValue" label="PO CR Value" required normalize={(v) => v ?? ""}>
+                <InputNumber stringMode className="w-full" placeholder="PO CR value" />
+              </Form.Item>
+            </Col>
+          )}
+          {crType && (
+            <Col xs={24} md={12}>
+              <Form.Item name="crNumber" label="CR Number" required>
+                <Input placeholder="Enter CR Number" />
+              </Form.Item>
+            </Col>
+          )}
+          {crType && (
+            <Col xs={24} md={12}>
+              <Form.Item name="crRequestDate" label="CR RequestDate" required {...dateValueProps}>
+                <DatePicker className="w-full" format="YYYY-MM-DD" />
+              </Form.Item>
+            </Col>
+          )}
+        </Row>
+        <Space className="w-full justify-end pt-4" style={{ display: "flex", justifyContent: "flex-end" }}>
+          {crType && (
+            <Button onClick={() => setShowDetails((s) => !s)} disabled={createpo.isPending}>
+              View CR
+            </Button>
+          )}
+          <Button onClick={onCancel} disabled={createpo.isPending}>
+            Cancel
           </Button>
-          <CardTitle className="text-xl font-semibold">
-            {crType === "validity-extension"
-              ? "Validity Extension"
-              : crType === "value-change"
-              ? "Value Change"
-              : crType === "others"
-              ? "Others"
-              : isEditing
-              ? "Edit PO"
-              : !initialData?.id
-              ? "Add New PO"
-              : "PO Details"}
-          </CardTitle>
-        </div>
-        <p className="text-sm text-muted-foreground mt-2">
-          SOW Number: {sowNumber}
-        </p>
-      </CardHeader>
-      <CardContent className="p-6">
-        <Form {...form}>
-          <form
-            onSubmit={form.handleSubmit(handleSubmit)}
-            className="space-y-6"
-          >
-
-            {isError && (
-              <ErrorHandler
-                error={error}
-
-              />
-            )}
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <InputField
-                control={form.control}
-                name="poNumber"
-                label="PO Number"
-                placeholder="Enter PO number"
-                required
-                disabled={isFieldDisabled("poNumber")}
-              />
-              <DatePickerField
-                control={form.control}
-                name="startDate"
-                label="Start Date"
-                required
-                disabled={isFieldDisabled("startDate")}
-              />
-              <DatePickerField
-                control={form.control}
-                name="endDate"
-                label="End Date"
-                required
-                disabled={isFieldDisabled("endDate")}
-              />
-              <InputField
-                control={form.control}
-                name="poValue"
-                label="PO Value"
-                placeholder="Enter PO value"
-                type="number"
-                required
-                disabled={isFieldDisabled("poValue")}
-              />
-              <SelectField
-                control={form.control}
-                name="status"
-                label="Status"
-                options={[
-                  { id: "Active", name: "Active" },
-                  { id: "Inactive", name: "Inactive" },
-                ]}
-                required
-                disabled={isFieldDisabled("status")}
-              />
-              
-               {(addPo && computedFlags.isValidityExtension) || (!addPo && computedFlags.isValidityExtension) ? (
-                <DatePickerField
-                  control={form.control}
-                  name="extendedDate"
-                  label="Extended Validity Date"
-                 required
-                />
-              ) : null}
-              {(addPo && computedFlags.isOthers) || (!addPo && computedFlags.isOthers) ? (
-                <InputField
-                  control={form.control}
-                  name="crComments"
-                  label="Change Request Comments"
-                  placeholder="Enter reason for CR"
-                  required
-                />
-              ) : null}
-               {(addPo && computedFlags.isValueChange) || (!addPo && computedFlags.isValueChange) ? (
-                 <InputField
-                control={form.control}
-                name="crValue"
-                label="PO CR Value"
-                placeholder="PO CR value"
-                type="number"
-                required
-                
-              />
-              ) : null}
-
-              {crType && (
-                <InputField
-                  control={form.control}
-                  name="crNumber"
-                  label="CR Number"
-                  placeholder="Enter CR Number"
-                  required
-                />
-              )}
-              {crType && (
-               <DatePickerField
-                  control={form.control}
-                  name="crRequestDate"
-                  label="CR RequestDate"
-                 required
-                />
-              )}
-             
-            </div>
-
-            <div className="flex justify-end gap-4 pt-6">
-              {crType && <Button
-                type="button"
-                variant="outline"
-                onClick={handleViewDetails} 
-                disabled={createpo.isPending}
-              >
-                View CR
-              </Button>}
-              <Button
-                type="button"
-                variant="outline"
-                onClick={onCancel}
-                disabled={createpo.isPending}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={createpo.isPending || updateLoading}
-                className="bg-[#0958d9] hover:bg-[#006D54]"
-              >
-                {createpo.isPending || updateLoading
-                  ? submitLabel.replace(/^(Create|Update)/, (m) =>
-                      m === "Create" ? "Creating" : "Updating"
-                    ) + "..."
-                  : submitLabel}
-              </Button>
-            </div>
-          </form>
-        </Form>
-         {showDetails && (
+          <Button type="primary" htmlType="submit" loading={busy}>
+            {busy ? submitLabel.replace(/^(Create|Update)/, (m) => (m === "Create" ? "Creating" : "Updating")) + "..." : submitLabel}
+          </Button>
+        </Space>
+      </Form>
+      {showDetails && (
         <div className="mt-6">
-          <CrHistoryDetails crData={getCRdata?.pO_CRs} onEditCR={handleEditCR} isToggle={false}/>
-        </div>)}
-      </CardContent>
+          <CrHistoryDetails crData={getCRdata?.pO_CRs} onEditCR={handleEditCR} isToggle={false} />
+        </div>
+      )}
     </Card>
   );
 }

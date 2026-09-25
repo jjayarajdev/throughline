@@ -1,10 +1,7 @@
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Card } from "@/components/ui/card";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { Calendar, Briefcase, FileText } from "lucide-react";
+"use client";
+import { Avatar, Card, Empty, Flex, List, Space, Tag, Typography } from "antd";
+import { CalendarOutlined, FileTextOutlined, ShopOutlined } from "@ant-design/icons";
 import { format } from "date-fns";
-import { Badge } from "@/components/ui/badge";
-import { ErrorHandler } from "@/components/error/ErrorHandler";
 
 interface Interview {
   interviewSlotId: number;
@@ -18,7 +15,7 @@ interface Interview {
   candidateId: string;
   company: string;
   round: string;
-  datetime: string; // e.g. "10 AM, 2025-04-23"
+  datetime: string;
 }
 
 interface UpcomingInterviewsCardProps {
@@ -26,81 +23,59 @@ interface UpcomingInterviewsCardProps {
   onSeeAll?: () => void;
 }
 
-export function UpcomingInterviewsCard({
-  interviews,
-}: UpcomingInterviewsCardProps) {
-  if (!interviews || interviews.length === 0) {
-    return (
-      <Card className=" h-[30vh]  dark:bg-gray-800 p-2">
-        <div className="flex items-center justify-between px-4 py-2 border-b dark:border-gray-700">
-          <h4 className="font-semibold text-[#1677ff]">Upcoming Interviews</h4>
-        </div>
-        <ErrorHandler
-          isEmpty={true}
-          emptyMessage="There is no upcoming Interviews"
-        />
-      </Card>
-    );
-  }
-  return (
-    <Card className="bg-white dark:bg-gray-800">
-      <div className="flex items-center justify-between px-4 py-2 border-b dark:border-gray-700">
-        <h4 className="font-semibold text-[#1677ff]">Upcoming Interviews</h4>
-      </div>
+const initials = (name?: string) =>
+  name
+    ?.split(" ")
+    .map((n) => n[0])
+    .join("") || "?";
 
-      <ScrollArea className="h-48 p-0">
-        <div className="space-y-3 p-2">
-          {interviews.map((i) => (
-            <div
-              key={i.interviewSlotId}
-              className="bg-gray-50 hover:bg-gray-100 transition-colors dark:bg-gray-700 p-4 rounded-lg border border-gray-100"
-            >
-              <div className="flex items-center space-x-4">
-                <Avatar className="h-10 w-10 border-2 border-[#0958d9]/20">
-                  <AvatarImage src={i.avatarUrl} />
-                  <AvatarFallback className="bg-[#0958d9]/10 text-[#0958d9]">
-                    {i.candidateName
-                      ?.split(" ")
-                      .map((n) => n[0])
-                      .join("")}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <p className="font-medium text-gray-900 dark:text-gray-100">
-                      {i.candidateName}
-                    </p>
-                    <Badge
-                      variant="outline"
-                      className="bg-[#0958d9]/10 text-[#0958d9] border-none"
-                    >
+/** Side card listing the next scheduled interviews for the hiring request. */
+export function UpcomingInterviewsCard({ interviews }: UpcomingInterviewsCardProps) {
+  return (
+    <Card title="Upcoming Interviews" size="small">
+      {!interviews || interviews.length === 0 ? (
+        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="There is no upcoming Interviews" />
+      ) : (
+        <List
+          size="small"
+          dataSource={interviews}
+          rowKey={(i) => i.interviewSlotId}
+          style={{ maxHeight: 240, overflowY: "auto" }}
+          renderItem={(i) => (
+            <List.Item>
+              <List.Item.Meta
+                avatar={<Avatar src={i.avatarUrl}>{initials(i.candidateName)}</Avatar>}
+                title={
+                  <Flex justify="space-between" align="center" gap={8}>
+                    <span>{i.candidateName}</span>
+                    <Tag color="blue" style={{ marginInlineEnd: 0 }}>
                       {i.round}
-                    </Badge>
-                  </div>
-                  <div className="flex flex-col space-y-1">
-                    <div className="flex items-center text-sm text-gray-500 dark:text-gray-400 space-x-2">
-                      <FileText className="w-4 h-4" />
-                      <span>{i.candidateId}</span>
-                      <span className="text-gray-300">•</span>
-                      <Briefcase className="w-4 h-4" />
-                      <span>{i.nickname}</span>
-                    </div>
-                    <div className="flex items-center text-sm text-gray-500 dark:text-gray-400 space-x-2">
-                      <Calendar className="w-4 h-4 text-[#0958d9]" />
-                      <span>
-                        {format(
-                          new Date(`${i.date.split("T")[0]}T${i.time}`),
-                          "MMM dd, yyyy - hh:mm aa"
-                        )}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </ScrollArea>
+                    </Tag>
+                  </Flex>
+                }
+                description={
+                  <Space direction="vertical" size={2}>
+                    <Typography.Text type="secondary">
+                      <Space size={6}>
+                        <FileTextOutlined />
+                        {i.candidateId}
+                        <ShopOutlined />
+                        {i.nickname}
+                      </Space>
+                    </Typography.Text>
+                    <Typography.Text type="secondary">
+                      <Space size={6}>
+                        <CalendarOutlined />
+                        {format(new Date(`${String(i.date).split("T")[0]}T${i.time}`), "MMM dd, yyyy - hh:mm aa")}
+                      </Space>
+                    </Typography.Text>
+                  </Space>
+                }
+              />
+            </List.Item>
+          )}
+        />
+      )}
     </Card>
   );
 }

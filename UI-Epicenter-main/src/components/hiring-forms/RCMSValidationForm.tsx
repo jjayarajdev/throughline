@@ -1,18 +1,12 @@
-// RCMSValidationForm.tsx
 "use client";
-
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import * as z from "zod";
-import { Button } from "@/components/ui/button";
-import { InputField } from "../form-fields/InputField";
-import { useQuery } from "@tanstack/react-query";
-import { hiringApi } from "../../services/api/hiring.api";
-import { Switch } from "../ui/switch";
-import { toast } from "@/lib/toast";
 import { Dispatch, SetStateAction } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Button, Col, Form, Input, Row, Switch } from "antd";
+import * as z from "zod";
+import { toast } from "@/lib/toast";
+import { validateWithZod, zodRules } from "@/lib/zodRules";
+import { hiringApi } from "../../services/api/hiring.api";
 
-// 1) Discriminated-union schemas
 const newSchema = z.object({
   mode: z.literal("new"),
   rcMsId: z.string().min(1, "RCMS ID is required"),
@@ -24,139 +18,81 @@ const replicaSchema = z.object({
   hrqid: z.string().min(1, "HRQ ID is required"),
 });
 
-const validationSchema = z.discriminatedUnion("mode", [
-  newSchema,
-  replicaSchema,
-]);
+const validationSchema = z.discriminatedUnion("mode", [newSchema, replicaSchema]);
 
-type ValidationFormValues = z.infer<typeof validationSchema>;
-
+type ValidationFormValues = { mode: "new" | "replica"; rcMsId?: string; projectId?: string; hrqid?: string };
 
 interface RCMSValidationFormProps {
   onValidationSuccess: (data: any, mode: "new" | "replica") => void;
   setValidate: Dispatch<SetStateAction<boolean>>;
 }
 
-export function RCMSValidationForm({
-  onValidationSuccess,setValidate
-}: RCMSValidationFormProps) {
-  // 2) Init form with resolver and default mode=new
-  const form = useForm<ValidationFormValues>({
-    resolver: zodResolver(validationSchema),
-    defaultValues: {
-      mode: "new",
-      rcMsId: "",
-      projectId: "",
-      hrqid: "",
-    } as ValidationFormValues,
-  });
+/** Look up an RCMS request (new) or an existing HRQ (replica) before creating a hiring request. */
+export function RCMSValidationForm({ onValidationSuccess, setValidate }: RCMSValidationFormProps) {
+  const [form] = Form.useForm<ValidationFormValues>();
+  const mode = Form.useWatch("mode", form) ?? "new";
+  const rcMsId = Form.useWatch("rcMsId", form);
+  const projectId = Form.useWatch("projectId", form);
+  const hrqid = Form.useWatch("hrqid", form);
 
-  const { watch, handleSubmit, setValue, control } = form;
-  const mode = watch("mode");
-  const hrqid = watch("hrqid");
-  const rcMsId = watch("rcMsId");
-  const projectId = watch("projectId");
-
-  const { refetch, isFetching: isLoading,isError } = useQuery({
-    queryKey: [
-      "validateHiring",
-      mode,
-      mode === "new"
-        ? [rcMsId, projectId]
-        : hrqid,
-    ],
-    queryFn: () =>
-      mode === "new"
-        ? hiringApi.getHiringByID(watch("rcMsId"), watch("projectId"))
-        : hiringApi.getHiringReplica(watch("hrqid")),
+  const { refetch, isFetching: isLoading } = useQuery({
+    queryKey: ["validateHiring", mode, mode === "new" ? [rcMsId, projectId] : hrqid],
+    queryFn: () => (mode === "new" ? hiringApi.getHiringByID(form.getFieldValue("rcMsId"), form.getFieldValue("projectId")) : hiringApi.getHiringReplica(form.getFieldValue("hrqid"))),
     enabled: false,
   });
 
-
-  const handleValidate = async (values: ValidationFormValues): Promise<void> => {
-
-   if(mode==="new"){
-    setValidate(false)
-   }
+  const onFinish = async (values: ValidationFormValues) => {
+    const data = validateWithZod(validationSchema, form, { ...values, mode });
+    if (!data) return;
+    if (mode === "new") setValidate(false);
     try {
       const response = await refetch();
-      const data = response?.data
-
-      if(data.status ===false){
-        toast.error(data?.message)
-        setValidate(false)
-        return
+      const result: any = response?.data;
+      if (result?.status === false) {
+        toast.error(result?.message);
+        setValidate(false);
+        return;
       }
-   
-      if (response.data) {
-        onValidationSuccess(response?.data, mode);
-      }
+      if (response.data) onValidationSuccess(response.data, mode);
     } catch (error) {
       console.error("Validation failed:", error);
     }
   };
 
   return (
-    <form
-      onSubmit={handleSubmit(handleValidate)}
-      className="grid grid-cols-1 md:grid-cols-3 gap-6 py-6 w-full"
-    >
-      {/* Move toggle to top as full-width */}
-      <div className="md:col-span-3 flex items-center gap-2">
-        <label className="text-sm">Type of Rec</label>
-        <Switch
-          checked={mode === "replica"}
-          onCheckedChange={(val: boolean) =>
-            setValue("mode", val ? "replica" : "new", {
-              shouldValidate: true,
-              shouldTouch: true,
-            })
-          }
-        />
-        <span className="text-sm">
-          {mode === "replica" ? "Replica" : "New"}
-        </span>
-      </div>
-
-      {/* Conditional fields */}
-      {mode === "new" ? (
-        <>
-          <InputField
-            control={control}
-            name="rcMsId"
-            label="RCMS  PROJECT ID"
-            placeholder="enter rcms project id"
-            required
-          />
-          <InputField
-            control={control}
-            name="projectId"
-            label="RESOURCE REQUEST ID"
-            placeholder="enter resource request id"
-            required
-          />
-        </>
-      ) : (
-        <InputField
-          control={control}
-          name="hrqid"
-          label="HRQ ID"
-          placeholder="HRQ ID"
-          required
-        />
-      )}
-
-      {/* Validate button spans remaining columns */}
-      <div className="md:col-span-3 flex items-end">
-        <Button
-          type="submit"
-          variant="hpButton"
-          className="px-4"
-          disabled={isLoading}
-        >
-          {isLoading ? "Validating..." : "Validate"}
-        </Button>
-      </div>
-    </form>
+    <Form form={form} layout="vertical" onFinish={onFinish} initialValues={{ mode: "new", rcMsId: "", projectId: "", hrqid: "" }} className="py-4">
+      <Row gutter={[16, 8]}>
+        <Col span={24}>
+          <Form.Item name="mode" label="Type of Rec" getValueProps={(v) => ({ checked: v === "replica" })} normalize={(checked: boolean) => (checked ? "replica" : "new")} layout="horizontal">
+            <Switch checkedChildren="Replica" unCheckedChildren="New" />
+          </Form.Item>
+        </Col>
+        {mode === "new" ? (
+          <>
+            <Col xs={24} md={8}>
+              <Form.Item name="rcMsId" label="RCMS PROJECT ID" rules={zodRules(newSchema, "rcMsId")}>
+                <Input placeholder="enter rcms project id" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={8}>
+              <Form.Item name="projectId" label="RESOURCE REQUEST ID" rules={zodRules(newSchema, "projectId")}>
+                <Input placeholder="enter resource request id" />
+              </Form.Item>
+            </Col>
+          </>
+        ) : (
+          <Col xs={24} md={8}>
+            <Form.Item name="hrqid" label="HRQ ID" rules={zodRules(replicaSchema, "hrqid")}>
+              <Input placeholder="HRQ ID" />
+            </Form.Item>
+          </Col>
+        )}
+        <Col span={24}>
+          <Button type="primary" htmlType="submit" loading={isLoading}>
+            {isLoading ? "Validating..." : "Validate"}
+          </Button>
+        </Col>
+      </Row>
+    </Form>
   );
 }

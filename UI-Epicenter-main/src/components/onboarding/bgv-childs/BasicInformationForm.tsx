@@ -1,28 +1,19 @@
-import { useForm, FormProvider, Controller, useWatch } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
-import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+"use client";
 
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { SelectField } from "@/components/form-fields/SelectField";
-import { DatePickerField } from "@/components/form-fields/DatePickerField";
-import { InputField } from "@/components/form-fields/InputField";
-import { FileField } from "@/components/form-fields/FileField";
+import { useEffect, useMemo, useState } from "react";
+import * as z from "zod";
+import dayjs, { type Dayjs } from "dayjs";
+import { useQuery } from "@tanstack/react-query";
+import { Button, Card, Checkbox, Col, DatePicker, Divider, Flex, Form, Input, Modal, Radio, Row, Select, Space, Spin, Typography } from "antd";
+import { DownloadOutlined, EyeOutlined } from "@ant-design/icons";
 import { dropdownApi } from "@/services/api/master";
 import { MasterTypes } from "@/constants/masterTypes";
-import { RadioGroup } from "@radix-ui/react-radio-group";
-import { RadioGroupItem } from "@/components/ui/radio-group";
-import { AlertCircle, Download, Eye } from "lucide-react";
-import { ResumePreview } from "@/components/common/ResumePreview";
-import { MultiDocumentField } from "@/components/form-fields/MultiDocumentField";
 import { isPartner } from "@/store/userStore";
-import SubmitFormLoader from "@/components/common/SubmitFormLoader";
-import { differenceInCalendarDays, isValid } from "date-fns";
+import { validateWithZod, zodRules } from "@/lib/zodRules";
 import { TatIndicator } from "../ITPCSetup";
+import { AttachmentUpload, MultiDocumentUpload } from "../upload-fields";
 
-const formSchema = z.object({
+const bgvBaseSchema = z.object({
   startDate: z.string().min(1, "Start Date is required"),
   vendor: z.string().min(1, "Vendor is required"),
   pguId: z.string().min(1, "PGU is required"),
@@ -31,15 +22,12 @@ const formSchema = z.object({
   ndaAvailabilityDoc: z.object({
     attachmentName: z.string().optional(),
     attachmentURL: z.string().optional(),
-    
   }),
-   
-  cdaAvailabilityDoc:  z.object({
+  cdaAvailabilityDoc: z.object({
     attachmentName: z.string().optional(),
     attachmentURL: z.string().optional(),
-    
   }),
-  additionalDocs:z.array(
+  additionalDocs: z.array(
     z.object({
       id: z.number().optional(),
       attachmentName: z.string().optional(),
@@ -47,7 +35,7 @@ const formSchema = z.object({
       additionalDocId: z.number().optional(),
     })
   ),
-uploadBGVDocs:z.array(
+  uploadBGVDocs: z.array(
     z.object({
       id: z.number().optional(),
       attachmentName: z.string().optional(),
@@ -57,574 +45,266 @@ uploadBGVDocs:z.array(
   ),
   isBGVAvailableWithPartner: z.boolean(),
   bgvStatusId: z.string(),
- 
   bgvCompletionDate: z.string(),
-  
   bgvCategoryId: z.string().optional(),
-}) .superRefine((data, ctx) => {
-    if (data.isBGVAvailableWithPartner && !data.bgvStatusId) {
-      ctx.addIssue({
-        path: ["bgvStatusId"],
-        code: z.ZodIssueCode.custom,
-        message: "BGV Status is required when BGV is available with partner",
-      });
+});
+
+const formSchema = bgvBaseSchema.superRefine((data, ctx) => {
+  if (data.isBGVAvailableWithPartner && !data.bgvStatusId) {
+    ctx.addIssue({ path: ["bgvStatusId"], code: z.ZodIssueCode.custom, message: "BGV Status is required when BGV is available with partner" });
+  }
+  if (data.bgvStatusId === "77001") {
+    if (!data.bgvCompletionDate) {
+      ctx.addIssue({ path: ["bgvCompletionDate"], code: z.ZodIssueCode.custom, message: "BGV Completion Date is required when status is Completed" });
     }
-    if (data.bgvStatusId === "77001") {
-      if (!data.bgvCompletionDate) {
-        ctx.addIssue({
-          path: ["bgvCompletionDate"],
-          code: z.ZodIssueCode.custom,
-          message: "BGV Completion Date is required when status is Completed",
-        });
-      }
-
-      if (!data.bgvCategoryId) {
-        ctx.addIssue({
-          path: ["bgvCategoryId"],
-          code: z.ZodIssueCode.custom,
-          message: "BGV Category is required when status is Completed",
-        });
-      }
-
-      // const upload = data.uploadBGVDocs || [];
-      // if (upload.length === 0) {
-      //   ctx.addIssue({
-      //     path: ["uploadBGVDocs"],
-      //     code: z.ZodIssueCode.custom,
-      //     message: "BGV Document is required when status is Completed",
-      //   });
-      // }
-    }
-
-     if (data.ndaAvailability || data.cdaAvailability) {
-    const isNdaMissing =
-    !data.ndaAvailabilityDoc?.attachmentName ||
-    !data.ndaAvailabilityDoc?.attachmentURL;
-
-  const isCdaMissing =
-    !data.cdaAvailabilityDoc?.attachmentName ||
-    !data.cdaAvailabilityDoc?.attachmentURL;
-
-  if (isNdaMissing && isCdaMissing) {
-    ctx.addIssue({
-    path: ["ndaAvailabilityDoc"],
-    code: z.ZodIssueCode.custom,
-    message: "Both NDA and CDA documents are required",
-  });
-  ctx.addIssue({
-    path: ["cdaAvailabilityDoc"],
-    code: z.ZodIssueCode.custom,
-    message: "Both NDA and CDA documents are required",
-  });
-  } else {
-    if (isNdaMissing) {
-      ctx.addIssue({
-        path: ["ndaAvailabilityDoc"],
-        code: z.ZodIssueCode.custom,
-        message: "Please upload NDA document",
-      });
-    }
-    if (isCdaMissing) {
-      ctx.addIssue({
-        path: ["cdaAvailabilityDoc"],
-        code: z.ZodIssueCode.custom,
-        message: "Please upload CDA document",
-      });
+    if (!data.bgvCategoryId) {
+      ctx.addIssue({ path: ["bgvCategoryId"], code: z.ZodIssueCode.custom, message: "BGV Category is required when status is Completed" });
     }
   }
-}
-
-
-  });
-
+  if (data.ndaAvailability || data.cdaAvailability) {
+    const isNdaMissing = !data.ndaAvailabilityDoc?.attachmentName || !data.ndaAvailabilityDoc?.attachmentURL;
+    const isCdaMissing = !data.cdaAvailabilityDoc?.attachmentName || !data.cdaAvailabilityDoc?.attachmentURL;
+    if (isNdaMissing && isCdaMissing) {
+      ctx.addIssue({ path: ["ndaAvailabilityDoc"], code: z.ZodIssueCode.custom, message: "Both NDA and CDA documents are required" });
+      ctx.addIssue({ path: ["cdaAvailabilityDoc"], code: z.ZodIssueCode.custom, message: "Both NDA and CDA documents are required" });
+    } else {
+      if (isNdaMissing) ctx.addIssue({ path: ["ndaAvailabilityDoc"], code: z.ZodIssueCode.custom, message: "Please upload NDA document" });
+      if (isCdaMissing) ctx.addIssue({ path: ["cdaAvailabilityDoc"], code: z.ZodIssueCode.custom, message: "Please upload CDA document" });
+    }
+  }
+});
 
 type FormValues = z.infer<typeof formSchema>;
 
-export default function CombinedInformationForm({
-  onboardingTimeline,
-  personalDetails,
-  onSave,
-}: any) {
-  const [modalData, setModalData] = useState(null);
-  const [loader,setLoader]=useState(false)
-  const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
+type Option = { id: number | string; name: string };
+const toOptions = (list: Option[] = []) => list.map((o) => ({ value: String(o.id), label: o.name }));
+const YES_NO = [
+  { label: "Yes", value: true },
+  { label: "No", value: false },
+];
+const ACCEPT = ".ppt,.pptx,.pdf,.doc,.docx";
+
+const dateItem = {
+  getValueProps: (v?: string) => ({ value: v && dayjs(v).isValid() ? dayjs(v) : null }),
+  normalize: (d: Dayjs | null) => (d ? d.format("YYYY-MM-DD") : ""),
+};
+const noPast = (d: Dayjs) => d.isBefore(dayjs(), "day");
+
+/** Background-verification form: NDA / CDA availability, supporting documents and the BGV status. */
+export default function CombinedInformationForm({ onboardingTimeline, personalDetails, onSave }: any) {
+  const [form] = Form.useForm<FormValues>();
+  const [modalData, setModalData] = useState<{ title: string; fileUrl: string } | null>(null);
+  const [loader, setLoader] = useState(false);
+  const bgvId: number = typeof onboardingTimeline?.id === "number" ? onboardingTimeline.id : 0;
+
+  const initial = useMemo<FormValues>(
+    () => ({
       startDate: personalDetails?.dateOfJoining || "",
       vendor: personalDetails?.sourceName || "",
       pguId: personalDetails?.pguName || "",
       ndaAvailability: onboardingTimeline?.ndaAvailability || false,
       cdaAvailability: onboardingTimeline?.cdaAvailability || false,
-     ndaAvailabilityDoc: onboardingTimeline?.ndaAvailabilityDoc ||{},
+      ndaAvailabilityDoc: onboardingTimeline?.ndaAvailabilityDoc || {},
       cdaAvailabilityDoc: onboardingTimeline?.cdaAvailabilityDoc || {},
       additionalDocs: onboardingTimeline?.additionalDocs || [],
-     
-      isBGVAvailableWithPartner:
-        onboardingTimeline?.isBGVAvailableWithPartner || false,
-      bgvStatusId:onboardingTimeline?.bgvStatusId? onboardingTimeline?.bgvStatusId?.toString():"77003",
+      uploadBGVDocs: onboardingTimeline?.uploadBGVDocs || [],
+      isBGVAvailableWithPartner: onboardingTimeline?.isBGVAvailableWithPartner || false,
+      bgvStatusId: onboardingTimeline?.bgvStatusId ? onboardingTimeline?.bgvStatusId?.toString() : "77003",
       bgvCategoryId: onboardingTimeline?.bgvCategoryId?.toString() || "",
       bgvCompletionDate: onboardingTimeline?.bgvCompletionDate || "",
-      uploadBGVDocs: onboardingTimeline?.uploadBGVDocs || [],
-    },
-  });
+    }),
+    [onboardingTimeline, personalDetails]
+  );
 
   useEffect(() => {
-    if (onboardingTimeline || personalDetails) {
-      form.reset({
-        startDate: personalDetails?.dateOfJoining || "",
-        vendor: personalDetails?.sourceName || "",
-        pguId:personalDetails?.pguName || "",
-        ndaAvailability: onboardingTimeline?.ndaAvailability || false,
-        cdaAvailability: onboardingTimeline?.cdaAvailability || false,
-        ndaAvailabilityDoc: onboardingTimeline?.ndaAvailabilityDoc || {},
-        cdaAvailabilityDoc: onboardingTimeline?.cdaAvailabilityDoc || {},
-        additionalDocs: onboardingTimeline?.additionalDocs || [],
-        uploadBGVDocs:onboardingTimeline?.uploadBGVDocs || [],
-        isBGVAvailableWithPartner:
-          onboardingTimeline?.isBGVAvailableWithPartner || false,
-         bgvStatusId:onboardingTimeline?.bgvStatusId? onboardingTimeline?.bgvStatusId?.toString():"77003",
-        bgvCategoryId: onboardingTimeline?.bgvCategoryId?.toString() || "",
-        bgvCompletionDate: onboardingTimeline?.bgvCompletionDate || "",
-        
-      });
-    }
-  }, [onboardingTimeline, personalDetails]);
- 
+    if (onboardingTimeline || personalDetails) form.setFieldsValue(initial);
+  }, [onboardingTimeline, personalDetails, initial, form]);
 
   const { data: bgvCategory = [] } = useQuery({
     queryKey: ["bgvCategory"],
     queryFn: () => dropdownApi.fetchDropdown(MasterTypes.BGV_CATEGORY),
   });
-
   const { data: bgvStatusTypes = [] } = useQuery({
     queryKey: ["bgvStatus"],
     queryFn: () => dropdownApi.fetchDropdown(MasterTypes.BGV_STATUS_TYPES),
   });
-  
 
-  
+  const ndaAvailability = Form.useWatch("ndaAvailability", form);
+  const cdaAvailability = Form.useWatch("cdaAvailability", form);
+  const isBGVAvailable = Form.useWatch("isBGVAvailableWithPartner", form);
+  const IsbgvStatusTypes = Form.useWatch("bgvStatusId", form);
 
-  const ndaAvailability = useWatch({
-    control: form.control,
-    name: "ndaAvailability",
-  });
-  const cdaAvailability = useWatch({
-    control: form.control,
-    name: "cdaAvailability",
-  });
-  const isBGVAvailable = useWatch({
-    control: form.control,
-    name: "isBGVAvailableWithPartner",
-  });
-
-  const IsbgvStatusTypes=useWatch({
-    control: form.control,
-    name: "bgvStatusId",
-  })
-  
-
-  const onSubmit =async(data: FormValues) => {
-    setLoader(true)
-  const additionalDoc=data.additionalDocs.map((doc) => ({
+  const onFinish = async (v: FormValues) => {
+    const data = validateWithZod(formSchema, form, { ...form.getFieldsValue(true), ...v });
+    if (!data) return;
+    setLoader(true);
+    const additionalDoc = data.additionalDocs.map((doc) => ({
       id: doc.id || 0,
       attachmentName: doc.attachmentName,
       attachmentURL: doc.attachmentURL,
       docType: 1,
-       additionalDocId:
-        typeof onboardingTimeline?.id === "number" ? onboardingTimeline.id : 0,
+      additionalDocId: bgvId,
     }));
-
-  const uploadBGVDoc=data.uploadBGVDocs.map((doc) => ({
+    const uploadBGVDoc = data.uploadBGVDocs.map((doc) => ({
       id: doc.id || 0,
       attachmentName: doc.attachmentName,
       attachmentURL: doc.attachmentURL,
       docType: 1,
-      uploadBGVDocId:
-        typeof onboardingTimeline?.id === "number" ? onboardingTimeline.id : 0,
+      uploadBGVDocId: bgvId,
     }));
-
     const payload = {
-      id:
-        typeof onboardingTimeline?.id === "number"
-          ? onboardingTimeline.id
-          : undefined,
-      vendorId: personalDetails?.sourceId
-        ? Number(personalDetails.sourceId)
-        : null,
-      ...(data?.ndaAvailabilityDoc && data?.ndaAvailabilityDoc?.attachmentName && data?.ndaAvailabilityDoc?.attachmentURL && {
-    ndaAvailabilityDoc: data.ndaAvailabilityDoc
-  }),
-  ...(data?.cdaAvailabilityDoc && data?.cdaAvailabilityDoc?.attachmentName && data?.cdaAvailabilityDoc?.attachmentURL && {
-    cdaAvailabilityDoc: data.cdaAvailabilityDoc
-  }),
-      additionalDocs:additionalDoc??null,
-      startDate: personalDetails?.dateOfJoining
-        ? personalDetails?.dateOfJoining
-        : null,
+      id: typeof onboardingTimeline?.id === "number" ? onboardingTimeline.id : undefined,
+      vendorId: personalDetails?.sourceId ? Number(personalDetails.sourceId) : null,
+      ...(data?.ndaAvailabilityDoc && data?.ndaAvailabilityDoc?.attachmentName && data?.ndaAvailabilityDoc?.attachmentURL && { ndaAvailabilityDoc: data.ndaAvailabilityDoc }),
+      ...(data?.cdaAvailabilityDoc && data?.cdaAvailabilityDoc?.attachmentName && data?.cdaAvailabilityDoc?.attachmentURL && { cdaAvailabilityDoc: data.cdaAvailabilityDoc }),
+      additionalDocs: additionalDoc ?? null,
+      startDate: personalDetails?.dateOfJoining ? personalDetails?.dateOfJoining : null,
       vendor: personalDetails?.sourceName ? personalDetails?.sourceName : null,
-      pguId: personalDetails?.pguId ?personalDetails?.pguId : onboardingTimeline?.pguId,
+      pguId: personalDetails?.pguId ? personalDetails?.pguId : onboardingTimeline?.pguId,
       ndaAvailability: data?.ndaAvailability ? data.ndaAvailability : null,
       cdaAvailability: data?.cdaAvailability ? data.cdaAvailability : null,
-      isBGVAvailableWithPartner: data?.isBGVAvailableWithPartner
-        ? data.isBGVAvailableWithPartner
-        : null,
+      isBGVAvailableWithPartner: data?.isBGVAvailableWithPartner ? data.isBGVAvailableWithPartner : null,
       bgvStatusId: data?.bgvStatusId ? data?.bgvStatusId : null,
       bgvCategoryId: data?.bgvCategoryId ? data?.bgvCategoryId : null,
-      bgvCompletionDate: data?.bgvCompletionDate
-        ? data?.bgvCompletionDate
-        : null,
-      uploadBGVDocs: uploadBGVDoc??null
-      
+      bgvCompletionDate: data?.bgvCompletionDate ? data?.bgvCompletionDate : null,
+      uploadBGVDocs: uploadBGVDoc ?? null,
     };
-
-   await onSave(payload);
-     setTimeout(() => {
-    setLoader(false);
-  }, 200);
+    await onSave(payload);
+    setTimeout(() => setLoader(false), 200);
   };
 
-if (loader) return <SubmitFormLoader />;
+  const agreementSection = (kind: "NDA" | "CDA", availabilityName: "ndaAvailability" | "cdaAvailability", docName: "ndaAvailabilityDoc" | "cdaAvailabilityDoc", available: boolean | undefined) => (
+    <Card title={`${kind} Section`} size="small">
+      <Form.Item name={availabilityName} label={`${kind} Availability`}>
+        <Radio.Group options={YES_NO} />
+      </Form.Item>
+      <Space wrap className="mb-4">
+        <Button size="small" icon={<EyeOutlined />} onClick={() => setModalData({ title: kind, fileUrl: `/docs/Sample${kind}.pdf` })}>
+          Sample {kind} template
+        </Button>
+        <Button size="small" icon={<DownloadOutlined />} href={`/docs/${kind}fill.pdf`} download>
+          Download {kind} template
+        </Button>
+      </Space>
+      <Form.Item name={docName} label={`Upload ${kind} Doc`} required>
+        <AttachmentUpload accept={ACCEPT} disabled={onboardingTimeline?.candidateBGVCompleted ? !!available : !available} />
+      </Form.Item>
+    </Card>
+  );
 
   return (
-    <FormProvider {...form}>
-      <section className="space-y-6 p-6 ">
-      <div className="flex flex-col md:flex-row mt-2 md:items-center md:justify-between border-b pb-4">
-          <h2 className="text-xl font-semibold text-gray-800">Background Verification</h2>
-         {!isPartner && (
-            <TatIndicator
-              startDate={personalDetails?.dateOfJoining}
-              endDate={onboardingTimeline?.bgvCompletionDate}
-           />
-         )}
-        </div>
-        </section>
-      <form
-        onSubmit={form.handleSubmit(onSubmit)}
-        className="mt-3 space-y-6 px-4 md:px-6"
-      >
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <InputField
-            control={form.control}
-            name="pguId"
-            label="PGU"
-            placeholder="Select PGU"
-            // options={categoryPguData}
-            required
-            disabled
-          />
-          <DatePickerField
-            control={form.control}
-            name="startDate"
-            label="Start Date"
-            required
-            disabled
-          />
-          <InputField
-            control={form.control}
-            name="vendor"
-            label="Vendor"
-            required
-            disabled
-          />
-        </div>
+    <Spin spinning={loader}>
+      <Flex justify="space-between" align="center" wrap gap={8} className="mb-4">
+        <Typography.Title level={5} style={{ margin: 0 }}>
+          Background Verification
+        </Typography.Title>
+        {!isPartner && <TatIndicator startDate={personalDetails?.dateOfJoining} endDate={onboardingTimeline?.bgvCompletionDate} />}
+      </Flex>
+      <Form form={form} layout="vertical" initialValues={initial} onFinish={onFinish}>
+        <Row gutter={[16, 8]}>
+          <Col xs={24} md={12}>
+            <Form.Item name="pguId" label="PGU" rules={zodRules(bgvBaseSchema, "pguId")}>
+              <Input placeholder="Select PGU" disabled />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={12}>
+            <Form.Item name="startDate" label="Start Date" rules={zodRules(bgvBaseSchema, "startDate")} {...dateItem}>
+              <DatePicker className="w-full" format="YYYY-MM-DD" disabled />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={12}>
+            <Form.Item name="vendor" label="Vendor" rules={zodRules(bgvBaseSchema, "vendor")}>
+              <Input disabled />
+            </Form.Item>
+          </Col>
+        </Row>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-          {/* NDA Section */}
-          <div className="p-4 border rounded-md space-y-4">
-            <h3 className="text-sm font-semibold text-gray-700">NDA Section</h3>
-            <div className="p-4 border rounded-md space-y-4">
-              <Label className="mb-2 block">NDA Availability</Label>
-              <Controller
-                control={form.control}
-                name="ndaAvailability"
-                render={({ field }) => (
-                  <RadioGroup
-                    value={String(field.value)}
-                    onValueChange={(val) => field.onChange(val === "true")}
-                    className="flex flex-wrap gap-4"
-                  >
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="true" id="nda-yes" />
-                      <Label htmlFor="nda-yes">Yes</Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="false" id="nda-no" />
-                      <Label htmlFor="nda-no">No</Label>
-                    </div>
-                  </RadioGroup>
-                )}
-              />
+        <Row gutter={[16, 16]}>
+          <Col xs={24} md={12}>
+            {agreementSection("NDA", "ndaAvailability", "ndaAvailabilityDoc", ndaAvailability)}
+          </Col>
+          <Col xs={24} md={12}>
+            {agreementSection("CDA", "cdaAvailability", "cdaAvailabilityDoc", cdaAvailability)}
+          </Col>
+        </Row>
 
-              <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-6 items-start">
-                <div className="flex gap-4">
-                  <div
-                    onClick={() =>
-                      setModalData({
-                        title: "NDA",
-                        fileUrl: `/docs/SampleNDA.pdf`,
-                      })
-                    }
-                    className="w-fit min-w-[100px] flex items-center justify-center gap-1 text-xs text-blue-600 cursor-pointer bg-blue-50 px-2 py-1 rounded hover:bg-blue-100"
-                  >
-                    <Eye className="w-3.5 h-3.5" /> Sample NDA template
-                  </div>
-                  <a
-                    href={`/docs/NDAfill.pdf`}
-                    download
-                    className="w-fit min-w-[100px] flex items-center justify-center gap-1 bg-green-100 text-green-600 px-2 py-1 rounded text-xs hover:bg-green-200"
-                  >
-                    <Download className="w-3.5 h-3.5" /> Download NDA template
-                  </a>
-                </div>
+        {!isPartner && (
+          <Form.Item name="additionalDocs" label="Upload Additional Document" className="mt-4">
+            <MultiDocumentUpload
+              accept={ACCEPT}
+              maxFiles={10}
+              candiadateBGVId={bgvId}
+              isCreating={onboardingTimeline?.id ? false : true}
+              isToggle={typeof onboardingTimeline?.id === "number" ? false : true}
+              docType={2}
+              additionalDocId={Array.isArray(onboardingTimeline?.additionalDocs) && onboardingTimeline?.additionalDocs.length > 0 ? onboardingTimeline?.additionalDocs[0]?.additionalDocId : undefined}
+            />
+          </Form.Item>
+        )}
 
-                <div className="flex items-end col-span-full sm:col-span-2">
-                  <div className="flex-1">
-                    <FileField
-                      control={form.control}
-                      name="ndaAvailabilityDoc"
-                      label="Upload NDA Doc"
-                      accept=".ppt,.pptx,.pdf,.doc,.docx"
-                      required
-                      disabled={onboardingTimeline?.candidateBGVCompleted?ndaAvailability:!ndaAvailability}
-                      />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* CDA Section */}
-          <div className="p-4 border rounded-md space-y-4">
-            <h3 className="text-sm font-semibold text-gray-700">CDA Section</h3>
-            <div className="p-4 border rounded-md space-y-4">
-             
-              <Label className="mb-2 block">CDA Availability</Label>
-              <Controller
-                control={form.control}
-                name="cdaAvailability"
-                render={({ field }) => (
-                  <RadioGroup
-                    value={String(field.value)}
-                    onValueChange={(val) => field.onChange(val === "true")}
-                    className="flex flex-wrap gap-4"
-                  >
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="true" id="cda-yes" />
-                      <Label htmlFor="cda-yes">Yes</Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="false" id="cda-no" />
-                      <Label htmlFor="cda-no">No</Label>
-                    </div>
-                  </RadioGroup>
-                )}
-              />
-
-              <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-6 items-start">
-                <div className="flex gap-4">
-                  <div
-                    onClick={() =>
-                      setModalData({
-                        title: "CDA",
-                        fileUrl: `/docs/SampleCDA.pdf`,
-                      })
-                    }
-                    className="w-fit min-w-[100px] flex items-center justify-center gap-1 text-xs text-blue-600 cursor-pointer bg-blue-50 px-2 py-1 rounded hover:bg-blue-100"
-                  >
-                    <Eye className="w-3.5 h-3.5" /> Sample CDA template
-                  </div>
-                  <a
-                    href={`/docs/CDAfill.pdf`}
-                    download
-                    className="w-fit min-w-[100px] flex items-center justify-center gap-1 bg-green-100 text-green-600 px-2 py-1 rounded text-xs hover:bg-green-200"
-                  >
-                    <Download className="w-3.5 h-3.5" /> Download CDA template
-                  </a>
-                </div>
-
-                <div className="flex items-end col-span-full sm:col-span-2">
-                  <div className="flex-1">
-                     <FileField
-                      control={form.control}
-                      name="cdaAvailabilityDoc"
-                      label="Upload CDA Doc"
-                      accept=".ppt,.pptx,.pdf,.doc,.docx"
-                      required
-                      disabled={onboardingTimeline?.candidateBGVCompleted?cdaAvailability:!cdaAvailability}
-                      />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-       {!isPartner&& <div className="flex-1">
-          <MultiDocumentField
-            control={form.control}
-            name="additionalDocs"
-            label="Upload Additional Document"
-            accept=".ppt,.pptx,.pdf,.doc,.docx"
-            // required
-            maxFiles={10}
-            candiadateBGVId={
-              typeof onboardingTimeline?.id === "number"
-                ? onboardingTimeline.id
-                : 0
-            }
-            isCreating={onboardingTimeline?.id ? false : true}
-            isToggle={typeof onboardingTimeline?.id === "number" ? false : true}
-            docType={2}
-            additionalDocId={
-              Array.isArray(onboardingTimeline?.additionalDocs) &&
-              onboardingTimeline?.additionalDocs.length > 0
-                ? onboardingTimeline?.additionalDocs[0]
-                    ?.additionalDocId
-                : undefined
-            }
-          />
-        </div>}
-
-        <div className="flex items-center space-x-2 mt-10">
-          <Controller
-            control={form.control}
-            name="isBGVAvailableWithPartner"
-            render={({ field }) => (
-              <input
-                type="checkbox"
-                checked={field.value}
-                onChange={(e) => field.onChange(e.target.checked)}
-                className="w-4 h-4 accent-green-600"
-                disabled={!onboardingTimeline?.candidateBGVCompleted}              />
-            )}
-          />
-          <Label className="text-sm">Is BGV Available with Partner</Label>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <SelectField
-            control={form.control}
-            name="bgvStatusId"
-            label="BGV Status"
-            placeholder="Select Status"
-            options={bgvStatusTypes}
-            required
-            disabled={!isBGVAvailable}
-          />
+        <Divider titlePlacement="left">BGV Status</Divider>
+        <Form.Item name="isBGVAvailableWithPartner" valuePropName="checked">
+          <Checkbox disabled={!onboardingTimeline?.candidateBGVCompleted}>Is BGV Available with Partner</Checkbox>
+        </Form.Item>
+        <Row gutter={[16, 8]}>
+          <Col xs={24} md={12}>
+            <Form.Item name="bgvStatusId" label="BGV Status" required>
+              <Select placeholder="Select Status" options={toOptions(bgvStatusTypes)} showSearch optionFilterProp="label" disabled={!isBGVAvailable} />
+            </Form.Item>
+          </Col>
           {IsbgvStatusTypes === "77001" && (
             <>
-              <SelectField
-                control={form.control}
-                name="bgvCategoryId"
-                label="BGV Category"
-                placeholder="Select Category"
-                options={bgvCategory}
-                required
-                disabled={!isBGVAvailable}
-              />
-              <DatePickerField
-                control={form.control}
-                name="bgvCompletionDate"
-                label="BGV Completion Date"
-                required
-                disabled={!isBGVAvailable}
-              />
-            
-
-             {!isPartner&& <div className="md:col-span-2  flex-1">
-                <MultiDocumentField
-                  control={form.control}
-                  name="uploadBGVDocs"
-                  label="Upload Bgv Document"
-                  accept=".ppt,.pptx,.pdf,.doc,.docx"
-                  // required
-                  maxFiles={10}
-                  candiadateBGVId={
-                    typeof onboardingTimeline?.id === "number"
-                      ? onboardingTimeline.id
-                      : 0
-                  }
-                  isCreating={onboardingTimeline?.id ? false : true}
-                  isToggle={
-                    typeof onboardingTimeline?.id === "number" ? false : true
-                  }
-                  docType={1}
-                  uploadBGVDocId={
-                    Array.isArray(onboardingTimeline?.uploadBGVDocs) &&
-                    onboardingTimeline?.uploadBGVDocs.length > 0
-                      ? onboardingTimeline?.uploadBGVDocs[0]
-                          ?.uploadBGVDocId
-                      : undefined
-                  }
-                />
-              </div>}
+              <Col xs={24} md={12}>
+                <Form.Item name="bgvCategoryId" label="BGV Category" required>
+                  <Select placeholder="Select Category" options={toOptions(bgvCategory)} showSearch optionFilterProp="label" disabled={!isBGVAvailable} allowClear />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="bgvCompletionDate" label="BGV Completion Date" required {...dateItem}>
+                  <DatePicker className="w-full" format="YYYY-MM-DD" disabled={!isBGVAvailable} disabledDate={noPast} />
+                </Form.Item>
+              </Col>
+              {!isPartner && (
+                <Col xs={24}>
+                  <Form.Item name="uploadBGVDocs" label="Upload Bgv Document">
+                    <MultiDocumentUpload
+                      accept={ACCEPT}
+                      maxFiles={10}
+                      candiadateBGVId={bgvId}
+                      isCreating={onboardingTimeline?.id ? false : true}
+                      isToggle={typeof onboardingTimeline?.id === "number" ? false : true}
+                      docType={1}
+                      uploadBGVDocId={Array.isArray(onboardingTimeline?.uploadBGVDocs) && onboardingTimeline?.uploadBGVDocs.length > 0 ? onboardingTimeline?.uploadBGVDocs[0]?.uploadBGVDocId : undefined}
+                    />
+                  </Form.Item>
+                </Col>
+              )}
             </>
           )}
-        </div>
+        </Row>
 
-        <div className="flex justify-end pt-4">
-          <Button type="submit" className="bg-[#4096ff] hover:bg-[#009e79]">
+        <Flex justify="flex-end" className="pt-2">
+          <Button type="primary" htmlType="submit">
             {onboardingTimeline?.id ? "Update" : "Submit"}
           </Button>
-        </div>
+        </Flex>
+      </Form>
 
-        {modalData && (
-          <PdfViewerModal
-            open={true}
-            onClose={() => setModalData(null)}
-            title={modalData.title}
-            fileUrl={modalData.fileUrl}
-          />
-        )}
-      </form>
-    </FormProvider>
+      <Modal
+        open={!!modalData}
+        onCancel={() => setModalData(null)}
+        title={modalData?.title}
+        width={960}
+        style={{ top: 24 }}
+        destroyOnHidden
+        footer={
+          <Button icon={<DownloadOutlined />} href={modalData?.fileUrl} download>
+            Download PDF
+          </Button>
+        }
+      >
+        {modalData && <iframe src={modalData.fileUrl} title={modalData.title} style={{ width: "100%", height: "75vh", border: 0 }} />}
+      </Modal>
+    </Spin>
   );
 }
-
-
-
-type PdfViewerModalProps = {
-  open: boolean;
-  onClose: () => void;
-  title: any;
-  fileUrl: string;
-};
-
-function PdfViewerModal({
-  open,
-  onClose,
-  title,
-  fileUrl,
-}: PdfViewerModalProps) {
-  if (!open) return null;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-white rounded-lg shadow-lg max-w-4xl w-full h-[90%] flex flex-col overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-2 border-b">
-          <h2 className="text-lg font-semibold">{title}</h2>
-          <div className="flex items-center gap-3">
-            <a
-              href={fileUrl}
-              download
-              className="text-blue-600 hover:text-blue-800"
-              title="Download PDF"
-            >
-              <Download className="w-5 h-5" />
-            </a>
-            <button
-              onClick={onClose}
-              className="text-gray-600 hover:text-gray-800 text-xl"
-            >
-              ✕
-            </button>
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-auto">
-          <iframe src={fileUrl} title={title} className="w-full h-full" />
-        </div>
-      </div>
-    </div>
-  );
-}
-

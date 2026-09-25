@@ -1,116 +1,430 @@
 "use client";
-
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm, useWatch } from "react-hook-form";
-import * as z from "zod";
-import { Button } from "@/components/ui/button";
-import { Form, FormField, FormItem, FormLabel } from "@/components/ui/form";
-import { useEffect, useState } from "react";
-import { InputField } from "../form-fields/InputField";
-import { SelectField } from "../form-fields/SelectField";
-import { MultiDocumentField } from "@/components/form-fields/MultiDocumentField";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { MasterTypes } from "@/constants/masterTypes";
-import { dropdownApi } from "@/services/api/master";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
-  empanelmentFormSchema,
-  engagementFormSchema,
-  partnerApi,
-} from "@/services/api/partner.profile.api";
-import { usePartnerStore } from "@/store/userPartnerStore";
-import { toast } from "@/lib/toast";
-import { useParams, usePathname, useSearchParams } from "next/navigation";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  CheckCircle,
-  ChevronDown,
-  CircleChevronDown,
-  CirclePlus,
-  Clock,
-  Menu,
-  Pencil,
-  Plus,
-} from "lucide-react";
-import { Label } from "@/components/ui/label";
-import { useUserStore } from "@/store/userStore";
-import { DatePickerField } from "../form-fields/DatePickerField";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { EvaluationSidebarOnly } from "./sow/EngagementDialog";
-import Pagination from "../common/Pagination";
-import { useDebounce } from "@/lib/useDebounce";
-import ColumnsPopover from "../common/PopoverColumns";
-import SearchFilter from "../common/SearchFilter";
-import { FilterTypeEnum } from "@/constants/FilterTypeEnum";
-import {
+  Button,
+  Card,
+  Checkbox,
+  Col,
+  DatePicker,
+  Descriptions,
+  Divider,
+  Dropdown,
+  Flex,
+  Form,
+  Input,
+  List,
+  Modal,
+  Row,
+  Select,
+  Space,
   Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import TableSkeletonLoader from "../skelton/TableSkelton";
-import { isPartner } from "@/store/userStore";
-import { set } from "date-fns";
+  Typography,
+  Upload,
+} from "antd";
+import type { MenuProps } from "antd";
+import {
+  CheckCircleOutlined,
+  ClockCircleOutlined,
+  DeleteOutlined,
+  DownloadOutlined,
+  EditOutlined,
+  EyeOutlined,
+  FileTextOutlined,
+  MoreOutlined,
+  PlusOutlined,
+  UploadOutlined,
+} from "@ant-design/icons";
+import dayjs from "dayjs";
+import * as z from "zod";
+
+import DataTable, { type DataColumn } from "@/components/data-table/DataTable";
+import { useTableState } from "@/components/data-table/useTableState";
+import { useSearchColumns } from "@/components/data-table/useSearchColumns";
+import { toast } from "@/lib/toast";
+import { validateWithZod, zodRules } from "@/lib/zodRules";
+import api from "@/lib/axiosInstance";
+import { useDebounce } from "@/lib/useDebounce";
+import { MasterTypes } from "@/constants/masterTypes";
+import { FilterTypeEnum } from "@/constants/FilterTypeEnum";
+import { dropdownApi } from "@/services/api/master";
+import { empanelmentFormSchema, engagementFormSchema, partnerApi } from "@/services/api/partner.profile.api";
+import { usePartnerStore } from "@/store/userPartnerStore";
+import { isPartner, useUserStore } from "@/store/userStore";
+import { EvaluationSidebarOnly } from "./sow/EngagementDialog";
 
 type EngagementFormValues = z.infer<typeof engagementFormSchema>;
 type EmpanelmentFormValues = z.infer<typeof empanelmentFormSchema>;
+
+// the object schemas behind the refinements, for per-field rules
+const evaluationShape = engagementFormSchema.innerType();
+const empanelmentShape = empanelmentFormSchema.innerType().innerType();
 
 interface EngagementFormProps {
   onNext?: () => void;
   onPrevious?: () => void;
 }
 
-export default function EngagementForm({
-  onNext,
-  onPrevious,
-}: EngagementFormProps) {
-  const { isPartnerEmpanelled } = usePartnerStore();
+interface SowDocument {
+  id?: number;
+  attachmentName: string;
+  attachmentURL: string;
+  name?: string;
+  partnerId?: number;
+  partnerEmpanelId?: number;
+}
+
+/** Form values keep dates as `YYYY-MM-DD` strings (the shape the zod schemas and API expect). */
+const dateItemProps = {
+  getValueProps: (v: string | undefined) => ({ value: v ? dayjs(v) : null }),
+  normalize: (d: dayjs.Dayjs | null) => (d ? d.format("YYYY-MM-DD") : ""),
+};
+const notBeforeToday = (d: dayjs.Dayjs) => d.isBefore(dayjs().startOf("day"));
+
+const toOptions = (rows: { id: number; name: string }[] = []) => rows.map((r) => ({ value: String(r.id), label: r.name }));
+
+// evaluation status -> engagement status
+const evaluationToEngagementMap: Record<string, string> = {
+  "11005": "8001", // Yet to Start
+  "11001": "8003", // In Progress
+  "11002": "8003", // Completed
+  "11003": "8003", // Extended
+  "11004": "8004", // Rejected
+};
+
+/* ------------------------------------------------------------------ */
+/* SOW & Quote documents (multi-upload field used inside Form.Item)     */
+/* ------------------------------------------------------------------ */
+
+interface SowQuoteDocumentsProps {
+  value?: SowDocument[];
+  onChange?: (docs: SowDocument[]) => void;
+  disabled?: boolean;
+  maxFiles?: number;
+  accept?: string;
+  partnerId: string;
+  isCreating: boolean;
+  partnerEmpanelId?: number;
+  refetchPartner?: () => unknown;
+}
+
+function SowQuoteDocuments({ value = [], onChange, disabled, maxFiles = 10, accept, partnerId, isCreating, partnerEmpanelId, refetchPartner }: SowQuoteDocumentsProps) {
+  const [uploading, setUploading] = useState(false);
+  const [preview, setPreview] = useState<{ url: string; name: string } | null>(null);
+  const [previousOpen, setPreviousOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  const [searchText] = useState("");
+  const debouncedSearch = useDebounce(searchText, 300);
+
+  const listId = partnerEmpanelId ? partnerEmpanelId : partnerId;
+  const url = partnerEmpanelId
+    ? `Empanelment/paged/sow-quote-documents?partnerempanelId=${partnerEmpanelId}`
+    : `/Partner/paged/capability-deck-documants?partnerId=${partnerId}`;
+
+  const { data: previousDocuments, refetch: refetchPrevious, isPending } = useQuery({
+    queryKey: ["capabilityDeckDocuments", listId, currentPage, debouncedSearch, pageSize],
+    queryFn: () => partnerApi.getcapabilityDeckDocuments(url, { pageNumber: currentPage, pageSize, searchText: debouncedSearch || undefined }),
+    enabled: !!partnerId,
+    refetchOnWindowFocus: true,
+  });
+  const previousRows: any[] = previousDocuments?.items || [];
+
+  const handleUpload = async (file: File) => {
+    if (value.length >= maxFiles) {
+      toast.error(`Maximum ${maxFiles} files allowed`);
+      return;
+    }
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await api.post("/FileServer/upload", formData, { headers: { "Content-Type": "multipart/form-data" } });
+      const fileName = res.data.fileName || res.data;
+      const newDocument: SowDocument = {
+        id: 0,
+        attachmentURL: fileName,
+        attachmentName: fileName,
+        name: fileName,
+        partnerId: isCreating ? 0 : partnerId ? Number(partnerId) : 0,
+        partnerEmpanelId: isCreating ? 0 : partnerId ? Number(partnerId) : 0,
+      };
+      onChange?.([...value, newDocument]);
+      toast.success("Document uploaded successfully");
+    } catch (error) {
+      console.error("Upload failed", error);
+      toast.error("Failed to upload document");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDelete = async (document: SowDocument) => {
+    try {
+      if (document?.attachmentURL) await api.delete(`/FileServer/${document?.attachmentName}`);
+      onChange?.(value.filter((doc) => doc?.attachmentURL !== document?.attachmentURL));
+      if (typeof refetchPartner === "function") await refetchPartner();
+      await refetchPrevious();
+      toast.success("Document deleted successfully");
+    } catch (error: any) {
+      console.error("Delete failed", error);
+      toast.error(error?.response?.data?.message || error?.message || "Failed to delete document");
+    }
+  };
+
+  const previewUrl = (doc: SowDocument) => {
+    if (!doc?.attachmentURL) return "";
+    if (doc.attachmentURL.startsWith("http")) return doc.attachmentURL;
+    return `${process.env.NEXT_PUBLIC_API_BASE_URL}/FileServer/${doc.attachmentURL}`;
+  };
+
+  // in edit mode (an empanelment exists) only the latest document is shown inline
+  const isLatestOnly = !!partnerEmpanelId;
+  const shown = isLatestOnly && value.length ? [value[value.length - 1]] : value;
+
+  return (
+    <Flex vertical gap={12}>
+      <Upload
+        accept={accept}
+        showUploadList={false}
+        disabled={disabled || uploading || value.length >= maxFiles}
+        beforeUpload={(file) => {
+          void handleUpload(file as File);
+          return false;
+        }}
+      >
+        <Button icon={<UploadOutlined />} loading={uploading} disabled={disabled || value.length >= maxFiles}>
+          Upload document
+        </Button>
+      </Upload>
+      {value.length >= maxFiles && (
+        <Typography.Text type="warning">Maximum {maxFiles} files allowed. Delete a file to upload a new one.</Typography.Text>
+      )}
+      {shown.length > 0 && (
+        <List
+          size="small"
+          bordered
+          dataSource={shown}
+          rowKey={(d) => d.attachmentName}
+          renderItem={(doc, i) => {
+            const isLatest = isLatestOnly || i === value.length - 1;
+            return (
+              <List.Item
+                actions={[
+                  <Button key="view" type="text" size="small" icon={<EyeOutlined />} onClick={() => setPreview({ url: previewUrl(doc), name: doc.attachmentName })} />,
+                  <Button key="delete" type="text" size="small" danger icon={<DeleteOutlined />} disabled={disabled} onClick={() => handleDelete(doc)} />,
+                ]}
+              >
+                <List.Item.Meta
+                  avatar={<FileTextOutlined />}
+                  title={<Typography.Text ellipsis={{ tooltip: doc.attachmentName }}>{doc.attachmentName}</Typography.Text>}
+                  description={isLatest ? "Latest Document" : `Document ${i + 1}`}
+                />
+              </List.Item>
+            );
+          }}
+        />
+      )}
+      <Button
+        style={{ alignSelf: "flex-start" }}
+        disabled={!partnerEmpanelId}
+        onClick={async () => {
+          await refetchPrevious();
+          setPreviousOpen(true);
+        }}
+      >
+        Previous Documents
+      </Button>
+
+      <Modal open={previousOpen} onCancel={() => setPreviousOpen(false)} footer={null} title="Previous Documents" width={960} destroyOnHidden>
+        <Table
+          size="small"
+          rowKey="id"
+          loading={isPending && !!partnerId}
+          dataSource={previousRows}
+          scroll={{ x: "max-content" }}
+          pagination={{
+            current: currentPage,
+            pageSize,
+            total: previousDocuments?.totalCount ?? 0,
+            showSizeChanger: true,
+            onChange: (page, size) => {
+              setCurrentPage(page);
+              if (size !== pageSize) setPageSize(size);
+            },
+          }}
+          columns={[
+            { key: "sno", title: "S.No", render: (_: unknown, __: unknown, index: number) => index + 1 },
+            { key: "attachmentName", title: "File Name", dataIndex: "attachmentName" },
+            { key: "createdDate", title: "Date", dataIndex: "createdDate" },
+            { key: "createdTime", title: "Time", dataIndex: "createdTime" },
+            {
+              key: "view",
+              title: "View",
+              render: (_: unknown, doc: any) => <Button type="text" size="small" icon={<EyeOutlined />} onClick={() => setPreview({ url: doc?.attachmentURL, name: doc?.attachmentName })} />,
+            },
+            {
+              key: "delete",
+              title: "Delete",
+              render: (_: unknown, doc: any) => <Button type="text" size="small" danger icon={<DeleteOutlined />} onClick={() => handleDelete(doc)} />,
+            },
+          ]}
+        />
+      </Modal>
+
+      <Modal
+        open={!!preview}
+        onCancel={() => setPreview(null)}
+        title={preview?.name || "Document"}
+        width="94vw"
+        style={{ top: 16 }}
+        destroyOnHidden
+        footer={
+          <Button icon={<DownloadOutlined />} onClick={() => preview && window.open(preview.url, "_blank")}>
+            Download
+          </Button>
+        }
+      >
+        {preview && <iframe src={preview.url} title="Document preview" style={{ width: "100%", height: "80vh", border: 0 }} />}
+      </Modal>
+    </Flex>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Empanelment fields (shared by create and edit)                       */
+/* ------------------------------------------------------------------ */
+
+function EmpanelmentFields({
+  isGpApproved,
+  agreementTypeId,
+  agreementTypes,
+  sowSigningDate,
+  partnerId,
+  isCreating,
+  partnerEmpanelId,
+  refetchPartner,
+}: {
+  isGpApproved: boolean;
+  agreementTypeId?: string;
+  agreementTypes: { id: number; name: string }[];
+  sowSigningDate?: string;
+  partnerId: string;
+  isCreating: boolean;
+  partnerEmpanelId?: number;
+  refetchPartner: () => unknown;
+}) {
+  const disabledDate = notBeforeToday;
+  return (
+    <>
+      <Row gutter={[16, 8]}>
+        <Col xs={24} md={12}>
+          <Flex gap={16} align="flex-end">
+            <Form.Item name="empanelmentStartDate" label="Empanelment Start Date" rules={[{ required: true, message: "Empanelment start date is required" }]} {...dateItemProps} className="flex-1">
+              <DatePicker className="w-full" format="YYYY-MM-DD" disabledDate={notBeforeToday} />
+            </Form.Item>
+            <Form.Item name="isThisGPApproved" valuePropName="checked">
+              <Checkbox>Is this GP approved?</Checkbox>
+            </Form.Item>
+          </Flex>
+        </Col>
+        <Col xs={24} md={12}>
+          <Form.Item name="gpApprovalDate" label="GP Approval Date" {...dateItemProps}>
+            <DatePicker className="w-full" format="YYYY-MM-DD" disabled={!isGpApproved} disabledDate={disabledDate} />
+          </Form.Item>
+        </Col>
+        <Col xs={24} md={12}>
+          <Form.Item name="agreementTypeId" label="Agreement Type" rules={zodRules(empanelmentShape, "agreementTypeId")}>
+            <Select placeholder="Select agreement type" options={toOptions(agreementTypes)} disabled={!isGpApproved} allowClear showSearch optionFilterProp="label" />
+          </Form.Item>
+        </Col>
+        {agreementTypeId === "1001" && (
+          <>
+            <Col xs={24} md={12}>
+              <Form.Item name="gpId" label="GP ID" rules={zodRules(empanelmentShape, "gpId")}>
+                <Input placeholder="Enter GP ID" disabled={!isGpApproved} />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item name="contractId" label="Contract ID" rules={zodRules(empanelmentShape, "contractId")}>
+                <Input placeholder="Enter Contract ID" disabled={!isGpApproved} />
+              </Form.Item>
+            </Col>
+          </>
+        )}
+        <Col xs={24} md={12}>
+          <Form.Item name="panid" label="PAN ID" rules={zodRules(empanelmentShape, "panid")}>
+            <Input placeholder="Enter PAN ID" disabled={!isGpApproved} />
+          </Form.Item>
+        </Col>
+        <Col xs={24} md={12}>
+          <Form.Item name="tanid" label="TAN ID" rules={zodRules(empanelmentShape, "tanid")}>
+            <Input placeholder="Enter TAN ID" disabled={!isGpApproved} />
+          </Form.Item>
+        </Col>
+        <Col xs={24} md={12}>
+          <Form.Item name="gstid" label="GST ID" rules={zodRules(empanelmentShape, "gstid")}>
+            <Input placeholder="Enter GST ID" disabled={!isGpApproved} />
+          </Form.Item>
+        </Col>
+        <Col xs={24} md={12}>
+          <Form.Item name="empanelmentComments" label="Empanelment Comments" rules={zodRules(empanelmentShape, "empanelmentComments")}>
+            <Input placeholder="Enter Empanelment Comments" disabled={!isGpApproved} />
+          </Form.Item>
+        </Col>
+        <Col xs={24} md={12}>
+          <Form.Item
+            name="sowSigningDate"
+            label="SOW Signing Date"
+            rules={isGpApproved ? [{ required: true, message: "SOW Signing Date is required when GP is approved" }] : []}
+            {...dateItemProps}
+          >
+            <DatePicker className="w-full" format="YYYY-MM-DD" disabled={!isGpApproved} disabledDate={disabledDate} />
+          </Form.Item>
+        </Col>
+      </Row>
+      {sowSigningDate && (
+        <Form.Item name="sowQuoteDocuments" label="SOW & Quote Documents" required>
+          <SowQuoteDocuments
+            accept=".ppt,.pptx,.pdf,.doc,.docx"
+            maxFiles={10}
+            partnerId={partnerId}
+            isCreating={isCreating}
+            partnerEmpanelId={partnerEmpanelId}
+            disabled={!isGpApproved}
+            refetchPartner={refetchPartner}
+          />
+        </Form.Item>
+      )}
+    </>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Engagement form                                                      */
+/* ------------------------------------------------------------------ */
+
+export default function EngagementForm({ onNext, onPrevious }: EngagementFormProps) {
+  const { partnerCode, isPartnerEmpanelled, setIsPartnerEmpanelled } = usePartnerStore();
+  const { userName } = useUserStore();
+  const searchParams = useSearchParams();
+  const partnerId = searchParams.get("id") || "";
+
   const [showHiringDialog, setShowHiringDialog] = useState(false);
   const [selectedHrqIds, setSelectedHrqIds] = useState<string[]>([]);
-  const { partnerCode, setIsPartnerEmpanelled } = usePartnerStore();
   const [showForm, setShowForm] = useState(false);
   const [selectedEngagement, setSelectedEngagement] = useState<any>(null);
   const [isEditingEmpanelment, setIsEditingEmpanelment] = useState(false);
   const [showEmpanelmentFields, setShowEmpanelmentFields] = useState(false);
-  const [actionType, setActionType] = useState<"extended" | "completed" | null>(
-    null
-  );
+  const [actionType, setActionType] = useState<"extended" | "completed" | null>(null);
   const [open, setOpen] = useState(false);
-  const [searchText, setSearchText] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
-  const debouncedSearch = useDebounce(searchText, 300);
-  const [searchColumn, setSearchColumn] = useState("HrqId");
-  const [isGpApproved, setIsGpApproved] = useState(false);
-  const { userName } = useUserStore();
-  const searchParmas = useSearchParams();
-  const partnerId = searchParmas.get("id") || "";
-  const [hrqColumns, setHrqColumns] = useState([
-    { id: "hrqId", label: "HRQID", visible: true },
-    { id: "jobTitle", label: "Role Hired For", visible: true },
-    { id: "experience", label: "Experience", visible: true },
-    { id: "rmOwnerName", label: "RM Owner", visible: true },
-    { id: "resourceTypeName", label: "Resource Type", visible: true },
-    { id: "openPositions", label: "Open Positions", visible: true },
-    { id: "domainName", label: "Domain Name", visible: true },
-  ]);
-  const [pageSize, setPageSize] = useState(50);
 
-  const evaluationForm = useForm<EngagementFormValues>({
-    resolver: zodResolver(engagementFormSchema),
-    defaultValues: {
+  const [evaluationForm] = Form.useForm<EngagementFormValues>();
+  const [empanelmentForm] = Form.useForm<EmpanelmentFormValues>();
+
+  const evaluationInitialValues: EngagementFormValues = useMemo(
+    () => ({
       isActive: true,
       engagementStatusId: "8003",
       engagementTypeId: "",
@@ -118,7 +432,7 @@ export default function EngagementForm({
       evaluationExtendedDate: "",
       evaluationEndDate: "",
       evaluationPeriod: "",
-      evaluatedBy: userName,
+      evaluatedBy: userName ?? "",
       businessId: "",
       businessCenter: "",
       mruCode: "",
@@ -127,12 +441,13 @@ export default function EngagementForm({
       rejectionReason: "",
       partnerId: partnerId || "",
       comments: "",
-    },
-  });
+      isEditMode: false,
+    }),
+    [userName, partnerId]
+  );
 
-  const empanelmentForm = useForm<EmpanelmentFormValues>({
-    resolver: zodResolver(empanelmentFormSchema),
-    defaultValues: {
+  const empanelmentInitialValues: EmpanelmentFormValues = useMemo(
+    () => ({
       isActive: true,
       partnerId: null,
       isEmpaneledPartner: false,
@@ -148,241 +463,132 @@ export default function EngagementForm({
       contractId: "",
       isThisGPApproved: false,
       sowQuoteDocuments: [],
-    },
-  });
+    }),
+    []
+  );
 
-  const evalutaionStatus = evaluationForm.watch("evaluationStatusId");
-  const selectedEngagementType = evaluationForm.watch("engagementTypeId");
-  const evaluationStartDate = evaluationForm.watch("evaluationStartDate");
-  const evaluationEndDate = evaluationForm.watch("evaluationEndDate");
-  const evaluationStatusId = evaluationForm.watch("evaluationStatusId");
-  const angreementTypeId = empanelmentForm.watch("agreementTypeId");
-
-  // Watch the isThisGPApproved field to sync with isGpApproved state
-  const isThisGPApproved = empanelmentForm.watch("isThisGPApproved");
-
-  // Sync isGpApproved state with form field
-  useEffect(() => {
-    setIsGpApproved(!!isThisGPApproved);
-  }, [isThisGPApproved]);
+  // watched values (preserve: true so hidden / unmounted fields are still observed)
+  const selectedEngagementType = Form.useWatch("engagementTypeId", { form: evaluationForm, preserve: true });
+  const evaluationStartDate = Form.useWatch("evaluationStartDate", { form: evaluationForm, preserve: true });
+  const evaluationEndDate = Form.useWatch("evaluationEndDate", { form: evaluationForm, preserve: true });
+  const evalStatusId = Form.useWatch("evaluationStatusId", { form: evaluationForm, preserve: true });
+  const agreementTypeId = Form.useWatch("agreementTypeId", { form: empanelmentForm, preserve: true });
+  const isThisGPApproved = Form.useWatch("isThisGPApproved", { form: empanelmentForm, preserve: true });
+  const sowSigningDate = Form.useWatch("sowSigningDate", { form: empanelmentForm, preserve: true });
+  const isGpApproved = !!isThisGPApproved;
 
   useEffect(() => {
     if (evaluationStartDate && evaluationEndDate) {
       const start = new Date(evaluationStartDate);
       const end = new Date(evaluationEndDate);
-
-      let months =
-        (end.getFullYear() - start.getFullYear()) * 12 +
-        (end.getMonth() - start.getMonth());
-      if (end.getDate() < start.getDate()) {
-        months -= 1;
-      }
-
-      evaluationForm.setValue("evaluationPeriod", months.toString());
+      let months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+      if (end.getDate() < start.getDate()) months -= 1;
+      evaluationForm.setFieldsValue({ evaluationPeriod: months.toString() } as any);
     }
   }, [evaluationStartDate, evaluationEndDate, evaluationForm]);
 
-  const evaluationToEngagementMap: Record<string, string> = {
-    "11005": "8001",
-    "11001": "8003",
-    "11002": "8003",
-    "11003": "8003",
-    "11004": "8004",
-  };
-
-  const evalStatusId = useWatch({
-    control: evaluationForm.control,
-    name: "evaluationStatusId",
-  });
-
   useEffect(() => {
-    const derivedEngagementStatus = evaluationToEngagementMap[evalStatusId];
-    if (derivedEngagementStatus) {
-      evaluationForm.setValue("engagementStatusId", derivedEngagementStatus);
-    }
-  }, [evalStatusId]);
+    const derived = evaluationToEngagementMap[evalStatusId as string];
+    if (derived) evaluationForm.setFieldsValue({ engagementStatusId: derived } as any);
+  }, [evalStatusId, evaluationForm]);
 
-  const { data: hiringRequests = [], isLoading } = useQuery({
-    queryKey: [
-      "hiringRequests",
-      partnerId,
-      currentPage,
-      pageSize,
-      searchColumn,
-      debouncedSearch,
-    ],
+  /* ---------------- hiring open list (engagement type: labour) ---------------- */
+  const t = useTableState({ pageSize: 50, searchColumn: "HrqId" });
+  const searchColumns = useSearchColumns(FilterTypeEnum.Partner_Engagement_OpenListGrid);
+  const { data: hiringRequests, isLoading } = useQuery({
+    queryKey: ["hiringRequests", partnerId, t.query.pageNumber, t.query.pageSize, t.searchColumn, t.query.searchText],
     queryFn: () =>
       partnerApi.activeHiringReq(partnerId, {
-        pageNumber: currentPage,
-        pageSize,
-        searchColumn,
-        searchText: debouncedSearch || undefined,
+        pageNumber: t.query.pageNumber,
+        pageSize: t.query.pageSize,
+        searchColumn: t.searchColumn,
+        searchText: t.query.searchText || undefined,
       }),
     enabled: showHiringDialog,
     refetchOnWindowFocus: true,
   });
+  const hrqColumns: DataColumn<any>[] = [
+    { key: "hrqId", title: "HRQID", dataIndex: "hrqId" },
+    { key: "jobTitle", title: "Role Hired For", dataIndex: "jobTitle" },
+    { key: "experience", title: "Experience", dataIndex: "experience" },
+    { key: "rmOwnerName", title: "RM Owner", dataIndex: "rmOwnerName" },
+    { key: "resourceTypeName", title: "Resource Type", dataIndex: "resourceTypeName" },
+    { key: "openPositions", title: "Open Positions", dataIndex: "openPositions" },
+    { key: "domainName", title: "Domain Name", dataIndex: "domainName" },
+  ];
 
-  const visibleHrqColumns = hrqColumns.filter((col) => col.visible);
+  /* ---------------- lookups ---------------- */
+  const { data: engagementStatuses = [] } = useQuery({ queryKey: ["engagementStatus"], queryFn: () => dropdownApi.fetchDropdown(MasterTypes.ENGAGEMENT_STATUS) });
+  const { data: engagementTypes = [] } = useQuery({ queryKey: ["engagementType"], queryFn: () => dropdownApi.fetchDropdown(MasterTypes.ENGAGEMENT_TYPE) });
+  const { data: businessUnits = [] } = useQuery({ queryKey: ["businessUnit"], queryFn: () => dropdownApi.fetchDropdown(MasterTypes.BUSINESS_UNIT) });
+  const { data: evaluationStatuses = [] } = useQuery({ queryKey: ["evaluationStatus"], queryFn: () => dropdownApi.fetchDropdown(MasterTypes.EVALUATION_STATUS) });
+  const { data: agreementTypes = [] } = useQuery({ queryKey: ["agreementType"], queryFn: () => dropdownApi.fetchDropdown(MasterTypes.AGREEMENT_TYPE) });
 
-  const hiringData = hiringRequests?.data?.items || [];
-  const hasPrevious = hiringRequests?.data?.hasPrevious;
-  const hasNext = hiringRequests?.data?.hasNext;
-  const totalPages = hiringRequests?.data?.totalPages || 1;
-  const toggleColumn = (columnId: string) => {
-    setHrqColumns(
-      hrqColumns.map((col) =>
-        col.id === columnId ? { ...col, visible: !col.visible } : col
-      )
-    );
-  };
-  const handleFilterChange = (column: string, text: string) => {
-    setSearchColumn(column);
-    setSearchText(text);
-  };
-  const handleClear = () => {
-    setSearchColumn("");
-    setSearchText("");
-    setCurrentPage(1);
-  };
-  const { data: engagementStatuses = [] } = useQuery({
-    queryKey: ["engagementStatus"],
-    queryFn: () => dropdownApi.fetchDropdown(MasterTypes.ENGAGEMENT_STATUS),
-  });
-
-  const { data: engagementTypes = [] } = useQuery({
-    queryKey: ["engagementType"],
-    queryFn: () => dropdownApi.fetchDropdown(MasterTypes.ENGAGEMENT_TYPE),
-  });
-
-  const { data: businessUnits = [] } = useQuery({
-    queryKey: ["businessUnit"],
-    queryFn: () => dropdownApi.fetchDropdown(MasterTypes.BUSINESS_UNIT),
-  });
-
-  const { data: evaluationStatuses = [] } = useQuery({
-    queryKey: ["evaluationStatus"],
-    queryFn: () => dropdownApi.fetchDropdown(MasterTypes.EVALUATION_STATUS),
-  });
-
-  // const { data: rejectionReasons = [] } = useQuery({
-  //   queryKey: ["rejectionReason"],
-  //   queryFn: () => dropdownApi.fetchDropdown(MasterTypes.REJECTION_REASON),
-  // });
-
-  const { data: agreementTypes = [] } = useQuery({
-    queryKey: ["agreementType"],
-    queryFn: () => dropdownApi.fetchDropdown(MasterTypes.AGREEMENT_TYPE),
-  });
-
-  const {
-    data: engagementDetails = [],
-    isError: engagementDetailsError,
-    refetch: refetchEvalutaionDetail,
-  } = useQuery({
+  const { data: engagementDetails, isError: engagementDetailsError, refetch: refetchEvalutaionDetail } = useQuery({
     queryKey: ["engagementDetails", partnerId],
     queryFn: () => partnerApi.getEngagement(partnerId),
   });
 
-  const {
-    data: empanelmentDetails = [],
-    isError: empanelmentDetailsError,
-    refetch: refetchEmapnelmentDetail,
-  } = useQuery({
+  const { data: empanelmentDetails, refetch: refetchEmapnelmentDetail } = useQuery({
     queryKey: ["empanelmentDetails", partnerId],
     queryFn: () => partnerApi.getEmpanelment(partnerId),
   });
+  const empanelment = empanelmentDetails?.data;
 
   useEffect(() => {
-    if (empanelmentDetails?.data) {
-      // Set isGpApproved state from API response
-      const gpApprovedFromAPI = empanelmentDetails.data.isThisGPApproved;
-      setIsGpApproved(!!gpApprovedFromAPI);
-      setIsPartnerEmpanelled(empanelmentDetails?.data?.isEmpaneledPartner);
-      empanelmentForm.setValue(
-        "empanelmentStartDate",
-        empanelmentDetails.data?.empanelmentStartDate
-      );
-      empanelmentForm.setValue(
-        "empanelmentStartDate",
-        empanelmentDetails.data?.empanelmentStartDate
-      );
-      empanelmentForm.setValue(
-        "sowSigningDate",
-        empanelmentDetails.data?.sowSigningDate
-      );
-      empanelmentForm.setValue(
-        "gpApprovalDate",
-        empanelmentDetails.data?.gpApprovalDate
-      );
-      empanelmentForm.setValue(
-        "agreementTypeId",
-        empanelmentDetails.data?.agreementTypeId?.toString() || ""
-      );
-      empanelmentForm.setValue(
-        "empanelmentComments",
-        empanelmentDetails.data?.empanelmentComments || ""
-      );
-      empanelmentForm.setValue("panid", empanelmentDetails.data?.panid || "");
-      empanelmentForm.setValue("tanid", empanelmentDetails.data?.tanid || "");
-      empanelmentForm.setValue("gstid", empanelmentDetails.data?.gstid || "");
-      empanelmentForm.setValue("gpId", empanelmentDetails.data?.gpId || "");
-      empanelmentForm.setValue(
-        "contractId",
-        empanelmentDetails.data?.contractId || ""
-      );
-      empanelmentForm.setValue(
-        "partnerId",
-        empanelmentDetails.data?.partnerId || null
-      );
-      empanelmentForm.setValue("isThisGPApproved", !!gpApprovedFromAPI);
+    if (!empanelment) return;
+    setIsPartnerEmpanelled(empanelment.isEmpaneledPartner);
+    const existingSowQuoteDocuments: SowDocument[] =
+      empanelment.sowQuoteDocuments?.map((doc: any) => ({
+        id: doc.id || 0,
+        attachmentName: doc.attachmentName,
+        attachmentURL: doc.attachmentURL,
+        partnerEmpanelId: doc.partnerEmpanelId || Number(partnerId),
+      })) || [];
+    empanelmentForm.setFieldsValue({
+      empanelmentStartDate: empanelment.empanelmentStartDate,
+      sowSigningDate: empanelment.sowSigningDate,
+      gpApprovalDate: empanelment.gpApprovalDate,
+      agreementTypeId: empanelment.agreementTypeId?.toString() || "",
+      empanelmentComments: empanelment.empanelmentComments || "",
+      panid: empanelment.panid || "",
+      tanid: empanelment.tanid || "",
+      gstid: empanelment.gstid || "",
+      gpId: empanelment.gpId || "",
+      contractId: empanelment.contractId || "",
+      partnerId: empanelment.partnerId || null,
+      isThisGPApproved: !!empanelment.isThisGPApproved,
+      sowQuoteDocuments: existingSowQuoteDocuments,
+    } as any);
+  }, [empanelment, empanelmentForm, partnerId, setIsPartnerEmpanelled]);
 
-      // Handle multiple SOW Quote Documents
-      const existingSowQuoteDocuments =
-        empanelmentDetails.data?.sowQuoteDocuments?.map((doc: any) => ({
-          id: doc.id || 0,
-          attachmentName: doc.attachmentName,
-          attachmentURL: doc.attachmentURL,
-          partnerEmpanelId: doc.partnerEmpanelId || Number(partnerId),
-        })) || [];
-
-      empanelmentForm.setValue("sowQuoteDocuments", existingSowQuoteDocuments);
-    }
-  }, [empanelmentDetails?.data, empanelmentForm, partnerId]);
-
+  /* ---------------- evaluation mutations ---------------- */
   const createEvaluationMutation = useMutation({
     mutationFn: partnerApi.createEngagement,
-    onSuccess: (data) => {
+    onSuccess: () => {
       toast.success("Evaluation created successfully");
       setShowForm(false);
-      evaluationForm.reset();
+      evaluationForm.resetFields();
       refetchEvalutaionDetail();
     },
-    onError: (error) => {
-      toast.error("Failed to create evaluation");
-    },
+    onError: () => toast.error("Failed to create evaluation"),
   });
 
   const updateEvaluationMutation = useMutation({
-    mutationFn: (values: any) =>
-      partnerApi.updatePartnerEngagement(
-        Number(selectedEngagement?.id),
-        values
-      ),
-    onSuccess: (data) => {
+    mutationFn: (values: any) => partnerApi.updatePartnerEngagement(Number(selectedEngagement?.id), values),
+    onSuccess: () => {
       toast.success("Evaluation updated successfully");
       setShowForm(false);
       setSelectedEngagement(null);
       setOpen(false);
-      evaluationForm.setValue("evaluationExtendedDate", "");
-      evaluationForm.setValue("extendedComments", "");
+      evaluationForm.setFieldsValue({ evaluationExtendedDate: "", extendedComments: "" } as any);
       refetchEvalutaionDetail();
     },
-    onError: (error) => {
-      toast.error("Failed to update evaluation");
-    },
+    onError: () => toast.error("Failed to update evaluation"),
   });
 
-  const handleEvaluationSubmit = async (values: EngagementFormValues) => {
+  /** `values` are already validated against engagementFormSchema. */
+  const handleEvaluationSubmit = (values: EngagementFormValues) => {
     const formattedValues: any = {
       evaluationPeriod: Number(values.evaluationPeriod),
       engagementStatusId: Number(values.engagementStatusId),
@@ -394,65 +600,55 @@ export default function EngagementForm({
       evaluationStartDate: values.evaluationStartDate,
       evaluationEndDate: values.evaluationEndDate,
       isActive: values.isActive,
-
       businessCenter: values.businessCenter,
       mruCode: values.mruCode,
       comments: values.comments,
       isExtendEvaluation: values.evaluationStatusId === "11003",
-
-      ...(values.evaluationStatusId === "11003" &&
-      values.evaluationExtendedDate?.trim()
-        ? { evaluationExtendedDate: values.evaluationExtendedDate }
-        : {}),
-
-      ...(values.evaluationStatusId === "11003" &&
-      values.extendedComments?.trim()
-        ? { extendedComments: values.extendedComments }
-        : {}),
-
-      ...(values.evaluationStatusId === "11004"
-        ? {
-            rejectionReasonId: values.rejectionReasonId || null,
-            rejectionReason: values.rejectionReason || null,
-          }
-        : {}),
+      ...(values.evaluationStatusId === "11003" && values.evaluationExtendedDate?.trim() ? { evaluationExtendedDate: values.evaluationExtendedDate } : {}),
+      ...(values.evaluationStatusId === "11003" && values.extendedComments?.trim() ? { extendedComments: values.extendedComments } : {}),
+      ...(values.evaluationStatusId === "11004" ? { rejectionReasonId: values.rejectionReasonId || null, rejectionReason: values.rejectionReason || null } : {}),
     };
-
-    if (selectedEngagement) {
-      updateEvaluationMutation.mutate({
-        ...formattedValues,
-        id: selectedEngagement.id,
-      });
-    } else {
-      createEvaluationMutation.mutate(formattedValues);
-    }
+    if (selectedEngagement) updateEvaluationMutation.mutate({ ...formattedValues, id: selectedEngagement.id });
+    else createEvaluationMutation.mutate(formattedValues);
   };
 
+  const onEvaluationFinish = (values: EngagementFormValues) => {
+    // merge with the stored (unmounted) fields such as isEditMode / partnerId
+    const all = { ...(evaluationForm.getFieldsValue(true) as EngagementFormValues), ...values };
+    const data = validateWithZod(engagementFormSchema, evaluationForm, all);
+    if (data) handleEvaluationSubmit(data);
+  };
+
+  /* ---------------- empanelment mutations ---------------- */
   const submitEmpanelmentMutation = useMutation({
     mutationFn: partnerApi.submitEmpanelment,
-    onSuccess: (data) => {
+    onSuccess: () => {
       toast.success("Empanelment created successfully");
       setIsPartnerEmpanelled(true);
       setShowEmpanelmentFields(false);
       refetchEmapnelmentDetail();
     },
-    onError: (error) => {
-      toast.error("Failed to create empanelment");
-    },
+    onError: () => toast.error("Failed to create empanelment"),
   });
 
-  const handleEmpanelmentSubmit = async (values: EmpanelmentFormValues) => {
-    // Format SOW Quote Documents with partnerEmpanelId
+  const updateEmpanelmentMutation = useMutation({
+    mutationFn: (values: any) => partnerApi.updateEmpanelment(empanelment.id, values),
+    onSuccess: () => {
+      toast.success("Empanelment updated successfully");
+      setIsEditingEmpanelment(false);
+      refetchEmapnelmentDetail();
+    },
+    onError: () => toast.error("Failed to update empanelment"),
+  });
 
+  const handleEmpanelmentSubmit = (values: EmpanelmentFormValues) => {
     const formattedSowQuoteDocuments = values.sowQuoteDocuments.map((doc) => ({
-      id: 0, // Always 0 for new empanelment creation
+      id: 0,
       attachmentName: doc.attachmentName,
       attachmentURL: doc.attachmentURL,
-      partnerEmpanelId: Number(partnerId), // Use partnerId as partnerEmpanelId
+      partnerEmpanelId: Number(partnerId),
     }));
-
-    const formattedValues = {
-      // ...values,
+    submitEmpanelmentMutation.mutate({
       partnerId: Number(partnerId) || Number(partnerId),
       isEmpaneledPartner: true,
       sowSigningDate: values.sowSigningDate || null,
@@ -468,36 +664,19 @@ export default function EngagementForm({
       gstid: values.gstid,
       gpId: values.gpId,
       contractId: values.contractId,
-    };
-
-    submitEmpanelmentMutation.mutate(formattedValues);
+    });
   };
 
-  const updateEmpanelmentMutation = useMutation({
-    mutationFn: (values: any) =>
-      partnerApi.updateEmpanelment(empanelmentDetails.data.id, values),
-    onSuccess: (data) => {
-      toast.success("Empanelment updated successfully");
-      setIsEditingEmpanelment(false);
-      refetchEmapnelmentDetail();
-    },
-    onError: (error) => {
-      toast.error("Failed to update empanelment");
-    },
-  });
-
-  const handleEmpanelmentUpdate = async (values: EmpanelmentFormValues) => {
-    // Format SOW Quote Documents for update
+  const handleEmpanelmentUpdate = (values: EmpanelmentFormValues) => {
     const formattedSowQuoteDocuments = values.sowQuoteDocuments.map((doc) => ({
       id: doc.id || 0,
       attachmentName: doc.attachmentName,
       attachmentURL: doc.attachmentURL,
-      partnerEmpanelId: empanelmentDetails.data.id, // Use partnerId as partnerEmpanelId
+      partnerEmpanelId: empanelment.id,
     }));
-
-    const formattedValues = {
+    updateEmpanelmentMutation.mutate({
       ...values,
-      id: empanelmentDetails.data.id,
+      id: empanelment.id,
       partnerId: Number(partnerId),
       isEmpaneledPartner: true,
       sowQuoteDocuments: formattedSowQuoteDocuments,
@@ -513,358 +692,213 @@ export default function EngagementForm({
       gstid: values.gstid,
       gpId: values.gpId,
       contractId: values.contractId,
-    };
-    updateEmpanelmentMutation.mutate(formattedValues);
-  };
-
-  const handleHrqSelection = (hrqId: string) => {
-    setSelectedHrqIds((prev) => {
-      if (prev.includes(hrqId)) {
-        return prev.filter((id) => id !== hrqId);
-      }
-      return [...prev, hrqId];
     });
   };
 
-  const handleHiringSubmit = () => {
-    setShowHiringDialog(false);
+  const onEmpanelmentFinish = (values: EmpanelmentFormValues) => {
+    const all = { ...(empanelmentForm.getFieldsValue(true) as EmpanelmentFormValues), ...values };
+    const data = validateWithZod(empanelmentFormSchema, empanelmentForm, all);
+    if (!data) return;
+    if (empanelment) handleEmpanelmentUpdate(data);
+    else handleEmpanelmentSubmit(data);
   };
+
+  /* ---------------- row actions ---------------- */
   const populateEvaluationFormValues = (engagement: any) => {
     const evaluationStatusId = engagement?.evaluationStatusId?.toString() || "";
-
-    // Dynamically determine engagementStatusId based on evaluationStatusId
-    const engagementStatusMap: Record<string, string> = {
-      "11005": "8001", // Yet to Start
-      "11001": "8003", // In Progress
-      "11002": "8003", // Completed
-      "11003": "8003", // Extended
-      "11004": "8004", // Rejected
-    };
-
-    const derivedEngagementStatusId = engagementStatusMap[evaluationStatusId];
-
-    evaluationForm.setValue("evaluationStatusId", evaluationStatusId);
-    evaluationForm.setValue("engagementStatusId", derivedEngagementStatusId);
-
-    evaluationForm.setValue(
-      "engagementTypeId",
-      engagement?.engagementTypeId?.toString() || ""
-    );
-    evaluationForm.setValue(
-      "evaluationStartDate",
-      engagement?.evaluationStartDate
-    );
-    evaluationForm.setValue("evaluationEndDate", engagement?.evaluationEndDate);
-    evaluationForm.setValue(
-      "evaluatedBy",
-      engagement?.evaluatedBy?.toString() || ""
-    );
-    evaluationForm.setValue(
-      "businessId",
-      engagement?.businessId?.toString() || ""
-    );
-    evaluationForm.setValue(
-      "businessCenter",
-      engagement?.businessCenter?.toString() || ""
-    );
-    evaluationForm.setValue("comments", engagement?.comments?.toString() || "");
-    evaluationForm.setValue("mruCode", engagement?.mruCode || "");
-    evaluationForm.setValue(
-      "evaluationPeriod",
-      engagement?.evaluationPeriod?.toString() || ""
-    );
-    evaluationForm.setValue(
-      "partnerId",
-      engagement?.partnerId?.toString() || ""
-    );
+    evaluationForm.setFieldsValue({
+      evaluationStatusId,
+      engagementStatusId: evaluationToEngagementMap[evaluationStatusId],
+      engagementTypeId: engagement?.engagementTypeId?.toString() || "",
+      evaluationStartDate: engagement?.evaluationStartDate,
+      evaluationEndDate: engagement?.evaluationEndDate,
+      evaluatedBy: engagement?.evaluatedBy?.toString() || "",
+      businessId: engagement?.businessId?.toString() || "",
+      businessCenter: engagement?.businessCenter?.toString() || "",
+      comments: engagement?.comments?.toString() || "",
+      mruCode: engagement?.mruCode || "",
+      evaluationPeriod: engagement?.evaluationPeriod?.toString() || "",
+      partnerId: engagement?.partnerId?.toString() || "",
+    } as any);
   };
 
   const handleEdit = (engagement: any) => {
-    evaluationForm.setValue("isEditMode", true);
+    evaluationForm.setFieldsValue({ isEditMode: true } as any);
     setSelectedEngagement(engagement);
-
     populateEvaluationFormValues(engagement);
     setShowForm(true);
   };
 
-  const completedOptions = evaluationStatuses.filter(
-    (item: any) => item.id === 11004 || item.id === 11005
-  );
-  const sidebarTriggerOptions = evaluationStatuses.filter(
-    (item: any) => item.id === 11002 || item.id === 11003
-  );
+  const completedOptions = (evaluationStatuses as { id: number; name: string }[]).filter((item) => item.id === 11004 || item.id === 11005);
+  const sidebarTriggerOptions = (evaluationStatuses as { id: number; name: string }[]).filter((item) => item.id === 11002 || item.id === 11003);
 
   const handleEvaluationClick = (id: number, engagement: any) => {
     setSelectedEngagement(engagement);
     populateEvaluationFormValues(engagement);
     if (id === 11002) {
       setActionType("completed");
+      evaluationForm.setFieldsValue({ isEditMode: false } as any);
       setOpen(true);
-      evaluationForm.setValue("isEditMode", false);
     } else if (id === 11003) {
-      evaluationForm.setValue("evaluationStatusId", id.toString());
+      evaluationForm.setFieldsValue({ evaluationStatusId: id.toString(), isEditMode: false } as any);
       setActionType("extended");
-      evaluationForm.setValue("isEditMode", false);
       setOpen(true);
     }
   };
 
-  const sowSigningDate = useWatch({
-    control: empanelmentForm.control,
-    name: "sowSigningDate",
-  });
-  
+  const rowMenu = (engagement: any): MenuProps["items"] => [
+    { key: "edit", icon: <EditOutlined />, label: "Edit", onClick: () => handleEdit(engagement) },
+    ...sidebarTriggerOptions.map((status) => ({
+      key: String(status.id),
+      icon: status.id === 11003 ? <ClockCircleOutlined /> : <CheckCircleOutlined />,
+      label: status.name,
+      onClick: () => handleEvaluationClick(status.id, engagement),
+    })),
+  ];
+
+  const historyColumns: DataColumn<any>[] = [
+    { key: "engagementStatusName", title: "Engagement Status", dataIndex: "engagementStatusName" },
+    { key: "engagementTypeName", title: "Engagement Type", dataIndex: "engagementTypeName" },
+    { key: "businessUnitName", title: "Business Unit", dataIndex: "businessUnitName" },
+    { key: "evaluationStatusName", title: "Evaluation Status", dataIndex: "evaluationStatusName" },
+    { key: "evaluatedBy", title: "Evaluated By", dataIndex: "evaluatedBy" },
+    { key: "evaluationExtendedDate", title: "Extended Date", dataIndex: "evaluationExtendedDate", render: (v: string) => v?.split("T")[0] || "-" },
+    {
+      key: "actions",
+      title: "Actions",
+      locked: true,
+      align: "center",
+      width: 80,
+      render: (_: unknown, engagement: any) => (
+        <Dropdown menu={{ items: rowMenu(engagement) }} trigger={["click"]} disabled={isPartner}>
+          <Button size="small" icon={<MoreOutlined />} />
+        </Dropdown>
+      ),
+    },
+  ];
+
+  const isSavingEvaluation = createEvaluationMutation.isPending || updateEvaluationMutation.isPending;
+
   return (
-    <>
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold">Engagement Form</h2>
-      </div>
+    <Flex vertical gap={16}>
+      <Flex justify="space-between" align="center" wrap gap={8}>
+        <Typography.Title level={4} style={{ margin: 0 }}>
+          Engagement Form
+        </Typography.Title>
+        <Typography.Text type="secondary">
+          Partner ID: <Typography.Text strong>{partnerCode}</Typography.Text>
+        </Typography.Text>
+      </Flex>
 
-      <Form {...evaluationForm}>
-        <form
-          onSubmit={evaluationForm.handleSubmit(handleEvaluationSubmit)}
-          className="space-y-6"
-        >
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-semibold">Evaluation</h2>
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-muted-foreground">Partner ID:</span>
-              <span className="font-medium">{partnerCode}</span>
-            </div>
-          </div>
-
-          <div className="flex justify-end items-center mb-4">
-            {!showForm && !isPartner && (
-              <Button
-                type="button"
-                variant="default"
-                size="sm"
-                className="bg-[#00A76F] hover:bg-[#00A76F]/90"
-                onClick={() => {
-                  setSelectedEngagement(null);
-                  evaluationForm.reset();
-                  setShowForm(true);
-                  evaluationForm.setValue("isEditMode", false);
-                }}
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Add
-              </Button>
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {showForm && (
-              <>
-                <SelectField
-                  control={evaluationForm.control}
-                  name="engagementStatusId"
-                  label="Engagement Status"
-                  placeholder="Select engagement status"
-                  options={engagementStatuses}
-                  required
-                  disabled
-                />
-
-                <div className="flex gap-x-2 items-end">
-                  <SelectField
-                    control={evaluationForm.control}
-                    name="engagementTypeId"
-                    label="Engagement Type"
-                    placeholder="Select Engagement Type"
-                    options={engagementTypes}
-                    required
-                  />
-                  {selectedEngagementType === "9001" && (
-                    <Button
-                      variant="ghost"
-                      type="button"
-                      onClick={() => setShowHiringDialog(!showHiringDialog)}
-                    >
-                      Open List
-                    </Button>
-                  )}
-                </div>
-
-                <DatePickerField
-                  control={evaluationForm.control}
-                  name="evaluationStartDate"
-                  label="Evaluation Start Date"
-                  required
-                  disabledDates={[{ before: new Date() }]}
-                />
-
-                <DatePickerField
-                  control={evaluationForm.control}
-                  name="evaluationEndDate"
-                  label="Evaluation End Date"
-                  required
-                  disabledDates={[{ before: new Date() }]}
-                />
-
-                <InputField
-                  control={evaluationForm.control}
-                  name="evaluationPeriod"
-                  label="Evaluation Period(Months)"
-                  placeholder="Enter Evaluation Period"
-                  type="number"
-                  required
-                  disabled
-                />
-
-                <InputField
-                  control={evaluationForm.control}
-                  name="evaluatedBy"
-                  label="Evaluated By"
-                  placeholder="Enter Evaluator Name"
-                  required
-                  disabled
-                />
-
-                <SelectField
-                  control={evaluationForm.control}
-                  name="businessId"
-                  label="Business Unit"
-                  placeholder="Select Business Unit"
-                  options={businessUnits}
-                  required
-                />
-
-                <SelectField
-                  control={evaluationForm.control}
-                  name="evaluationStatusId"
-                  label="Evaluation Status"
-                  placeholder="Select evaluation status"
-                  options={evaluationStatuses}
-                  required
-                  disabled
-                />
-
-                <InputField
-                  control={evaluationForm.control}
-                  name="businessCenter"
-                  label="Business Center(Country)"
-                  placeholder="Enter Business Center"
-                />
-
-                <InputField
-                  control={evaluationForm.control}
-                  name="mruCode"
-                  label="MRU Code"
-                  placeholder="Enter MRU Code"
-                />
-                <InputField
-                  control={evaluationForm.control}
-                  name="comments"
-                  label="Comments"
-                  placeholder="Enter Comments"
-                />
-              </>
-            )}
-          </div>
+      {/* ---------------- Evaluation ---------------- */}
+      <Card
+        title="Evaluation"
+        extra={
+          !showForm && !isPartner ? (
+            <Button
+              type="primary"
+              size="small"
+              icon={<PlusOutlined />}
+              onClick={() => {
+                setSelectedEngagement(null);
+                evaluationForm.resetFields();
+                evaluationForm.setFieldsValue({ isEditMode: false } as any);
+                setShowForm(true);
+              }}
+            >
+              Add
+            </Button>
+          ) : null
+        }
+      >
+        <Form form={evaluationForm} layout="vertical" initialValues={evaluationInitialValues} onFinish={onEvaluationFinish}>
           {showForm && (
-            <div className="flex justify-end pt-6 gap-x-4">
-              <Button
-                type="button"
-                variant="outline"
-                className="px-8"
-                onClick={() => setShowForm(false)}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" variant="hpButton" className="px-8">
-                {selectedEngagement ? "Update" : "Save"}
-              </Button>
-            </div>
+            <>
+              <Row gutter={[16, 8]}>
+                <Col xs={24} md={12}>
+                  <Form.Item name="engagementStatusId" label="Engagement Status" rules={zodRules(evaluationShape, "engagementStatusId")}>
+                    <Select placeholder="Select engagement status" options={toOptions(engagementStatuses)} disabled />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} md={12}>
+                  <Flex gap={8} align="flex-end">
+                    <Form.Item name="engagementTypeId" label="Engagement Type" rules={zodRules(evaluationShape, "engagementTypeId")} className="flex-1">
+                      <Select placeholder="Select Engagement Type" options={toOptions(engagementTypes)} showSearch optionFilterProp="label" />
+                    </Form.Item>
+                    {selectedEngagementType === "9001" && (
+                      <Form.Item>
+                        <Button type="text" onClick={() => setShowHiringDialog((v) => !v)}>
+                          Open List
+                        </Button>
+                      </Form.Item>
+                    )}
+                  </Flex>
+                </Col>
+                <Col xs={24} md={12}>
+                  <Form.Item name="evaluationStartDate" label="Evaluation Start Date" rules={zodRules(evaluationShape, "evaluationStartDate")} {...dateItemProps}>
+                    <DatePicker className="w-full" format="YYYY-MM-DD" disabledDate={notBeforeToday} />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} md={12}>
+                  <Form.Item name="evaluationEndDate" label="Evaluation End Date" rules={zodRules(evaluationShape, "evaluationEndDate")} {...dateItemProps}>
+                    <DatePicker className="w-full" format="YYYY-MM-DD" disabledDate={notBeforeToday} />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} md={12}>
+                  <Form.Item name="evaluationPeriod" label="Evaluation Period(Months)" rules={zodRules(evaluationShape, "evaluationPeriod")}>
+                    <Input type="number" placeholder="Enter Evaluation Period" disabled />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} md={12}>
+                  <Form.Item name="evaluatedBy" label="Evaluated By" rules={zodRules(evaluationShape, "evaluatedBy")}>
+                    <Input placeholder="Enter Evaluator Name" disabled />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} md={12}>
+                  <Form.Item name="businessId" label="Business Unit" rules={zodRules(evaluationShape, "businessId")}>
+                    <Select placeholder="Select Business Unit" options={toOptions(businessUnits)} showSearch optionFilterProp="label" />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} md={12}>
+                  <Form.Item name="evaluationStatusId" label="Evaluation Status" rules={zodRules(evaluationShape, "evaluationStatusId")}>
+                    <Select placeholder="Select evaluation status" options={toOptions(evaluationStatuses)} disabled />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} md={12}>
+                  <Form.Item name="businessCenter" label="Business Center(Country)">
+                    <Input placeholder="Enter Business Center" />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} md={12}>
+                  <Form.Item name="mruCode" label="MRU Code">
+                    <Input placeholder="Enter MRU Code" />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} md={12}>
+                  <Form.Item name="comments" label="Comments">
+                    <Input placeholder="Enter Comments" />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Flex justify="flex-end" gap={8}>
+                <Button onClick={() => setShowForm(false)}>Cancel</Button>
+                <Button type="primary" htmlType="submit" loading={isSavingEvaluation}>
+                  {selectedEngagement ? "Update" : "Save"}
+                </Button>
+              </Flex>
+            </>
           )}
-        </form>
-      </Form>
+        </Form>
 
-      <div className="mt-6">
-        {engagementDetailsError && (
-          <div className="text-red-500 text-center mb-4">
-            Failed to load engagement details. Please try again later.
+        {engagementDetailsError && <Typography.Text type="danger">Failed to load engagement details. Please try again later.</Typography.Text>}
+
+        {engagementDetails?.data && (
+          <div className="mt-4">
+            <DataTable<any> title="Engagement History" rowKey="id" columns={historyColumns} data={engagementDetails.data} pagination={false} size="small" />
           </div>
         )}
-      </div>
+      </Card>
 
-      {engagementDetails?.data && (
-        <div className="overflow-x-auto mt-6">
-          <h3 className="text-xl font-semibold mb-4">Engagement History</h3>
-          <table className="w-full border-collapse table-auto">
-            <thead>
-              <tr className="bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
-                <th className="px-4 py-2 text-left">Engagement Status</th>
-                <th className="px-4 py-2 text-left">Engagement Type</th>
-                <th className="px-4 py-2 text-left">Business Unit</th>
-                <th className="px-4 py-2 text-left">Evaluation Status</th>
-                <th className="px-4 py-2 text-left">Evaluated By</th>
-                <th className="px-4 py-2 text-left">Extended Date</th>
-                <th className="px-4 py-2 text-left">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {engagementDetails?.data.map((engagement: any) => (
-                <tr key={engagement.id} className="border-b">
-                  <td className="px-4 py-2">
-                    {engagement?.engagementStatusName}
-                  </td>
-                  <td className="px-4 py-2">
-                    {engagement?.engagementTypeName}
-                  </td>
-                  <td className="px-4 py-2">{engagement?.businessUnitName}</td>
-                  <td className="px-4 py-2">
-                    {engagement?.evaluationStatusName}
-                  </td>
-                  <td className="px-4 py-2">{engagement?.evaluatedBy}</td>
-                  <td className="px-4 py-2">
-                    {engagement?.evaluationExtendedDate?.split("T")[0] || "-"}
-                  </td>
-                  <td className="px-4 py-2">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          disabled={isPartner}
-                          variant="outline"
-                          className="h-8 p-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                        >
-                          <Menu />
-                          <ChevronDown />
-                        </Button>
-                      </DropdownMenuTrigger>
-
-                      <DropdownMenuContent align="end" className="w-[200px]">
-                        <DropdownMenuItem
-                          onClick={() => handleEdit(engagement)}
-                        >
-                          <Pencil className="h-3 w-3" />
-                          Edit
-                        </DropdownMenuItem>
-                        {sidebarTriggerOptions.map((status: any) => (
-                          <DropdownMenuItem
-                            key={status.id}
-                            onClick={() =>
-                              handleEvaluationClick(status?.id, engagement)
-                            }
-                          >
-                            {status.id === 11003 && (
-                              <Clock className="h-4 w-4 mr-2 text-gray-500" />
-                            )}
-                            {status.id === 11002 && (
-                              <CheckCircle className="h-4 w-4 mr-2 text-gray-500" />
-                            )}
-                            {status.name}
-                          </DropdownMenuItem>
-                        ))}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
       <EvaluationSidebarOnly
         open={open}
         onOpenChange={setOpen}
@@ -875,505 +909,118 @@ export default function EngagementForm({
         selectedEngagement={selectedEngagement}
       />
 
-      {!empanelmentDetails?.data && (
-        <div className="flex items-center space-x-2 mt-6 mb-6">
-          <Checkbox
-            id="empanel-partner"
-            checked={showEmpanelmentFields}
-            onCheckedChange={(checked) => {
-              setShowEmpanelmentFields(checked as boolean);
-            }}
-          />
-          <Label htmlFor="empanel-partner">
-            Do you want to empanel this partner?
-          </Label>
-        </div>
+      {/* ---------------- Empanelment ---------------- */}
+      {!empanelment && (
+        <Checkbox checked={showEmpanelmentFields} onChange={(e) => setShowEmpanelmentFields(e.target.checked)}>
+          Do you want to empanel this partner?
+        </Checkbox>
       )}
 
-      {showEmpanelmentFields && !empanelmentDetails?.data && (
-        <Form {...empanelmentForm}>
-          <form
-            onSubmit={empanelmentForm.handleSubmit(handleEmpanelmentSubmit)}
-            className="space-y-6 mt-8 border-t pt-8"
-          >
-            <h2 className="text-2xl font-semibold">Create Empanelment</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="flex items-end gap-4">
-                <div className="flex-1">
-                  <DatePickerField
-                    control={empanelmentForm.control}
-                    name="empanelmentStartDate"
-                    label="Empanelment Start Date"
-                    disabledDates={[{ before: new Date() }]}
-                    required
-                  />
-                </div>
-                <div className="flex items-center mb-2 gap-2">
-                  <FormField
-                    control={empanelmentForm.control}
-                    name="isThisGPApproved"
-                    render={({ field }) => (
-                      <FormItem className="flex items-center space-x-2">
-                        <Checkbox
-                          id="gp-approved"
-                          checked={!!field.value}
-                          onCheckedChange={(checked) =>
-                            field.onChange(!!checked)
-                          }
-                        />
-                        <FormLabel
-                          htmlFor="gp-approved"
-                          className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-0"
-                        >
-                          Is this GP approved?
-                        </FormLabel>
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              </div>
+      {(showEmpanelmentFields && !empanelment) || empanelment ? (
+        <Card
+          title={empanelment ? "Empanelment Details" : "Create Empanelment"}
+          extra={
+            empanelment ? (
+              <Button type="text" size="small" icon={<EditOutlined />} disabled={isPartner} onClick={() => setIsEditingEmpanelment((v) => !v)}>
+                {isEditingEmpanelment ? "Cancel Edit" : "Edit"}
+              </Button>
+            ) : null
+          }
+        >
+          {empanelment && (
+            <Descriptions bordered size="small" column={{ xs: 1, md: 2 }}>
+              <Descriptions.Item label="Start Date">{empanelment.empanelmentStartDate?.split("T")[0] || "-"}</Descriptions.Item>
+              <Descriptions.Item label="SOW Signing Date">{empanelment.sowSigningDate?.split("T")[0] || "-"}</Descriptions.Item>
+              <Descriptions.Item label="GP Approval Date">{empanelment.gpApprovalDate?.split("T")[0] || "-"}</Descriptions.Item>
+              <Descriptions.Item label="Agreement Type">{empanelment.agreementTypeName || "-"}</Descriptions.Item>
+              <Descriptions.Item label="PAN ID">{empanelment.panid || "-"}</Descriptions.Item>
+              <Descriptions.Item label="TAN ID">{empanelment.tanid || "-"}</Descriptions.Item>
+              <Descriptions.Item label="GST ID">{empanelment.gstid || "-"}</Descriptions.Item>
+            </Descriptions>
+          )}
 
-              <DatePickerField
-                control={empanelmentForm.control}
-                name="gpApprovalDate"
-                label="GP Approval Date"
-                disabled={!isGpApproved}
-                disabledDates={[{ before: new Date() }]}
-              />
-
-              <SelectField
-                control={empanelmentForm.control}
-                name="agreementTypeId"
-                label="Agreement Type"
-                placeholder="Select agreement type"
-                options={agreementTypes}
-                disabled={!isGpApproved}
-              />
-
-              {angreementTypeId === "1001" && (
-                <>
-                  <InputField
-                    control={empanelmentForm.control}
-                    name="gpId"
-                    label="GP ID"
-                    placeholder="Enter GP ID"
-                    disabled={!isGpApproved}
-                  />
-
-                  <InputField
-                    control={empanelmentForm.control}
-                    name="contractId"
-                    label="Contract ID"
-                    placeholder="Enter Contract ID"
-                    disabled={!isGpApproved}
-                  />
-                </>
-              )}
-
-              <InputField
-                control={empanelmentForm.control}
-                name="panid"
-                label="PAN ID"
-                placeholder="Enter PAN ID"
-                disabled={!isGpApproved}
-              />
-
-              <InputField
-                control={empanelmentForm.control}
-                name="tanid"
-                label="TAN ID"
-                placeholder="Enter TAN ID"
-                disabled={!isGpApproved}
-              />
-
-              <InputField
-                control={empanelmentForm.control}
-                name="gstid"
-                label="GST ID"
-                placeholder="Enter GST ID"
-                disabled={!isGpApproved}
-              />
-
-              <InputField
-                control={empanelmentForm.control}
-                name="empanelmentComments"
-                label="Empanelment Comments"
-                placeholder="Enter Empanelment Comments"
-                disabled={!isGpApproved}
-              />
-            </div>
-            <DatePickerField
-              control={empanelmentForm.control}
-              name="sowSigningDate"
-              label="SOW Signing Date"
-              disabled={!isGpApproved}
-              disabledDates={[{ before: new Date() }]}
-              required={isGpApproved}
-            />
-            {/* Multi-Document SOW & Quote Upload Section */}
-            {sowSigningDate && (
-              <div className="space-y-4">
-                <MultiDocumentField
-                  control={empanelmentForm.control}
-                  name="sowQuoteDocuments"
-                  label="SOW & Quote Documents"
-                  accept=".ppt,.pptx,.pdf,.doc,.docx"
-                  required
-                  maxFiles={10}
+          <Form form={empanelmentForm} layout="vertical" initialValues={empanelmentInitialValues} onFinish={onEmpanelmentFinish}>
+            {!empanelment && (
+              <>
+                <EmpanelmentFields
+                  isGpApproved={isGpApproved}
+                  agreementTypeId={agreementTypeId}
+                  agreementTypes={agreementTypes}
+                  sowSigningDate={sowSigningDate}
                   partnerId={partnerId}
-                  isCreating={true} // Always true for new empanelment creation
-                  disabled={!isGpApproved}
-                  isToggle={true}
+                  isCreating
                   refetchPartner={refetchEvalutaionDetail}
                 />
-              </div>
+                <Flex justify="flex-end">
+                  <Button type="primary" htmlType="submit" disabled={isPartner} loading={submitEmpanelmentMutation.isPending}>
+                    Submit
+                  </Button>
+                </Flex>
+              </>
             )}
 
-            <div className="flex justify-end pt-6">
-              <Button
-                disabled={isPartner}
-                type="submit"
-                variant="default"
-                className="px-8"
-              >
-                Submit
-              </Button>
-            </div>
-          </form>
-        </Form>
-      )}
-
-      {empanelmentDetails?.data && (
-        <div className="overflow-x-auto mt-8">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-xl font-semibold">Empanelment Details</h3>
-            <Button
-              disabled={isPartner}
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsEditingEmpanelment(!isEditingEmpanelment)}
-            >
-              <Pencil className="h-4 w-4 mr-2" />
-              {isEditingEmpanelment ? "Cancel Edit" : "Edit"}
-            </Button>
-          </div>
-          <table className="w-full border-collapse table-auto">
-            <thead>
-              <tr className="bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
-                <th className="px-4 py-2 text-left">Start Date</th>
-                <th className="px-4 py-2 text-left">SOW Signing Date</th>
-                <th className="px-4 py-2 text-left">GP Approval Date</th>
-                <th className="px-4 py-2 text-left">Agreement Type</th>
-                <th className="px-4 py-2 text-left">PAN ID</th>
-                <th className="px-4 py-2 text-left">TAN ID</th>
-                <th className="px-4 py-2 text-left">GST ID</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr className="border-b">
-                <td className="px-4 py-2">
-                  {empanelmentDetails?.data?.empanelmentStartDate?.split(
-                    "T"
-                  )[0] || "-"}
-                </td>
-                <td className="px-4 py-2">
-                  {empanelmentDetails?.data?.sowSigningDate?.split("T")[0] ||
-                    "-"}
-                </td>
-                <td className="px-4 py-2">
-                  {empanelmentDetails?.data?.gpApprovalDate?.split("T")[0] ||
-                    "-"}
-                </td>
-                <td className="px-4 py-2">
-                  {empanelmentDetails?.data?.agreementTypeName || "-"}
-                </td>
-                <td className="px-4 py-2">
-                  {empanelmentDetails?.data?.panid || "-"}
-                </td>
-                <td className="px-4 py-2">
-                  {empanelmentDetails?.data?.tanid || "-"}
-                </td>
-                <td className="px-4 py-2">
-                  {empanelmentDetails?.data?.gstid || "-"}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-
-          {isEditingEmpanelment && (
-            <Form {...empanelmentForm}>
-              <form
-                onSubmit={empanelmentForm.handleSubmit(handleEmpanelmentUpdate)}
-                className="space-y-6 mt-8 border-t pt-8"
-              >
-                <h2 className="text-2xl font-semibold">Edit Empanelment</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="flex items-end gap-4">
-                    <div className="flex-1">
-                      <DatePickerField
-                        control={empanelmentForm.control}
-                        name="empanelmentStartDate"
-                        label="Empanelment Start Date"
-                        required
-                        disabledDates={[{ before: new Date() }]}
-                      />
-                    </div>
-                    <div className="flex items-center mb-2 gap-2">
-                      <FormField
-                        control={empanelmentForm.control}
-                        name="isThisGPApproved"
-                        render={({ field }) => (
-                          <FormItem className="flex items-center space-x-2">
-                            <Checkbox
-                              id="gp-approved"
-                              checked={!!field.value}
-                              onCheckedChange={(checked) =>
-                                field.onChange(!!checked)
-                              }
-                            />
-                            <FormLabel
-                              htmlFor="gp-approved"
-                              className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-0"
-                            >
-                              Is this GP approved?
-                            </FormLabel>
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                  </div>
-
-                  <DatePickerField
-                    control={empanelmentForm.control}
-                    name="gpApprovalDate"
-                    label="GP Approval Date"
-                    disabled={!isGpApproved}
-                  />
-
-                  <SelectField
-                    control={empanelmentForm.control}
-                    name="agreementTypeId"
-                    label="Agreement Type"
-                    placeholder="Select agreement type"
-                    disabled={!isGpApproved}
-                    options={agreementTypes}
-                  />
-
-                  {angreementTypeId === "1001" && (
-                    <>
-                      <InputField
-                        control={empanelmentForm.control}
-                        name="gpId"
-                        label="GP ID"
-                        placeholder="Enter GP ID"
-                        disabled={!isGpApproved}
-                      />
-
-                      <InputField
-                        control={empanelmentForm.control}
-                        name="contractId"
-                        label="Contract ID"
-                        placeholder="Enter Contract ID"
-                        disabled={!isGpApproved}
-                      />
-                    </>
-                  )}
-
-                  <InputField
-                    control={empanelmentForm.control}
-                    name="panid"
-                    label="PAN ID"
-                    placeholder="Enter PAN ID"
-                    disabled={!isGpApproved}
-                  />
-
-                  <InputField
-                    control={empanelmentForm.control}
-                    name="tanid"
-                    label="TAN ID"
-                    placeholder="Enter TAN ID"
-                    disabled={!isGpApproved}
-                  />
-
-                  <InputField
-                    control={empanelmentForm.control}
-                    name="gstid"
-                    label="GST ID"
-                    placeholder="Enter GST ID"
-                    disabled={!isGpApproved}
-                  />
-
-                  <InputField
-                    control={empanelmentForm.control}
-                    name="empanelmentComments"
-                    label="Empanelment Comments"
-                    placeholder="Enter Empanelment Comments"
-                    disabled={!isGpApproved}
-                  />
-                  <DatePickerField
-                    control={empanelmentForm.control}
-                    name="sowSigningDate"
-                    label="SOW Signing Date"
-                    disabled={!isGpApproved}
-                    required={isGpApproved}
-                  />
-                </div>
-
-                {/* Multi-Document SOW & Quote Upload Section for Edit */}
-                {sowSigningDate && (
-                  <div className="space-y-4">
-                    <MultiDocumentField
-                      control={empanelmentForm.control}
-                      name="sowQuoteDocuments"
-                      label="SOW & Quote Documents"
-                      accept=".ppt,.pptx,.pdf,.doc,.docx"
-                      required
-                      maxFiles={10}
-                      partnerId={partnerId}
-                      isCreating={false} // False for editing existing empanelment
-                      disabled={!isGpApproved}
-                      partnerEmpanelId={
-                        empanelmentDetails?.data?.sowQuoteDocuments[0]
-                          ?.partnerEmpanelId
-                      }
-                      isToggle={true}
-                      refetchPartner={refetchEvalutaionDetail}
-                    />
-                  </div>
-                )}
-
-                <div className="flex justify-end gap-4 pt-6">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setIsEditingEmpanelment(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button type="submit" variant="default">
+            {empanelment && isEditingEmpanelment && (
+              <>
+                <Divider titlePlacement="left">Edit Empanelment</Divider>
+                <EmpanelmentFields
+                  isGpApproved={isGpApproved}
+                  agreementTypeId={agreementTypeId}
+                  agreementTypes={agreementTypes}
+                  sowSigningDate={sowSigningDate}
+                  partnerId={partnerId}
+                  isCreating={false}
+                  partnerEmpanelId={empanelment.sowQuoteDocuments?.[0]?.partnerEmpanelId}
+                  refetchPartner={refetchEvalutaionDetail}
+                />
+                <Flex justify="flex-end" gap={8}>
+                  <Button onClick={() => setIsEditingEmpanelment(false)}>Cancel</Button>
+                  <Button type="primary" htmlType="submit" loading={updateEmpanelmentMutation.isPending}>
                     Update
                   </Button>
-                </div>
-              </form>
-            </Form>
-          )}
-        </div>
-      )}
+                </Flex>
+              </>
+            )}
+          </Form>
+        </Card>
+      ) : null}
 
-      <Dialog open={showHiringDialog} onOpenChange={setShowHiringDialog}>
-        <DialogContent className="w-full   sm:max-w-6xl px-6 overflow-hidden">
-          <DialogHeader>
-            <DialogTitle>Engagement Type: Labour</DialogTitle>
-          </DialogHeader>
-
-          <div className="flex items-center justify-between">
-            <SearchFilter
-              filterType={FilterTypeEnum.Partner_Engagement_OpenListGrid}
-              onFilterChange={handleFilterChange}
-              onClear={handleClear}
-              placeholder="Search by"
-              setCurrentPage={setCurrentPage}
-            />
-            <div className="flex items-center gap-2">
-              <ColumnsPopover
-                columns={hrqColumns}
-                toggleColumn={toggleColumn}
-                screeningData={hiringData}
-                buttonName="Hiring-Open-List-Details"
-              />
-            </div>
-          </div>
-          {isLoading ? (
-            <TableSkeletonLoader />
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-teal-200 dark:bg-gray-700">
-                  <TableHead>Select</TableHead>
-                  {visibleHrqColumns.map((col) => (
-                    <TableHead key={col.id}>{col.label}</TableHead>
-                  ))}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {hiringData.length === 0 ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={visibleHrqColumns.length + 1}
-                      className="text-center text-gray-500"
-                    >
-                      No Data Available
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  hiringData.map((req: any) => (
-                    <TableRow key={req.id} className="border-b">
-                      <TableCell>
-                        <Checkbox
-                          checked={selectedHrqIds.includes(req.hrqId)}
-                          onCheckedChange={() => handleHrqSelection(req.hrqId)}
-                        />
-                      </TableCell>
-                      {visibleHrqColumns.map((col) => (
-                        <TableCell key={col.id}>{req[col.id]}</TableCell>
-                      ))}
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          )}
-
-          <div className="flex items-center justify-between p-4">
-            <div className="text-sm text-gray-500">
-              Page {currentPage} of {totalPages}
-            </div>
-            <Pagination
-              options={[5, 10]}
-              value={pageSize}
-              totalEntry={hiringRequests?.data?.totalCount}
-              onChange={(newSize) => {
-                setPageSize(newSize);
-              }}
-              currentPage={currentPage}
-              totalPages={totalPages}
-              onPageChange={setCurrentPage}
-              hasNext={hasNext}
-              hasPrevious={hasPrevious}
-            />
-          </div>
-
-          <div className="flex justify-end gap-2">
-            <Button
-              variant="secondary"
-              onClick={() => setShowHiringDialog(false)}
-            >
-              Previous
+      {/* ---------------- Hiring open list (labour) ---------------- */}
+      <Modal
+        open={showHiringDialog}
+        onCancel={() => setShowHiringDialog(false)}
+        title="Engagement Type: Labour"
+        width={1100}
+        destroyOnHidden
+        footer={
+          <Space>
+            <Button onClick={() => setShowHiringDialog(false)}>Previous</Button>
+            <Button type="primary" onClick={() => setShowHiringDialog(false)}>
+              Submit
             </Button>
-            <Button onClick={handleHiringSubmit}>Submit</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+          </Space>
+        }
+      >
+        <DataTable<any>
+          storageKey="engagement-hiring-open-list"
+          rowKey="hrqId"
+          columns={hrqColumns}
+          data={hiringRequests?.data?.items}
+          loading={isLoading}
+          size="small"
+          pagination={{ current: t.pageNumber, pageSize: t.pageSize, total: hiringRequests?.data?.totalCount ?? 0, pageSizeOptions: [5, 10, 50] }}
+          onChange={t.onTableChange}
+          search={{ columns: searchColumns, column: t.searchColumn, text: t.searchText, onChange: t.setSearch, placeholder: "Search by" }}
+          rowSelection={{ selectedRowKeys: selectedHrqIds, onChange: (keys) => setSelectedHrqIds(keys as string[]) }}
+          emptyText="No Data Available"
+        />
+      </Modal>
 
-      <div className="flex justify-between pt-6">
-        <Button
-          variant="secondary"
-          type="button"
-          className="px-8"
-          onClick={onPrevious}
-        >
-          Previous
-        </Button>
-        <Button
-          type="submit"
-          className="px-8"
-          onClick={onNext}
-          disabled={!empanelmentDetails?.data || !isPartnerEmpanelled}
-        >
+      <Flex justify="space-between">
+        <Button onClick={onPrevious}>Previous</Button>
+        <Button type="primary" onClick={onNext} disabled={!empanelment || !isPartnerEmpanelled}>
           Next
         </Button>
-      </div>
-    </>
+      </Flex>
+    </Flex>
   );
 }

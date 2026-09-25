@@ -1,39 +1,17 @@
 "use client";
-
-import { useState, useEffect } from "react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
-import { Pencil, Trash2, Check, X, Plus } from "lucide-react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { dropdownApi } from "@/services/api/master";
-import { Input } from "@/components/ui/input";
+import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Button, Form, Input, Modal, Radio, Select, Space, Tooltip } from "antd";
+import { CheckOutlined, CloseOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons";
+import { z } from "zod";
+import DataTable, { type DataColumn } from "@/components/data-table/DataTable";
+import { useTableState } from "@/components/data-table/useTableState";
+import { StatusBadge } from "@/components/status-badge";
 import { toast } from "@/lib/toast";
+import { validateWithZod, zodRules } from "@/lib/zodRules";
 import api from "@/lib/axiosInstance";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { ChevronDown } from "lucide-react";
+import { dropdownApi } from "@/services/api/master";
 import { onboarding } from "@/services/api/onboarding.api";
-import Pagination from "../common/Pagination";
 
 enum MasterTypes {
   REJECTION_REASON = 24,
@@ -50,174 +28,112 @@ enum MasterTypes {
   NotificationCategory = 42,
 }
 
+/** master type used for the domain / sub-domain manager list */
+const MANAGER_MASTER_TYPE = 75;
+const NO_MANAGER = "0";
+
 interface MasterData {
   id: number;
   name: string;
   isActive: boolean;
-  domainManagerName?: string; // Only for DOMAIN type
-  subDomainManagerName?: string; // Only for SUBDOMAIN type
+  domainManagerName?: string; // DOMAIN only
+  subDomainManagerName?: string; // SUBDOMAIN only
   stateId?: number;
   countryId?: number;
   domainId?: number;
 }
 
-export default function Master() {
-  const [selectedType, setSelectedType] = useState<MasterTypes | null>(null);
-  const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
-  const [selectedState, setSelectedState] = useState<string | null>(null);
-  const [selectedDomain, setSelectedDomain] = useState<string | null>(null);
-  const [editingItem, setEditingItem] = useState<MasterData | null>(null);
-  const [editValue, setEditValue] = useState("");
-  const [editManagerId, setEditManagerId] = useState<string>("");
-  const [isAddingNew, setIsAddingNew] = useState(false);
-  const [newItemName, setNewItemName] = useState("");
-  const [newItemManagerId, setNewItemManagerId] = useState<string>("0");
-  const [isActiveFilter, setIsActiveFilter] = useState(true); // New state for active/inactive filter
-  const queryClient = useQueryClient();
-  const [editManagerSearchTerm, setEditManagerSearchTerm] = useState("");
-  const [newManagerSearchTerm, setNewManagerSearchTerm] = useState("");
-  const [editManagerOpen, setEditManagerOpen] = useState(false);
-  const [newManagerOpen, setNewManagerOpen] = useState(false);
-
-
-  // const { data: masterData = [], isLoading } = useQuery({
-  //   queryKey: ["masterData", selectedType, selectedCountry, selectedState, selectedDomain, isActiveFilter],
-  //   queryFn: () => {
-  //     if (!selectedType) return Promise.resolve([]);
-
-  //     // For SUBDOMAIN, we need domainId
-  //     if (selectedType === MasterTypes.SUBDOMAIN && !selectedDomain) {
-  //       return Promise.resolve([]);
-  //     }
-
-  //     // Handle different parameter requirements based on selected type
-  //     if (selectedType === MasterTypes.SUBDOMAIN && selectedDomain) {
-  //       return dropdownApi.fetchDropdown(selectedType, {
-  //         domainIds: [parseInt(selectedDomain)],
-  //         isActive: isActiveFilter
-  //       });
-  //     } else {
-  //       return dropdownApi.fetchDropdown(selectedType, {
-  //         isActive: isActiveFilter
-  //       });
-  //     }
-  //   },
-  //   enabled: !!selectedType &&
-  //     (selectedType === MasterTypes.SUBDOMAIN && !selectedDomain),
-  // });
-  const [searchText, setSearchText] = useState("");
-  const [searchColumn, setSearchColumn] = useState<string>("");
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50);
-
- const {
-  data: masterData,
-  isLoading,
-  refetch,
-} = useQuery({
-  queryKey: [
-    "masterDataPaged",
-    selectedType,
-    selectedCountry,
-    selectedState,
-    selectedDomain,
-    isActiveFilter,
-    currentPage,
-    pageSize,
-    searchColumn,
-    searchText,
-  ],
-  queryFn: () => {
-    if (!selectedType) {
-      return Promise.resolve({ items: [], totalCount: 0 });
-    }
-
-    if (selectedType === MasterTypes.SUBDOMAIN && !selectedDomain) {
-      return Promise.resolve({ items: [], totalCount: 0 });
-    }
-
-    return onboarding.fetchDropdownPaged({
-      masterTypeId: selectedType,
-      pageNumber: currentPage,
-      pageSize,
-      searchColumn,
-      searchText,
-      sortColumns: [],
-      activeStatus: isActiveFilter,
-      countryId: selectedCountry ? parseInt(selectedCountry) : 0,
-      stateId: selectedState ? parseInt(selectedState) : 0,
-      domainId:
-        selectedType === MasterTypes.SUBDOMAIN && selectedDomain
-          ? parseInt(selectedDomain)
-          : 0,
-    });
-  },
-  enabled:
-    !!selectedType &&
-    !(selectedType === MasterTypes.SUBDOMAIN && !selectedDomain),
+const itemSchema = z.object({
+  name: z.string().trim().min(1, "Name is required"),
+  managerId: z.string().optional(),
 });
+type ItemValues = z.infer<typeof itemSchema>;
 
+type ModalState = { mode: "add" } | { mode: "edit"; item: MasterData } | null;
 
+const MASTER_TYPE_OPTIONS = Object.entries(MasterTypes)
+  .filter(([key]) => isNaN(Number(key)))
+  .map(([key, value]) => ({
+    label: key
+      .split("_")
+      .map((word) => word.charAt(0)?.toUpperCase() + word.slice(1)?.toLowerCase())
+      .join(" "),
+    value: value.toString(),
+  }));
+
+/** Master-data maintenance: pick a master type, list its rows (server paged) and add / edit / (de)activate them. */
+export default function Master() {
+  const queryClient = useQueryClient();
+  const [form] = Form.useForm<ItemValues>();
+  const t = useTableState({ pageSize: 50 });
+
+  const [selectedType, setSelectedType] = useState<MasterTypes | null>(null);
+  const [selectedDomain, setSelectedDomain] = useState<string | null>(null);
+  const [isActiveFilter, setIsActiveFilter] = useState(true);
+  const [modal, setModal] = useState<ModalState>(null);
+
+  const hasManager = selectedType === MasterTypes.DOMAIN || selectedType === MasterTypes.SUBDOMAIN;
+  const needsDomain = selectedType === MasterTypes.SUBDOMAIN && !selectedDomain;
+  const canAddNew = !!selectedType && !needsDomain;
+
+  const { data: masterData, isLoading } = useQuery({
+    queryKey: ["masterDataPaged", selectedType, selectedDomain, isActiveFilter, t.query],
+    queryFn: () =>
+      onboarding.fetchDropdownPaged({
+        masterTypeId: selectedType,
+        pageNumber: t.query.pageNumber,
+        pageSize: t.query.pageSize,
+        searchColumn: t.query.searchColumn ?? "",
+        searchText: t.query.searchText ?? "",
+        sortColumns: [],
+        activeStatus: isActiveFilter,
+        countryId: 0,
+        stateId: 0,
+        domainId: selectedType === MasterTypes.SUBDOMAIN && selectedDomain ? parseInt(selectedDomain) : 0,
+      }),
+    enabled: !!selectedType && !needsDomain,
+  });
 
   const { data: managersList = [] } = useQuery({
     queryKey: ["managers"],
-    queryFn: () => dropdownApi.fetchDropdown(75), // Type 75
+    queryFn: () => dropdownApi.fetchDropdown(MANAGER_MASTER_TYPE),
   });
- 
- 
-  
 
- const allMaster = masterData?.data?.items || [];
-  const hasPrevious = masterData?.data.hasPrevious;
-  const hasNext = masterData?.data.hasNext;
-  const totalPages = masterData?.data.totalPages;
-  const currentPageNumber = masterData?.data.currentPage;
-
-  // Fetch domains for SUBDOMAIN selection
   const { data: domains = [] } = useQuery({
     queryKey: ["domains"],
     queryFn: () => dropdownApi.fetchDropdown(MasterTypes.DOMAIN),
     enabled: selectedType === MasterTypes.SUBDOMAIN,
   });
 
-  // Update master item mutation
+  const invalidateList = () => queryClient.invalidateQueries({ queryKey: ["masterDataPaged"] });
+
   const updateMasterItem = useMutation({
-    mutationFn: async (data: { id: number, name: string, typeId: number, managerId?: number }) => {
+    mutationFn: async (data: { id: number; name: string; typeId: number; managerId?: number; item: MasterData }) => {
       const payload = {
         id: data.id,
         isActive: true,
         masterTypeId: data.typeId,
         name: data.name,
-        ...(editingItem?.stateId && { stateId: editingItem.stateId }),
-        ...(editingItem?.countryId && { countryId: editingItem.countryId }),
-        ...(editingItem?.domainId && { domainId: editingItem.domainId }),
+        ...(data.item.stateId && { stateId: data.item.stateId }),
+        ...(data.item.countryId && { countryId: data.item.countryId }),
+        ...(data.item.domainId && { domainId: data.item.domainId }),
         ...(data.managerId && selectedType === MasterTypes.DOMAIN && { domainManagerId: data.managerId }),
         ...(data.managerId && selectedType === MasterTypes.SUBDOMAIN && { subDomainManagerId: data.managerId }),
       };
-
       const response = await api.put(`/Master/${data.typeId}/${data.id}`, payload);
-
-      if (!response.status) {
-        throw new Error('Failed to update item');
-      }
-
+      if (!response.status) throw new Error("Failed to update item");
       return response.data;
     },
     onSuccess: () => {
       toast.success("Item updated successfully");
-      queryClient.invalidateQueries({ queryKey: ["masterData", selectedType, selectedCountry, selectedState, selectedDomain, isActiveFilter] });
-      setEditingItem(null);
-      setEditValue("");
-      setEditManagerId("");
+      invalidateList();
+      setModal(null);
     },
-    onError: () => {
-      toast.error("Failed to update item");
-    }
+    onError: () => toast.error("Failed to update item"),
   });
 
-  // Add new master item mutation
   const addMasterItem = useMutation({
-    mutationFn: async (data: { name: string, typeId: number, parentId?: number, managerId?: number }) => {
+    mutationFn: async (data: { name: string; typeId: number; managerId?: number }) => {
       const payload = {
         id: 0,
         isActive: true,
@@ -227,547 +143,209 @@ export default function Master() {
         ...(data.managerId && selectedType === MasterTypes.DOMAIN && { domainManagerId: data.managerId }),
         ...(data.managerId && selectedType === MasterTypes.SUBDOMAIN && { subDomainManagerId: data.managerId }),
       };
-
       const response = await api.post(`/Master/${data.typeId}`, payload);
-
-      if (!response.status) {
-        throw new Error('Failed to add item');
-      }
-
+      if (!response.status) throw new Error("Failed to add item");
       return response.data;
     },
     onSuccess: () => {
       toast.success("Item added successfully");
-      queryClient.invalidateQueries({ queryKey: ["masterData", selectedType, selectedCountry, selectedState, selectedDomain, isActiveFilter] });
-      setIsAddingNew(false);
-      setNewItemName("");
-      setNewItemManagerId("0");
+      invalidateList();
+      setModal(null);
     },
-    onError: () => {
-      toast.error("Failed to add item");
-    }
+    onError: () => toast.error("Failed to add item"),
   });
 
-  // Toggle active status mutation
   const toggleActiveStatus = useMutation({
-    mutationFn: async (data: { id: number, typeId: number, currentStatus: boolean, item: MasterData }) => {
-      const newStatus = !data.currentStatus;
-      const response = await api.patch(`/Master/${data.typeId}/${data.id}?isActive=${newStatus}`);
-
-      if (!response.status) {
-        throw new Error('Failed to toggle status');
-      }
-
+    mutationFn: async (data: { id: number; typeId: number; currentStatus: boolean }) => {
+      const response = await api.patch(`/Master/${data.typeId}/${data.id}?isActive=${!data.currentStatus}`);
+      if (!response.status) throw new Error("Failed to toggle status");
       return response.data;
     },
     onSuccess: (_, variables) => {
-      const newStatus = !variables.currentStatus;
-      toast.success(`Item ${newStatus ? 'activated' : 'deactivated'} successfully`);
-      queryClient.invalidateQueries({ queryKey: ["masterData", selectedType, selectedCountry, selectedState, selectedDomain, isActiveFilter] });
+      toast.success(`Item ${!variables.currentStatus ? "activated" : "deactivated"} successfully`);
+      invalidateList();
     },
-    onError: () => {
-      toast.error("Failed to toggle status");
-    }
+    onError: () => toast.error("Failed to toggle status"),
   });
 
-
-  // Reset dependent selections when primary selection changes
+  // reset dependent selections when the master type changes
   useEffect(() => {
-    if (selectedType !== MasterTypes.SUBDOMAIN) {
-      setSelectedDomain(null);
-    }
-    setIsAddingNew(false);
-    setNewItemName("");
-    setNewItemManagerId("0");
+    if (selectedType !== MasterTypes.SUBDOMAIN) setSelectedDomain(null);
+    setModal(null);
+    t.resetPage();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedType]);
 
-  const masterTypeOptions = Object.entries(MasterTypes)
-    .filter(([key]) => isNaN(Number(key)))
-    .map(([key, value]) => ({
-      label: key
-        .split("_")
-        .map(
-          (word) => word.charAt(0)?.toUpperCase() + word.slice(1)?.toLowerCase()
-        )
-        .join(" "),
-      value: value.toString(),
-    }));
+  const managerOptions = useMemo(
+    () => [
+      { value: NO_MANAGER, label: "No Manager" },
+      ...(Array.isArray(managersList) ? managersList.map((m: any) => ({ value: String(m.id), label: String(m.name) })) : []),
+    ],
+    [managersList]
+  );
 
-  const handleEdit = (item: MasterData) => {
-    setEditingItem(item);
-    setEditValue(item.name);
+  /** current manager of a row, resolved by name against the managers list (the API only returns the name) */
+  const managerIdOf = (item: MasterData) => {
+    const name = selectedType === MasterTypes.DOMAIN ? item.domainManagerName : selectedType === MasterTypes.SUBDOMAIN ? item.subDomainManagerName : undefined;
+    if (!name) return NO_MANAGER;
+    const found = (managersList as any[]).find((m) => m.name === name);
+    return found?.id != null ? String(found.id) : NO_MANAGER;
+  };
 
-    // Set current manager ID if editing domain or subdomain
-    if (selectedType === MasterTypes.DOMAIN && item.domainManagerName) {
-      const currentManager = managersList.find((manager: any) => manager.name === item.domainManagerName);
-      setEditManagerId(currentManager?.id?.toString() || "");
-    } else if (selectedType === MasterTypes.SUBDOMAIN && item.subDomainManagerName) {
-      const currentManager = managersList.find((manager: any) => manager.name === item.subDomainManagerName);
-      setEditManagerId(currentManager?.id?.toString() || "");
+  const onFinish = (values: ItemValues) => {
+    const data = validateWithZod(itemSchema, form, values);
+    if (!data || !selectedType || !modal) return;
+    const managerId = hasManager && data.managerId && data.managerId !== NO_MANAGER ? parseInt(data.managerId) : undefined;
+    if (modal.mode === "edit") {
+      updateMasterItem.mutate({ id: modal.item.id, name: data.name, typeId: selectedType, managerId, item: modal.item });
     } else {
-      setEditManagerId("0");
+      addMasterItem.mutate({ name: data.name, typeId: selectedType, managerId });
     }
-
-    setIsAddingNew(false);
   };
 
-  const handleSaveEdit = () => {
-    if (!editingItem || !selectedType) return;
+  const columns = useMemo<DataColumn<MasterData>[]>(
+    () => [
+      { key: "sno", title: "S.no", width: 80, render: (_: unknown, __: MasterData, index: number) => index + 1 },
+      { key: "name", title: "Name", dataIndex: "name" },
+      ...(hasManager
+        ? [
+            {
+              key: "manager",
+              title: "Manager Name",
+              dataIndex: selectedType === MasterTypes.DOMAIN ? "domainManagerName" : "subDomainManagerName",
+              render: (v: string) => v || "-",
+            } as DataColumn<MasterData>,
+          ]
+        : []),
+      { key: "isActive", title: "Status", dataIndex: "isActive", width: 120, render: (v: boolean) => <StatusBadge status={v ? "Active" : "Inactive"} /> },
+      {
+        key: "actions",
+        title: "Actions",
+        locked: true,
+        align: "right",
+        width: 110,
+        render: (_: unknown, item: MasterData) => (
+          <Space size={4}>
+            <Tooltip title="Edit item">
+              <Button type="text" size="small" icon={<EditOutlined />} onClick={() => setModal({ mode: "edit", item })} />
+            </Tooltip>
+            <Tooltip title={item.isActive ? "Deactivate item" : "Activate item"}>
+              <Button
+                type="text"
+                size="small"
+                danger={item.isActive}
+                icon={item.isActive ? <CloseOutlined /> : <CheckOutlined />}
+                loading={toggleActiveStatus.isPending && toggleActiveStatus.variables?.id === item.id}
+                onClick={() => selectedType && toggleActiveStatus.mutate({ id: item.id, typeId: selectedType, currentStatus: item.isActive })}
+              />
+            </Tooltip>
+          </Space>
+        ),
+      },
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [hasManager, selectedType, toggleActiveStatus.isPending, toggleActiveStatus.variables]
+  );
 
-    const payload: { id: number, name: string, typeId: number, managerId?: number } = {
-      id: editingItem.id,
-      name: editValue,
-      typeId: selectedType,
-    };
+  const emptyText = !selectedType
+    ? "Select a type to view data"
+    : needsDomain
+      ? "Please select a domain first"
+      : `No ${isActiveFilter ? "active" : "inactive"} data available`;
 
-    // Add manager ID if editing domain or subdomain and a manager is selected
-    if ((selectedType === MasterTypes.DOMAIN || selectedType === MasterTypes.SUBDOMAIN) && editManagerId && editManagerId !== "0") {
-      payload.managerId = parseInt(editManagerId);
-    }
-
-    updateMasterItem.mutate(payload);
-  };
-
-  const handleCancelEdit = () => {
-    setEditingItem(null);
-    setEditValue("");
-    setEditManagerId("");
-  };
-
-  const handleToggleStatus = (item: MasterData) => {
-    if (!selectedType) return;
-
-    toggleActiveStatus.mutate({
-      id: item.id,
-      typeId: selectedType,
-      currentStatus: item.isActive,
-      item: item,
-    });
-  };
-
-  const handleTypeChange = (value: string) => {
-    setSelectedType(Number(value) as MasterTypes);
-    setEditingItem(null);
-  };
-
-  const handleAddNew = () => {
-    setIsAddingNew(true);
-    setEditingItem(null);
-    setNewItemName("");
-    setNewItemManagerId("0");
-  };
-
-  const handleSaveNew = () => {
-    if (!selectedType || !newItemName.trim()) return;
-
-    const payload: { name: string, typeId: number, parentId?: number, managerId?: number } = {
-      name: newItemName,
-      typeId: selectedType
-    };
-
-    // Add parent ID for hierarchical data
-    if (selectedType === MasterTypes.SUBDOMAIN && selectedDomain) {
-      payload.parentId = parseInt(selectedDomain);
-    }
-
-    // Add manager ID if adding domain or subdomain and a manager is selected
-    if ((selectedType === MasterTypes.DOMAIN || selectedType === MasterTypes.SUBDOMAIN) && newItemManagerId && newItemManagerId !== "0") {
-      payload.managerId = parseInt(newItemManagerId);
-    }
-
-    addMasterItem.mutate(payload);
-  };
-
-  const handleCancelNew = () => {
-    setIsAddingNew(false);
-    setNewItemName("");
-    setNewItemManagerId("0");
-  };
-
-  const canAddNew = !!selectedType &&
-    !(selectedType === MasterTypes.SUBDOMAIN && !selectedDomain);
+  const filters = (
+    <>
+      <Select
+        placeholder="Select master type"
+        value={selectedType?.toString()}
+        options={MASTER_TYPE_OPTIONS}
+        onChange={(v) => setSelectedType(Number(v) as MasterTypes)}
+        style={{ minWidth: 240 }}
+        popupMatchSelectWidth={false}
+      />
+      {selectedType === MasterTypes.SUBDOMAIN && (
+        <Select
+          placeholder="Select domain"
+          showSearch
+          optionFilterProp="label"
+          value={selectedDomain ?? undefined}
+          options={(domains as MasterData[]).map((d) => ({ value: d.id.toString(), label: d.name }))}
+          onChange={(v) => {
+            setSelectedDomain(v);
+            t.resetPage();
+          }}
+          style={{ minWidth: 240 }}
+          popupMatchSelectWidth={false}
+        />
+      )}
+      <Radio.Group
+        optionType="button"
+        buttonStyle="solid"
+        value={isActiveFilter}
+        onChange={(e) => {
+          setIsActiveFilter(e.target.value);
+          t.resetPage();
+        }}
+        options={[
+          { value: true, label: "Active" },
+          { value: false, label: "Inactive" },
+        ]}
+      />
+    </>
+  );
 
   return (
-    <div className="mx-auto py-8">
-      <Card>
-        <CardHeader>
-          <div className="flex justify-between items-center">
-            <CardTitle className="text-2xl font-bold">
-              Master Management
-            </CardTitle>
-            {/* Active/Inactive Switch */}
-            <div className="flex items-center space-x-3">
-              <Label htmlFor="active-switch" className="text-sm font-medium">
-                Show Active
-              </Label>
-              <Switch
-                id="active-switch"
-                checked={!isActiveFilter}
-                onCheckedChange={(checked) => setIsActiveFilter(!checked)}
-                className="data-[state=checked]:bg-red-500"
-              />
-              <Label htmlFor="active-switch" className="text-sm font-medium">
-                Show Inactive
-              </Label>
-            </div>
-          </div>
-          <div className="text-sm text-muted-foreground">
-            Currently showing: <span className={`font-medium ${isActiveFilter ? 'text-green-600' : 'text-red-600'}`}>
-              {isActiveFilter ? 'Active' : 'Inactive'} records
-            </span>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="mb-6 flex flex-wrap gap-4">
-            <Select
-              value={selectedType?.toString()}
-              onValueChange={handleTypeChange}
-            >
-              <SelectTrigger className="w-[280px]">
-                <SelectValue placeholder="Select master type" />
-              </SelectTrigger>
-              <SelectContent>
-                {masterTypeOptions.map((type) => (
-                  <SelectItem key={type.value} value={type.value}>
-                    {type.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+    <>
+      <DataTable<MasterData>
+        storageKey="master-data"
+        rowKey="id"
+        title="Master Management"
+        columns={columns}
+        data={masterData?.data?.items}
+        loading={isLoading}
+        pagination={{ current: t.pageNumber, pageSize: t.pageSize, total: masterData?.data?.totalCount ?? 0 }}
+        onChange={t.onTableChange}
+        filters={filters}
+        actions={
+          canAddNew && isActiveFilter ? (
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => setModal({ mode: "add" })}>
+              Add New
+            </Button>
+          ) : null
+        }
+        emptyText={emptyText}
+      />
 
-            {/* Show domain dropdown for SUBDOMAIN selection */}
-            {selectedType === MasterTypes.SUBDOMAIN && (
-              <Select
-                value={selectedDomain || ""}
-                onValueChange={setSelectedDomain}
-              >
-                <SelectTrigger className="w-[280px]">
-                  <SelectValue placeholder="Select domain" />
-                </SelectTrigger>
-                <SelectContent>
-                  {domains.map((domain: MasterData) => (
-                    <SelectItem key={domain.id} value={domain.id.toString()}>
-                      {domain.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+      <Modal
+        open={!!modal}
+        title={modal?.mode === "edit" ? "Edit item" : "Add new item"}
+        destroyOnHidden
+        onCancel={() => setModal(null)}
+        okText={modal?.mode === "edit" ? "Save" : "Add"}
+        confirmLoading={updateMasterItem.isPending || addMasterItem.isPending}
+        onOk={() => form.submit()}
+      >
+        {modal && (
+          <Form
+            form={form}
+            layout="vertical"
+            onFinish={onFinish}
+            className="mt-4"
+            initialValues={
+              modal.mode === "edit" ? { name: modal.item.name, managerId: managerIdOf(modal.item) } : { name: "", managerId: NO_MANAGER }
+            }
+          >
+            <Form.Item name="name" label="Name" rules={zodRules(itemSchema, "name")}>
+              <Input autoFocus placeholder={modal.mode === "edit" ? "Enter name" : "Enter new item name"} />
+            </Form.Item>
+            {hasManager && (
+              <Form.Item name="managerId" label="Manager" rules={zodRules(itemSchema, "managerId")}>
+                <Select showSearch optionFilterProp="label" options={managerOptions} placeholder="Select manager" />
+              </Form.Item>
             )}
-
-            {canAddNew && isActiveFilter && (
-              <Button
-                variant="outline"
-                className="bg-[#00A76F] text-white hover:bg-[#00A76F]/90"
-                onClick={handleAddNew}
-                disabled={isAddingNew}
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Add New
-              </Button>
-            )}
-          </div>
-
-          {isLoading ? (
-            <div className="flex justify-center items-center h-48">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-          ) : (
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>S.no</TableHead>
-                    <TableHead>Name</TableHead>
-                    {(selectedType === MasterTypes.DOMAIN || selectedType === MasterTypes.SUBDOMAIN) && (
-                      <TableHead>Manager Name</TableHead>
-                    )}
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {isAddingNew && isActiveFilter && (
-                    <TableRow>
-                      <TableCell>New</TableCell>
-                      <TableCell>
-                        <Input
-                          value={newItemName}
-                          onChange={(e) => setNewItemName(e.target.value)}
-                          className="w-full"
-                          autoFocus
-                          placeholder="Enter new item name"
-                        />
-                        {(selectedType === MasterTypes.DOMAIN || selectedType === MasterTypes.SUBDOMAIN) && (
-                          <Popover open={newManagerOpen} onOpenChange={setNewManagerOpen}>
-                            <PopoverTrigger asChild>
-                              <Button
-                                variant="outline"
-                                role="combobox"
-                                aria-expanded={newManagerOpen}
-                                className="w-full mt-2 justify-between"
-                              >
-                                {newItemManagerId === "0"
-                                  ? "No Manager"
-                                  : managersList.find((manager: any) => manager.id.toString() === newItemManagerId)?.name || "Select manager"
-                                }
-                                <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-full p-0">
-                              <div className="p-2">
-                                <Input
-                                  placeholder="Search managers..."
-                                  value={newManagerSearchTerm}
-                                  onChange={(e) => setNewManagerSearchTerm(e.target.value)}
-                                  className="mb-2"
-                                  autoFocus
-                                />
-                                <div className="max-h-60 overflow-auto">
-                                  {[
-                                    { id: "0", name: "No Manager" },
-                                    ...(Array.isArray(managersList)
-                                      ? managersList.filter((manager: any) =>manager?.name?.toLowerCase().includes(editManagerSearchTerm?.toLowerCase() || "")
-                                        )
-                                      : [])].map((manager: any) => (
-                                    <div
-                                      key={manager.id}
-                                      className="flex items-center px-2 py-1.5 cursor-pointer hover:bg-gray-100 rounded"
-                                      onClick={() => {
-                                        setNewItemManagerId(manager.id.toString());
-                                        setNewManagerOpen(false);
-                                        setNewManagerSearchTerm("");
-                                      }}
-                                    >
-                                      <Check
-                                        className={`mr-2 h-4 w-4 ${newItemManagerId === manager.id.toString() ? "opacity-100" : "opacity-0"
-                                          }`}
-                                      />
-                                      {manager.name}
-                                    </div>
-                                  ))}
-                                  {[
-                                   { id: "0", name: "No Manager" },
-                                   ...(Array.isArray(managersList)
-                                     ? managersList.filter((manager: any) =>manager?.name?.toLowerCase().includes(editManagerSearchTerm?.toLowerCase() || "")
-                                       )
-                                     : [])].length === 0 && (
-                                      <div className="px-2 py-1.5 text-gray-500">No managers found</div>
-                                    )}
-                                </div>
-                              </div>
-                            </PopoverContent>
-                          </Popover>
-                        )}
-                      </TableCell>
-                      {(selectedType === MasterTypes.DOMAIN || selectedType === MasterTypes.SUBDOMAIN) && (
-                        <TableCell>-</TableCell>
-                      )}
-                      <TableCell>
-                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-600">
-                          Active
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={handleSaveNew}
-                            className="text-green-600"
-                            disabled={!newItemName.trim()}
-                          >
-                            <Check className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={handleCancelNew}
-                            className="text-red-600"
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  )}
-                  {allMaster.length === 0 && !isAddingNew ? (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center py-8">
-                        {selectedType
-                          ? selectedType === MasterTypes.SUBDOMAIN && !selectedDomain
-                            ? "Please select a domain first"
-                            : `No ${isActiveFilter ? 'active' : 'inactive'} data available`
-                          : "Select a type to view data"}
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    allMaster.map((item: MasterData, index: number) => (
-                      <TableRow key={item.id}>
-                        <TableCell>{index + 1}</TableCell>
-                        <TableCell>
-                          {editingItem?.id === item.id ? (
-                            <div className="space-y-2">
-                              <Input
-                                value={editValue}
-                                onChange={(e) => setEditValue(e.target.value)}
-                                className="w-full"
-                                autoFocus
-                                placeholder="Enter name"
-                              />
-                              {(selectedType === MasterTypes.DOMAIN || selectedType === MasterTypes.SUBDOMAIN) && (
-                                <Popover open={editManagerOpen} onOpenChange={setEditManagerOpen}>
-                                  <PopoverTrigger asChild>
-                                    <Button
-                                      variant="outline"
-                                      role="combobox"
-                                      aria-expanded={editManagerOpen}
-                                      className="w-full mt-2 justify-between"
-                                    >
-                                      {editManagerId === "0"
-                                        ? "No Manager"
-                                        : managersList.find((manager: any) => manager.id.toString() === editManagerId)?.name || "Select manager"
-                                      }
-                                      <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                    </Button>
-                                  </PopoverTrigger>
-                                  <PopoverContent className="w-full p-0">
-                                    <div className="p-2">
-                                      <Input
-                                        placeholder="Search managers..."
-                                        value={editManagerSearchTerm}
-                                        onChange={(e) => setEditManagerSearchTerm(e.target.value)}
-                                        className="mb-2"
-                                        autoFocus
-                                      />
-                                      <div className="max-h-60 overflow-auto">
-                                        {[
-                                        { id: "0", name: "No Manager" },
-                                        ...(Array.isArray(managersList)
-                                          ? managersList.filter((manager: any) =>manager?.name?.toLowerCase().includes(editManagerSearchTerm?.toLowerCase() || "")
-                                            )
-                                          : [])].map((manager: any) => (
-                                          <div
-                                            key={manager.id}
-                                            className="flex items-center px-2 py-1.5 cursor-pointer hover:bg-gray-100 rounded"
-                                            onClick={() => {
-                                              setEditManagerId(manager.id.toString());
-                                              setEditManagerOpen(false);
-                                              setEditManagerSearchTerm("");
-                                            }}
-                                          >
-                                            <Check
-                                              className={`mr-2 h-4 w-4 ${editManagerId === manager.id.toString() ? "opacity-100" : "opacity-0"
-                                                }`}
-                                            />
-                                            {manager.name}
-                                          </div>
-                                        ))}
-                                        {[
-                                           { id: "0", name: "No Manager" },
-                                           ...(Array.isArray(managersList)
-                                             ? managersList.filter((manager: any) =>manager?.name?.toLowerCase().includes(editManagerSearchTerm?.toLowerCase() || "")
-                                               )
-                                             : [])].length === 0 && (
-                                            <div className="px-2 py-1.5 text-gray-500">No managers found</div>
-                                          )}
-                                      </div>
-                                    </div>
-                                  </PopoverContent>
-                                </Popover>
-                              )}
-                            </div>
-                          ) : (
-                            item.name
-                          )}
-                        </TableCell>
-                        {selectedType === MasterTypes.DOMAIN && (
-                          <TableCell>{item.domainManagerName || '-'}</TableCell>
-                        )}
-                        {selectedType === MasterTypes.SUBDOMAIN && (
-                          <TableCell>{item.subDomainManagerName || '-'}</TableCell>
-                        )}
-                        <TableCell>
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${item.isActive
-                            ? 'bg-green-100 text-green-600'
-                            : 'bg-red-100 text-red-800'
-                            }`}>
-                            {item.isActive ? 'Active' : 'Inactive'}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            {editingItem?.id === item.id ? (
-                              <>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={handleSaveEdit}
-                                  className="text-green-600"
-                                >
-                                  <Check className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={handleCancelEdit}
-                                  className="text-red-600"
-                                >
-                                  <X className="h-4 w-4" />
-                                </Button>
-                              </>
-                            ) : (
-                              <>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleEdit(item)}
-                                  title="Edit item"
-                                >
-                                  <Pencil className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleToggleStatus(item)}
-                                  className={item.isActive ? "text-red-600 hover:text-red-700" : "text-green-600 hover:text-green-700"}
-                                  title={item.isActive ? "Deactivate item" : "Activate item"}
-                                >
-                                  {item.isActive ? (
-                                    <X className="h-4 w-4" />
-                                  ) : (
-                                    <Check className="h-4 w-4" />
-                                  )}
-                                </Button>
-                              </>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-          <div className="flex items-center justify-between p-4">
-                <div className="text-sm text-gray-500">
-                  Page {currentPageNumber} of {totalPages}
-                </div>
-                <Pagination
-                  value={pageSize}
-                  totalEntry={masterData?.data?.totalCount}
-                  onChange={(newSize) => {
-                    setPageSize(newSize);
-                  }}
-                  currentPage={currentPage}
-                  totalPages={totalPages || 0}
-                  onPageChange={setCurrentPage}
-                  hasNext={hasNext}
-                  hasPrevious={hasPrevious}
-                />
-              </div>
-      </Card>
-       </div>
+          </Form>
+        )}
+      </Modal>
+    </>
   );
 }

@@ -1,69 +1,72 @@
 "use client";
-
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import * as z from "zod";
 import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Form } from "@/components/ui/form";
-import { Plus } from "lucide-react";
-import { InputField } from "../form-fields/InputField";
-import { SelectField } from "../form-fields/SelectField";
-import { MultiSelectField } from "../form-fields/MultiSelectField";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useParams } from "next/navigation";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Button, Card, Checkbox, Col, Divider, Flex, Form, Input, Row, Select, Space, Spin, Table, Tooltip, Typography } from "antd";
+import type { ColumnsType } from "antd/es/table";
+import { EditOutlined, PlusOutlined } from "@ant-design/icons";
+import * as z from "zod";
+import { toast } from "@/lib/toast";
+import { validateWithZod, zodRules } from "@/lib/zodRules";
 import { MasterTypes } from "@/constants/masterTypes";
 import { dropdownApi } from "@/services/api/master";
-import { toast } from "@/lib/toast";
-import { useParams, useRouter } from "next/navigation";
 import { hiringApi, InterviewRoundPayload } from "@/services/api/hiring.api";
-import { PencilIcon } from "lucide-react";
-import { Label } from "../ui/label";
-import { Checkbox } from "../ui/checkbox";
 import { HiringSummaryProps } from "./types";
-import SubmitFormLoader from "../common/SubmitFormLoader";
-import { LoadingButton } from "../form-fields/LoadingButton";
-import { DaySelector } from "../form-fields/DaySelector";
-import TooltipWrapper from "../tooltio-wrapper";
+import { idNameMulti, toIdOptions, toOptions } from "./shared";
 
-// Schema for a single interview round
+const idName = z.object({ id: z.number(), name: z.string() });
+
 const roundSchema = z.object({
-  round: z.coerce
-    .string()
-    .min(1, "At least one round required")
-    .max(10, "Maximum 10 rounds allowed"),
+  round: z.coerce.string().min(1, "At least one round required").max(10, "Maximum 10 rounds allowed"),
   roundName: z.string().min(1, "Round Name is required"),
-  panel: z
-    .array(z.object({ id: z.number(), name: z.string() }))
-    .min(1, "At least one panel member required"),
+  panel: z.array(idName).min(1, "At least one panel member required"),
   mode: z.string().min(1, "mode is required"),
   comments: z.string().optional(),
   screeningCap: z.string().optional(),
-  panelAvailability: z
-    .array(z.string())
-    .min(1, "Please select at least one day"),
+  panelAvailability: z.array(z.string()).min(1, "Please select at least one day"),
   addCandidate: z.boolean(),
-  candidates: z
-    .array(
-      z.object({
-        id: z.number(),
-        name: z.string(),
-      })
-    )
-    .optional(),
+  candidates: z.array(idName).optional(),
   addFeedback: z.boolean(),
   feedbackCategory: z.string().optional(),
-  feedbackCriteria: z
-    .array(
-      z.object({
-        id: z.number(),
-        name: z.string(),
-      })
-    )
-    .optional(),
+  feedbackCriteria: z.array(idName).optional(),
   skipScreening: z.boolean().optional(),
 });
 
 type RoundValues = z.infer<typeof roundSchema>;
+
+const defaultValues: RoundValues = {
+  round: "1",
+  roundName: "",
+  panel: [],
+  mode: "",
+  comments: "",
+  screeningCap: "30",
+  panelAvailability: [],
+  addCandidate: false,
+  candidates: [],
+  addFeedback: false,
+  feedbackCategory: "",
+  feedbackCriteria: [],
+  skipScreening: false,
+};
+
+const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+/** Toggle-button day picker (Form.Item-controlled: value / onChange). */
+function DaySelector({ value = [], onChange }: { value?: string[]; onChange?: (v: string[]) => void }) {
+  return (
+    <Space wrap>
+      {DAYS.map((day) => {
+        const selected = value.includes(day);
+        return (
+          <Button key={day} type={selected ? "primary" : "default"} onClick={() => onChange?.(selected ? value.filter((d) => d !== day) : [...value, day])}>
+            {day}
+          </Button>
+        );
+      })}
+    </Space>
+  );
+}
 
 interface InterviewRoundFormProps {
   onNext?: () => void;
@@ -77,65 +80,68 @@ interface Option {
   isActive?: boolean;
 }
 
-// Add this type at the top with other interfaces
-interface InterviewRoundQueryKey {
-  queryKey: ["getInterviewRounds", string | undefined];
+interface RoundRow {
+  modeOfInterviewName: string;
+  roundNameName: string;
+  id: number;
+  roundNumber: number;
+  panel: number[];
+  modeOfInterview: number;
+  comments?: string;
+  roundNameId: number;
+  panelNames: string;
 }
 
-export default function InterviewRoundForm({
-  onNext,
-  onPrevious,
-  hiringData,
-}: InterviewRoundFormProps) {
-  const [showForm, setShowForm] = useState(false);
+/** Step 4 of the hiring request: the interview rounds, their panels and feedback criteria. */
+export default function InterviewRoundForm({ onPrevious }: InterviewRoundFormProps) {
   const { hiring } = useParams();
-
-  // Fetch dropdown data
-  const { data: interviewRoundName = [] } = useQuery({
-    queryKey: ["interviewRound"],
-    queryFn: () => dropdownApi.fetchDropdown(MasterTypes.INTERVIEW_ROUND),
-  });
-  const form = useForm<RoundValues>({
-    resolver: zodResolver(roundSchema),
-    defaultValues: {
-      round: "1",
-      roundName: "",
-      panel: [],
-      mode: "",
-      comments: "",
-      screeningCap: "30",
-      panelAvailability: [],
-      addCandidate: false,
-      candidates: [],
-      addFeedback: false,
-      feedbackCategory: "",
-      feedbackCriteria: [],
-      skipScreening: false,
-    },
-  });
-
-  const { setValue } = form;
-  const addCandidate = form.watch("addCandidate");
-  const addFeedback = form.watch("addFeedback");
-  const roundName = form.watch("roundName");
-  const roundNumber = form.watch("round");
-
-  const { data: interviewMode = [], isLoading: getLoading } = useQuery({
-    queryKey: ["interviewMode", roundName],
-    queryFn: () =>
-      dropdownApi.fetchInterviewMode(MasterTypes.INTERVIEW_MODE, roundName),
-    enabled: !!roundName,
-  });
-
+  const queryClient = useQueryClient();
+  const [form] = Form.useForm<RoundValues>();
+  const [showForm, setShowForm] = useState(false);
+  const [editMode, setEditmode] = useState(false);
   const [editingRoundId, setEditingRoundId] = useState<number | null>(null);
 
-  const queryClient = useQueryClient();
+  const addCandidate = Form.useWatch("addCandidate", form);
+  const addFeedback = Form.useWatch("addFeedback", form);
+  const roundName = Form.useWatch("roundName", form);
+  const roundNumber = Form.useWatch("round", form);
+  const skipScreening = Form.useWatch("skipScreening", form);
+  const selectedFeedbackCategory = Form.useWatch("feedbackCategory", form);
+
+  const { data: interviewRoundName = [] } = useQuery({ queryKey: ["interviewRound"], queryFn: () => dropdownApi.fetchDropdown(MasterTypes.INTERVIEW_ROUND) });
+  const { data: interviewMode = [] } = useQuery({
+    queryKey: ["interviewMode", roundName],
+    queryFn: () => dropdownApi.fetchInterviewMode(MasterTypes.INTERVIEW_MODE, roundName),
+    enabled: !!roundName,
+  });
+  const { data: ACTIVE_PANEL = [] } = useQuery({ queryKey: ["ACTIVE_PANEL"], queryFn: () => dropdownApi.fetchDropdown(MasterTypes.ACTIVE_PANEL), enabled: true });
+  const { data: feedBackCategory = [] } = useQuery({ queryKey: ["feedBackCategory"], queryFn: () => dropdownApi.fetchDropdown(MasterTypes.FEEDBACK_CATEGORY) });
+  const {
+    data: feedbackCriteria = [],
+    refetch: refetchCriteria,
+    isLoading,
+  } = useQuery({
+    queryKey: ["feedbackCriteria", selectedFeedbackCategory],
+    queryFn: () => dropdownApi.fetchDropdown(Number(selectedFeedbackCategory)),
+    enabled: !!selectedFeedbackCategory,
+  });
+  const { data: getCandidates } = useQuery({
+    queryKey: ["getCandidates", hiring],
+    queryFn: () => hiringApi.getCandidates(String(hiring)),
+    enabled: !!hiring,
+    select: (raw: Array<any>): Option[] => raw.map((c) => ({ id: c.id, name: c.candidateCode, isActive: true })) || [],
+  });
+  const { data: getInterviewRounds } = useQuery({
+    queryKey: ["getInterviewRounds", hiring],
+    queryFn: () => hiringApi.getInterviewRounds(Number(hiring)),
+    enabled: !!hiring,
+  });
 
   const { mutate: addInterviewRounds, isPending } = useMutation({
     mutationKey: ["addInterviewRounds"],
     mutationFn: hiringApi.createInterviewRounds,
     onSuccess: (data) => {
-      form.reset();
+      form.resetFields();
       setShowForm(false);
       toast.success(data?.message || "Interview rounds added successfully");
       queryClient.invalidateQueries({ queryKey: ["getInterviewRounds"] });
@@ -146,44 +152,24 @@ export default function InterviewRoundForm({
     },
   });
 
-  const [editMode, setEditmode] = useState(false);
-  const { data: getInterviewRounds } = useQuery({
-    queryKey: ["getInterviewRounds", hiring],
-    queryFn: () => hiringApi.getInterviewRounds(Number(hiring)),
-    enabled: !!hiring,
+  const { mutate: updateInterviewRound, isPending: UpdateLoading } = useMutation({
+    mutationFn: (values: InterviewRoundPayload) => hiringApi.updateInterviews(Number(editingRoundId), values),
+    onSuccess: (data) => {
+      form.resetFields();
+      toast.success(data?.message || "");
+      setShowForm(false);
+      setEditmode(false);
+      queryClient.invalidateQueries({ queryKey: ["getInterviewRounds", hiring] });
+    },
+    onError: (error) => {
+      toast.error("Failed to update hiring");
+      console.log("Error updating hiring:", error);
+    },
   });
 
-  const { mutate: updateInterviewRound, isPending: UpdateLoading } =
-    useMutation({
-      mutationFn: (values: InterviewRoundPayload) =>
-        hiringApi.updateInterviews(Number(editingRoundId), values),
-      onSuccess: (data) => {
-        form.reset({
-          round: "",
-          roundName: "",
-          panel: [],
-          mode: "",
-          comments: "",
-          addCandidate: false,
-          candidates: [],
-          addFeedback: false,
-          feedbackCategory: "",
-          feedbackCriteria: [],
-        });
-        toast.success(data?.message || "");
-        setShowForm(false);
-        setEditmode(false);
-        queryClient.invalidateQueries({
-          queryKey: ["getInterviewRounds", hiring],
-        } as InterviewRoundQueryKey);
-      },
-      onError: (error) => {
-        toast.error("Failed to update hiring");
-        console.log("Error updating hiring:", error);
-      },
-    });
-
-  const onSubmit = (values: RoundValues) => {
+  const onSubmit = (raw: RoundValues) => {
+    const values = validateWithZod(roundSchema, form, raw);
+    if (!values) return;
     const transformedPayload = {
       id: editMode ? editingRoundId : 0,
       hiringRequestId: Number(hiring),
@@ -201,13 +187,12 @@ export default function InterviewRoundForm({
             criteriaOptionId: c.id,
             name: c.name,
             interviewRoundId: editMode ? editingRoundId : 0,
-
           }))
         : [],
       screeningCap: Number(values.screeningCap),
       availableDays: values.panelAvailability,
       skipScreening: values.skipScreening || false,
-    };
+    } as unknown as InterviewRoundPayload;
     if (editMode) {
       updateInterviewRound(transformedPayload);
     } else {
@@ -215,78 +200,28 @@ export default function InterviewRoundForm({
     }
   };
 
-  const { data: ACTIVE_PANEL = [] } = useQuery({
-    queryKey: ["ACTIVE_PANEL"],
-    queryFn: () => dropdownApi.fetchDropdown(MasterTypes.ACTIVE_PANEL),
-    enabled: true,
-  });
-  const { data: feedBackCategory = [] } = useQuery({
-    queryKey: ["feedBackCategory"],
-    queryFn: () => dropdownApi.fetchDropdown(MasterTypes.FEEDBACK_CATEGORY),
-  });
-  const selectedFeedbackCategory = form.watch("feedbackCategory");
-
   useEffect(() => {
-    if (selectedFeedbackCategory) {
-      form.setValue("feedbackCriteria", []);
-    }
+    if (selectedFeedbackCategory) form.setFieldValue("feedbackCriteria", []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedFeedbackCategory]);
 
-  const {
-    data: feedbackCriteria = [],
-    refetch: refetchCriteria,
-    isLoading,
-  } = useQuery({
-    queryKey: ["feedbackCriteria", selectedFeedbackCategory],
-    queryFn: () => dropdownApi.fetchDropdown(Number(selectedFeedbackCategory)),
-    enabled: !!selectedFeedbackCategory,
-  });
-
-  const { data: getCandidates, isLoading: candidateloading } = useQuery({
-    queryKey: ["getCandidates", hiring],
-    queryFn: () => hiringApi.getCandidates(String(hiring)),
-    enabled: !!hiring,
-    select: (raw: Array<any>): Option[] =>
-      raw.map((c) => ({
-        id: c.id,
-        name: c.candidateCode,
-        isActive: true,
-      })) || [],
-  });
-  const router = useRouter();
-
-  const onEdit = (round: InterviewRoundPayload) => {
+  const onEdit = (round: any) => {
     setShowForm(true);
     setEditmode(true);
-
     setEditingRoundId(round?.id);
-    const data =
-      Array.isArray(getCandidates) && Array.isArray(round?.candidates)
-        ? getCandidates.filter(
-            (item) =>
-              Array.isArray(round.candidates) &&
-              round.candidates.includes(item.id)
-          )
-        : [];
 
-    
-    const panelOptions = Array.isArray(round.panel)
-      ? ACTIVE_PANEL.filter(
-          (item: { name: string; id: number; isActive: boolean }) =>
-            Array.isArray(round.panel) && round.panel.includes(item.id)
-        )
-      : [];
+    const data = Array.isArray(getCandidates) && Array.isArray(round?.candidates) ? getCandidates.filter((item) => round.candidates.includes(item.id)) : [];
+    const panelOptions = Array.isArray(round.panel) ? (ACTIVE_PANEL as Option[]).filter((item) => round.panel.includes(item.id)) : [];
 
-    const idSet = new Set(
-      round?.feedbackCritriaOptions?.map((x) => x.criteriaOptionId)
-    );
+    const idSet = new Set((round?.feedbackCritriaOptions ?? []).map((x: any) => x.criteriaOptionId));
     refetchCriteria().then((res) => {
       const Criteria = Array.isArray(res.data) ? res.data : [];
-      const selectedOpts = Criteria.filter((opt) => idSet.has(opt.id));
-      form.setValue("feedbackCriteria", selectedOpts);
+      const selectedOpts = Criteria.filter((opt: any) => idSet.has(opt.id));
+      form.setFieldValue("feedbackCriteria", selectedOpts);
     });
 
-    form.reset({
+    form.resetFields();
+    form.setFieldsValue({
       round: String(round.roundNumber),
       roundName: String(round.roundNameId),
       panel: panelOptions,
@@ -296,7 +231,6 @@ export default function InterviewRoundForm({
       candidates: data,
       addFeedback: round.addFeedbackCritria,
       feedbackCategory: String(round.categoryId || ""),
-      // feedbackCriteria: round?.Criteria,
       skipScreening: round?.skipScreening || false,
       panelAvailability: round.availableDays || [],
       screeningCap: String(round.screeningCap),
@@ -304,337 +238,163 @@ export default function InterviewRoundForm({
   };
 
   const handleAddNew = () => {
-    form.setValue("roundName","")
+    form.setFieldValue("roundName", "");
     setShowForm(true);
-    setValue("round", getInterviewRounds.length + 1);
+    form.setFieldValue("round", String((getInterviewRounds?.length ?? 0) + 1));
   };
 
-  const skipScreening = form.watch("skipScreening");
-
-  function filterStages() {
-    if (roundNumber == "1") {
-      return interviewRoundName.filter((item) =>
-        skipScreening ? item.sectionId === 2 : item.sectionId === 1
-      );
-    } else {
-      return interviewRoundName.filter((item) => item.sectionId === 3);
-    }
+  function filterStages(): { id: number; name: string; sectionId: number }[] {
+    const rounds = interviewRoundName as { id: number; name: string; sectionId: number }[];
+    if (roundNumber == "1") return rounds.filter((item) => (skipScreening ? item.sectionId === 2 : item.sectionId === 1));
+    return rounds.filter((item) => item.sectionId === 3);
   }
 
   useEffect(() => {
     if (roundNumber === "1" && skipScreening === false) {
       const stages = filterStages();
-      if (stages.length > 0) {
-        const roundId = stages[0].id;
-        form.setValue("roundName", roundId?.toString());
-      }
+      if (stages.length > 0) form.setFieldValue("roundName", stages[0].id?.toString());
     }
-    
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roundNumber, skipScreening, interviewRoundName]);
 
+  const handleCancel = () => {
+    form.resetFields();
+    setEditmode(false);
+    setShowForm(false);
+  };
+
+  const columns: ColumnsType<RoundRow> = [
+    { key: "roundNumber", title: "Round", dataIndex: "roundNumber", width: 90 },
+    { key: "panelNames", title: "Panel", dataIndex: "panelNames" },
+    { key: "modeOfInterviewName", title: "Mode of Interview", dataIndex: "modeOfInterviewName" },
+    { key: "comments", title: "Comments", dataIndex: "comments", render: (v: string) => v || "-" },
+    { key: "roundName", title: "Round Name", render: (_: unknown, r) => (interviewRoundName as { id: number; name: string }[]).find((item) => item.id == r.roundNameId)?.name },
+    {
+      key: "actions",
+      title: "Actions",
+      width: 110,
+      render: (_: unknown, r) => (
+        <Tooltip title="Edit Round">
+          <Button size="small" icon={<EditOutlined />} onClick={() => onEdit(r)}>
+            Edit
+          </Button>
+        </Tooltip>
+      ),
+    },
+  ];
+
   return (
-    <>
-      <Form {...form}>
-        <form
-          onSubmit={form.handleSubmit(onSubmit)}
-          className="space-y-6 relative"
-        >
-          {(isPending || UpdateLoading) && <SubmitFormLoader />}
-          {/* Header */}
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-semibold">Interview Round</h2>
-            {!showForm && (
-              <Button
-                type="button"
-                variant="hpButton"
-                size="sm"
-                onClick={handleAddNew}
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Add
-              </Button>
-            )}
-          </div>
-
-          {/* Form fields */}
-          {showForm && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 border rounded-lg">
-              {roundNumber == "1" && (
-                <div className="w-full md:col-span-2 border-b pb-4 mb-4">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      checked={form.watch("skipScreening")}
-                      onCheckedChange={(val: boolean) =>
-                        form.setValue("skipScreening", val)
-                      }
-                      id="skip-screening"
-                      className="data-[state=checked]:bg-[#1677ff] data-[state=checked]:border-[#1677ff]"
-                    />
-                    <Label
-                      htmlFor="skip-screening"
-                      className="text-sm text-gray-600 font-medium dark:text-gray-300"
-                    >
-                      Do you want to Skip screening round?
-                    </Label>
-                  </div>
-                </div>
+    <Flex vertical gap={16}>
+      <Form form={form} layout="vertical" onFinish={onSubmit} initialValues={defaultValues}>
+        <Spin spinning={isPending || UpdateLoading}>
+          <Flex vertical gap={16}>
+            <Flex justify="space-between" align="center">
+              <Typography.Title level={5} style={{ margin: 0 }}>
+                Interview Round
+              </Typography.Title>
+              {!showForm && (
+                <Button type="primary" size="small" icon={<PlusOutlined />} onClick={handleAddNew}>
+                  Add
+                </Button>
               )}
+            </Flex>
 
-              <InputField
-                control={form.control}
-                name="round"
-                label="Round Number"
-                placeholder="enter"
-                required
-                disabled
-              />
-
-              <SelectField
-                control={form.control}
-                name="roundName"
-                label="Round Name"
-                placeholder="Name of the round"
-                options={filterStages()}
-                required
-              />
-
-              <MultiSelectField
-                control={form.control}
-                placeholder="enter panel members"
-                required
-                name="panel"
-                label="Panel Name"
-                options={ACTIVE_PANEL}
-              />
-
-              <SelectField
-                control={form.control}
-                name="mode"
-                label="Mode of Interview"
-                placeholder="Select mode"
-                disabled={!roundName}
-                options={interviewMode}
-                required
-              />
-              {!skipScreening && roundNumber == "1" && (
-                <InputField
-                  control={form.control}
-                  name="screeningCap"
-                  label="Screening Cap"
-                  placeholder="enter screening cap"
-                  type="number"
-                />
-              )}
-
-              <DaySelector
-                control={form.control}
-                name="panelAvailability"
-                label="Panel Availability"
-                required
-              />
-
-              <textarea
-                {...form.register("comments")}
-                className="col-span-1 md:col-span-2 mt-4 w-full rounded-md border p-2"
-                placeholder="Comments"
-              />
-
-              <div className="w-full md:col-span-2 max-w-2xl px-4">
-                <div className="flex flex-col md:flex-row md:items-center md:space-x-2 py-4">
-                  <Checkbox
-                    disabled={editMode}
-                    checked={form.watch("addCandidate")}
-                    onCheckedChange={(val: boolean) =>
-                      form.setValue("addCandidate", val)
-                    }
-                    id="partner-recommendations"
-                    className="data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600"
-                  />
-                  <Label
-                    htmlFor="partner-recommendations"
-                    className="mt-2 md:mt-0"
-                  >
-                    Add Specific Candidates for this round ?
-                  </Label>
-                </div>
-
-                {addCandidate && (
-                  <MultiSelectField
-                    disabled={editMode}
-                    control={form.control}
-                    name="candidates"
-                    label="Candidate Info"
-                    placeholder="Select candidate codes"
-                    options={getCandidates || []} // Add fallback empty array
-                  />
-                )}
-
-                <div className="flex flex-col md:flex-row md:items-center md:space-x-2 gap-2 py-4">
-                  <Checkbox
-                    checked={form.watch("addFeedback")}
-                    onCheckedChange={(val: boolean) =>
-                      form.setValue("addFeedback", val)
-                    }
-                    id="partner-feedback"
-                    className="data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600"
-                  />
-                  <Label htmlFor="partner-feedback" className="mt-2 md:mt-0">
-                    Do you want to add feedback criteria?
-                  </Label>
-                </div>
-
-                {addFeedback && (
-                  <div className="flex flex-col gap-4">
-                    <SelectField
-                      control={form.control}
-                      name="feedbackCategory"
-                      label="Category"
-                      placeholder="Select feedback category"
-                      options={feedBackCategory}
-                    />
-                    {
-                      // feedbackCriteria
-                      !!selectedFeedbackCategory && (
-                        <>
-                          {isLoading ? (
-                            <div>Loading...</div>
+            {showForm && (
+              <Card size="small">
+                <Row gutter={[16, 8]}>
+                  {roundNumber == "1" && (
+                    <Col span={24}>
+                      <Form.Item name="skipScreening" valuePropName="checked" style={{ marginBottom: 0 }}>
+                        <Checkbox>Do you want to Skip screening round?</Checkbox>
+                      </Form.Item>
+                      <Divider style={{ marginBlock: 12 }} />
+                    </Col>
+                  )}
+                  <Col xs={24} md={12}>
+                    <Form.Item name="round" label="Round Number" rules={zodRules(roundSchema, "round")}>
+                      <Input placeholder="enter" disabled />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={24} md={12}>
+                    <Form.Item name="roundName" label="Round Name" rules={zodRules(roundSchema, "roundName")}>
+                      <Select showSearch optionFilterProp="label" placeholder="Name of the round" options={toOptions(filterStages())} />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={24} md={12}>
+                    <Form.Item name="panel" label="Panel Name" rules={zodRules(roundSchema, "panel")} {...idNameMulti}>
+                      <Select mode="multiple" labelInValue showSearch optionFilterProp="label" maxTagCount="responsive" placeholder="enter panel members" options={toIdOptions(ACTIVE_PANEL)} />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={24} md={12}>
+                    <Form.Item name="mode" label="Mode of Interview" rules={zodRules(roundSchema, "mode")}>
+                      <Select showSearch optionFilterProp="label" placeholder="Select mode" disabled={!roundName} options={toOptions(interviewMode)} />
+                    </Form.Item>
+                  </Col>
+                  {!skipScreening && roundNumber == "1" && (
+                    <Col xs={24} md={12}>
+                      <Form.Item name="screeningCap" label="Screening Cap" rules={zodRules(roundSchema, "screeningCap")}>
+                        <Input type="number" placeholder="enter screening cap" />
+                      </Form.Item>
+                    </Col>
+                  )}
+                  <Col span={24}>
+                    <Form.Item name="panelAvailability" label="Panel Availability" rules={zodRules(roundSchema, "panelAvailability")}>
+                      <DaySelector />
+                    </Form.Item>
+                  </Col>
+                  <Col span={24}>
+                    <Form.Item name="comments" rules={zodRules(roundSchema, "comments")}>
+                      <Input.TextArea rows={3} placeholder="Comments" />
+                    </Form.Item>
+                  </Col>
+                  <Col span={24}>
+                    <Form.Item name="addCandidate" valuePropName="checked">
+                      <Checkbox disabled={editMode}>Add Specific Candidates for this round ?</Checkbox>
+                    </Form.Item>
+                    {addCandidate && (
+                      <Form.Item name="candidates" label="Candidate Info" rules={zodRules(roundSchema, "candidates")} {...idNameMulti}>
+                        <Select mode="multiple" labelInValue showSearch optionFilterProp="label" maxTagCount="responsive" placeholder="Select candidate codes" disabled={editMode} options={toIdOptions(getCandidates || [])} />
+                      </Form.Item>
+                    )}
+                    <Form.Item name="addFeedback" valuePropName="checked">
+                      <Checkbox>Do you want to add feedback criteria?</Checkbox>
+                    </Form.Item>
+                    {addFeedback && (
+                      <>
+                        <Form.Item name="feedbackCategory" label="Category" rules={zodRules(roundSchema, "feedbackCategory")}>
+                          <Select showSearch optionFilterProp="label" placeholder="Select feedback category" options={toOptions(feedBackCategory)} />
+                        </Form.Item>
+                        {!!selectedFeedbackCategory &&
+                          (isLoading ? (
+                            <Spin size="small" />
                           ) : (
-                            <MultiSelectField
-                              control={form.control}
-                              placeholder="Select feedback criteria"
-                              required
-                              name="feedbackCriteria"
-                              label="Feedback Criteria"
-                              options={feedbackCriteria}
-                            />
-                          )}
-                        </>
-                      )
-                    }
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
+                            <Form.Item name="feedbackCriteria" label="Feedback Criteria" required rules={zodRules(roundSchema, "feedbackCriteria")} {...idNameMulti}>
+                              <Select mode="multiple" labelInValue showSearch optionFilterProp="label" maxTagCount="responsive" placeholder="Select feedback criteria" options={toIdOptions(feedbackCriteria)} />
+                            </Form.Item>
+                          ))}
+                      </>
+                    )}
+                  </Col>
+                </Row>
+              </Card>
+            )}
 
-          {/* Navigation */}
-          <div className="flex justify-between pt-6">
-            <Button
-              variant="secondary"
-              type="button"
-              onClick={onPrevious}
-              className="px-8"
-            >
-              Previous
-            </Button>
-            <div className="flex gap-4">
+            <Flex justify="space-between" wrap gap={8}>
+              <Button onClick={onPrevious}>Previous</Button>
               {showForm && (
-                <>
-                  <LoadingButton
-                    loading={isPending || UpdateLoading}
-                    text={editMode ? "Update" : "Save"}
-                    loadingText={editMode ? "Updating..." : "Saving..."}
-                  />
-
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      form.reset({
-                        round: "1",
-                        roundName: "",
-                        panel: [],
-                        mode: "",
-                        comments: "",
-                        screeningCap: "30",
-                        panelAvailability: [],
-                        addCandidate: false,
-                        candidates: [],
-                        addFeedback: false,
-                        feedbackCategory: "",
-                        feedbackCriteria: [],
-                        skipScreening: false,
-                      });
-                      setEditmode(false);
-                      setShowForm(false);
-                    }}
-                    className="px-8 hover:cursor-pointer"
-                  >
-                    Cancel
+                <Space>
+                  <Button type="primary" htmlType="submit" loading={isPending || UpdateLoading}>
+                    {isPending || UpdateLoading ? (editMode ? "Updating..." : "Saving...") : editMode ? "Update" : "Save"}
                   </Button>
-                </>
+                  <Button onClick={handleCancel}>Cancel</Button>
+                </Space>
               )}
-            </div>
-          </div>
-        </form>
+            </Flex>
+          </Flex>
+        </Spin>
       </Form>
 
-      <div className="overflow-x-auto mt-10">
-        <table className="w-full table-auto border-collapse">
-          <thead>
-            <tr className="bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200">
-              <th className="px-4 py-2 text-left">Round</th>
-              <th className="px-4 py-2 text-left">Panel</th>
-              <th className="px-4 py-2 text-left">Mode of Interview</th>
-              <th className="px-4 py-2 text-left">Comments</th>
-              <th className="px-4 py-2 text-left">Round Name</th>
-              <th className="px-4 py-2 text-left">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {getInterviewRounds &&
-              getInterviewRounds.map(
-                (
-                  round: {
-                    modeOfInterviewName: string;
-                    roundNameName: string;
-                    id: number;
-                    roundNumber: number;
-                    panel: string[];
-                    modeOfInterview: number;
-                    comments?: string;
-                    roundNameId: number;
-                    panelNames: string;
-                  },
-                  index: number
-                ) => (
-                  <tr
-                    key={round.id}
-                    className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700"
-                  >
-                    <td className="px-4 py-2">{round.roundNumber}</td>
-                    <td className="px-4 py-2">{round.panelNames}</td>
-                    <td className="px-4 py-2">{round.modeOfInterviewName}</td>
-                    <td className="px-4 py-2">{round.comments || "-"}</td>
-                    <td className="px-4 py-2">
-                      {
-                        interviewRoundName.find(
-                          (item: { id: number; name: string }) =>
-                            item.id == round.roundNameId
-                        )?.name
-                      }
-                    </td>
-
-                    <td className="px-4 py-2 space-x-2">
-                      <TooltipWrapper
-                      
-                        content={"Edit Round"}
-                      >
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => onEdit(round)}
-                        >
-                          <PencilIcon />
-                          Edit
-                        </Button>
-                      </TooltipWrapper>
-                    </td>
-                  </tr>
-                )
-              )}
-          </tbody>
-        </table>
-      </div>
-    </>
+      <Table<RoundRow> size="middle" rowKey="id" columns={columns} dataSource={(getInterviewRounds as RoundRow[]) ?? []} pagination={false} scroll={{ x: "max-content" }} />
+    </Flex>
   );
 }

@@ -1,27 +1,14 @@
 "use client";
-
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import * as z from "zod";
-import { format } from "date-fns";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import {
-  Form,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormControl,
-  FormMessage,
-} from "@/components/ui/form";
-import { Button } from "@/components/ui/button";
-import { toast } from "@/lib/toast";
-import { useRouter, useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { Button, Card, Descriptions, Flex, Form, Input, Result, Spin, Typography } from "antd";
+import { format } from "date-fns";
+import * as z from "zod";
+import { toast } from "@/lib/toast";
+import { validateWithZod, zodRules } from "@/lib/zodRules";
 import { hiringApi } from "@/services/api/hiring.api";
-import { Loader2 } from "lucide-react";
+import { errorMessage } from "@/components/hiring-forms/shared";
 import Loading from "./loading";
-import SubmitFormLoader from "@/components/common/SubmitFormLoader";
-import { ErrorHandler } from "@/components/error/ErrorHandler";
 
 const schema = z.object({
   comments: z.string().nonempty({ message: "Comments are required" }),
@@ -29,26 +16,16 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
+/** Approve / reject a hiring request from the bin (status id from the route). */
 export default function ApprovalPage() {
-  const form = useForm<FormValues>({
-    resolver: zodResolver(schema),
-    defaultValues: {
-      comments: "",
-    },
-    mode: "onSubmit",
-  });
+  const [form] = Form.useForm<FormValues>();
   const { hiring, statusid } = useParams();
+  const router = useRouter();
 
-  const {
-    data: hiringDetailsBYID,
-    isLoading,
-    error,
-  } = useQuery({
+  const { data: hiringDetailsBYID, isLoading, error } = useQuery({
     queryKey: ["hiringDetailsBYID", Number(hiring)],
     queryFn: () => hiringApi.gethiringDetailByID(Number(hiring)),
   });
-
-  const router = useRouter();
 
   const { mutate: ApproveBinToCart, isPending } = useMutation({
     mutationKey: ["ApproveBinToCart"],
@@ -63,154 +40,63 @@ export default function ApprovalPage() {
     },
   });
 
-  const onSubmit = async (values: FormValues) => {
-    const payload = {
+  const onFinish = (raw: FormValues) => {
+    const values = validateWithZod(schema, form, raw);
+    if (!values) return;
+    ApproveBinToCart({
       id: Number(hiring),
       approverComments: values?.comments,
       approvalStatusId: Number(statusid),
-    };
-    const valid = await form.trigger();
-    if (valid) {
-      ApproveBinToCart(payload);
-    } else {
-      console.log("Validation errors:", form.formState.errors);
-    }
+    });
   };
+
   if (isLoading) return <Loading />;
-  if (error) return <ErrorHandler error={error} />;
+  if (error) return <Result status="error" title="Could not load hiring request" subTitle={errorMessage(error)} />;
+
+  const d: any = hiringDetailsBYID;
 
   return (
-    <Form {...form}>
-      <Toaster />
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-        <h1 className="relative text-2xl font-medium">Approval Page</h1>
+    <Flex vertical gap={16} className="p-4">
+      <Typography.Title level={4} style={{ margin: 0 }}>
+        Approval Page
+      </Typography.Title>
+      <Spin spinning={isPending}>
+        <Form form={form} layout="vertical" onFinish={onFinish} initialValues={{ comments: "" }}>
+          <Flex vertical gap={16}>
+            <Card title="Hiring Details">
+              <Descriptions
+                bordered
+                size="small"
+                column={{ xs: 1, md: 2, xl: 4 }}
+                items={[
+                  { key: "jobTitle", label: "Role Hired for", children: d?.jobTitle },
+                  { key: "hiringManagerName", label: "Hiring Manager", children: d?.hiringManagerName },
+                  { key: "hrqId", label: "HRQ ID", children: d?.hrqId },
+                  { key: "rcMsProjectId", label: "RCMS Project ID", children: d?.rcMsProjectId },
+                  { key: "rcMsResourceRequestId", label: "RCMS Resource Request ID", children: d?.rcMsResourceRequestId },
+                  { key: "projectName", label: "Project Name", children: d?.projectName },
+                  { key: "requestStartDate", label: "Request Start Date", children: d?.requestStartDate ? format(new Date(d.requestStartDate), "yyyy/MM/dd") : "-" },
+                  { key: "requestCreationDate", label: "Req Creation Date", children: d?.requestCreationDate ? format(new Date(d.requestCreationDate), "yyyy/MM/dd") : "-" },
+                  { key: "businessName", label: "Business", children: d?.businessName },
+                  { key: "hiringTypeName", label: "Hiring Type", children: d?.hiringTypeName },
+                  { key: "projectDurationMonths", label: "Project Duration (Months)", children: `${d?.projectDurationMonths} Months` },
+                  { key: "hiringStatusName", label: "Status", children: d?.hiringStatusName },
+                ]}
+              />
+            </Card>
 
-        {isPending && <SubmitFormLoader />}
-        <Card>
-          <CardHeader>
-            <CardTitle>Hiring Details</CardTitle>
-          </CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            {/* Column 1 */}
-            <div className="space-y-4">
-              <div>
-                <p className="text-md font-medium   ">Role Hired for:</p>
-                <p>{hiringDetailsBYID.jobTitle}</p>
-              </div>
-              <div>
-                <p className="text-md font-medium ">
-                  RCMS Resource Request ID:
-                </p>
-                <p>{hiringDetailsBYID.rcMsResourceRequestId}</p>
-              </div>
-              <div>
-                <p className="text-md font-medium ">Business:</p>
-                <p>{hiringDetailsBYID.businessName}</p>
-              </div>
-            </div>
+            <Form.Item name="comments" label="Comments" rules={zodRules(schema, "comments")}>
+              <Input.TextArea rows={4} placeholder="Enter comments" />
+            </Form.Item>
 
-            {/* Column 2 */}
-            <div className="space-y-4">
-              <div>
-                <p className="text-md font-medium ">Hiring Manager:</p>
-                <p>{hiringDetailsBYID.hiringManagerName}</p>
-              </div>
-              <div>
-                <p className="text-md font-medium ">Project Name:</p>
-                <p>{hiringDetailsBYID.projectName}</p>
-              </div>
-              <div>
-                <p className="text-md font-medium ">Hiring Type:</p>
-                <p>{hiringDetailsBYID.hiringTypeName}</p>
-              </div>
-            </div>
-
-            {/* Column 3 */}
-            <div className="space-y-4">
-              <div>
-                <p className="text-md font-medium ">HRQ ID:</p>
-                <p>{hiringDetailsBYID.hrqId}</p>
-              </div>
-              <div>
-                <p className="text-md font-medium ">Request Start Date:</p>
-                <p>
-                  {format(
-                    new Date(hiringDetailsBYID.requestStartDate),
-                    "yyyy/MM/dd"
-                  )}
-                </p>
-              </div>
-              <div>
-                <p className="text-md font-medium ">
-                  Project Duration (Months):
-                </p>
-                <p>{hiringDetailsBYID.projectDurationMonths} Months</p>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <p className="text-md font-medium ">RCMS Project ID:</p>
-                <p>{hiringDetailsBYID.rcMsProjectId}</p>
-              </div>
-              <div>
-                <p className="text-md font-medium ">Req Creation Date:</p>
-                <p>
-                  {format(
-                    new Date(hiringDetailsBYID.requestCreationDate),
-                    "yyyy/MM/dd"
-                  )}
-                </p>
-              </div>
-              <div>
-                <p className="text-md font-medium ">Status:</p>
-                <p>{hiringDetailsBYID.hiringStatusName}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Mandatory Date & Comments Section */}
-        <div className="grid grid-cols-1 gap-6">
-          <FormField
-            control={form.control}
-            name="comments"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Comments</FormLabel>
-                <FormControl>
-                  <textarea
-                    {...field}
-                    name="comments"
-                    placeholder="Enter comments"
-                    className="w-full rounded-md border border-input px-3 py-2 resize-none h-24 focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-
-        {/* Submit Button */}
-        <div className="flex justify-end">
-          <Button
-          variant="hpButton"
-            disabled={isPending}
-            type="submit"
-            className="px-6"
-          >
-            {isPending ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Processing...
-              </>
-            ) : (
-              "Submit"
-            )}
-          </Button>
-        </div>
-      </form>
-    </Form>
+            <Flex justify="flex-end">
+              <Button type="primary" htmlType="submit" loading={isPending}>
+                {isPending ? "Processing..." : "Submit"}
+              </Button>
+            </Flex>
+          </Flex>
+        </Form>
+      </Spin>
+    </Flex>
   );
 }

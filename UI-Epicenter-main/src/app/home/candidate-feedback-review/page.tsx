@@ -1,279 +1,160 @@
 "use client";
-
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Star, User, MoveLeft } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
+import { format, parseISO } from "date-fns";
+import { Button, Card, Col, Descriptions, Divider, Empty, Flex, Rate, Result, Row, Space, Spin, Statistic, Tag, Typography } from "antd";
+import { ArrowLeftOutlined, UserOutlined } from "@ant-design/icons";
 
 import { candidateApi } from "@/services/api/candidate.api";
-import SubmitFormLoader from "@/components/common/SubmitFormLoader";
-import { ErrorHandler } from "@/components/error/ErrorHandler";
 import { StatusBadge } from "@/components/status-badge";
-import {
-  formatDate,
-  formatTime,
-  getTatHours,
-  tatBetween,
-  tatFormat,
-} from "@/helpers/helper";
-import Link from "next/link";
-import { format, parseISO } from "date-fns";
+import { formatDate, formatTime, getTatHours, tatBetween } from "@/helpers/helper";
 import { EnumType } from "@/constants/slot-status";
 
-// Simple star rating component with Throughline styling
 const StarRating = ({ rating }: { rating: number }) => (
-  <div className="flex items-center">
-    {[...Array(5)].map((_, i) => (
-      <Star
-        key={i}
-        size={14}
-        className={
-          i < rating ? "fill-[#1677ff] text-[#1677ff]" : "text-gray-300"
-        }
-      />
-    ))}
-    <span className="ml-1 text-sm font-medium">{rating}/5</span>
-  </div>
+  <Space size={4}>
+    <Rate disabled value={rating} allowHalf style={{ fontSize: 14 }} />
+    <Typography.Text strong>{rating}/5</Typography.Text>
+  </Space>
 );
 
+/** All interview-round feedback for one candidate (`?candidateId=`). */
 export default function CandidateFeedbackReview() {
   const searchParams = useSearchParams();
   const candidateId = searchParams.get("candidateId")?.toString() || "";
-  const {
-    data: candidateFeedbackData,
-    isLoading,
-    error,
-  } = useQuery({
+
+  const { data: candidateFeedbackData, isLoading, error } = useQuery({
     queryKey: ["hiringViewData", candidateId],
     queryFn: () => candidateApi.getCandidateFeedback(candidateId),
   });
 
-  if (isLoading) {
-    return <SubmitFormLoader />;
-  }
-    if (error) return <ErrorHandler error={error} />;
-  const isEmpty = Object.keys(candidateFeedbackData).length === 0;
-
-  if (isEmpty)
+  if (isLoading) return <Spin fullscreen />;
+  if (error)
     return (
-      <ErrorHandler
-        isEmpty={isEmpty}
-        emptyMessage="No feedback data available for this candidate."
+      <Result
+        status="error"
+        title="Could not load candidate feedback"
+        subTitle={(error as any)?.response?.data?.message || (error as Error).message}
+        extra={<Button onClick={() => window.history.back()}>Go Back</Button>}
       />
     );
 
-
-
-  const {
-    candidateName,
-    candidateCode,
-    getCnadidateInterviewRoundFeedbackDetailsDtos,
-  } = candidateFeedbackData;
-
-  // Calculate overall average rating
-  const calculateOverallRating = () => {
-    const allFeedback = getCnadidateInterviewRoundFeedbackDetailsDtos?.flatMap(
-      (round) => round?.feedbackCategoryDetails
+  const isEmpty = !candidateFeedbackData || Object.keys(candidateFeedbackData).length === 0;
+  if (isEmpty)
+    return (
+      <Flex vertical gap={16} className="p-4">
+        <Empty description="No feedback data available for this candidate." />
+      </Flex>
     );
 
-    return allFeedback.length > 0
-      ? Math.round(
-          (allFeedback.reduce((sum, item) => sum + item.rating, 0) /
-            allFeedback.length) *
-            10
-        ) / 10
-      : 0;
+  const { candidateName, candidateCode, getCnadidateInterviewRoundFeedbackDetailsDtos } = candidateFeedbackData;
+  const rounds: any[] = getCnadidateInterviewRoundFeedbackDetailsDtos ?? [];
+
+  const calculateOverallRating = () => {
+    const allFeedback: any[] = rounds.flatMap((round) => round?.feedbackCategoryDetails ?? []);
+    return allFeedback.length > 0 ? Math.round((allFeedback.reduce((sum, item) => sum + item.rating, 0) / allFeedback.length) * 10) / 10 : 0;
   };
+  const overall = calculateOverallRating();
 
   return (
-    <div className="p-6">
-      <div
-        onClick={() => window.history.back()}
-        className="cursor-pointer flex px-2 mb-4 text-sm text-green-600 hover:underline"
-      >
-        <MoveLeft /> Go Back
+    <Flex vertical gap={16} className="p-4">
+      <div>
+        <Button type="link" icon={<ArrowLeftOutlined />} onClick={() => window.history.back()} style={{ paddingInline: 0 }}>
+          Go Back
+        </Button>
       </div>
-      {/* Throughline header */}
-      <div className="mb-6 pb-4 border-b border-gray-200">
-        <div className="flex items-center gap-2 mb-1">
-          <User className="text-[#1677ff] h-5 w-5" />
-          <h1 className="text-xl font-bold text-gray-800">
-            Candidate Feedback Summary
-          </h1>
-        </div>
-        <div className="flex justify-between items-center mt-1">
-          <div>
-            <h2 className="text-sm font-semibold">{candidateName} (<span onClick={() => window.history.back()}  className="cursor-pointer text-bold text-green-500">{candidateCode}</span>)</h2>
-            <p></p>
-          </div>
-          <div className="grid grid-cols-4 gap-4 text-center">
-            <div className="p-1">
-              <p className="text-sm text-gray-500 mb-1">Interview Rounds</p>
-              <p className="text-md font-bold text-[#1677ff]">
-                {getCnadidateInterviewRoundFeedbackDetailsDtos?.length}
-              </p>
-            </div>
 
-            {calculateOverallRating() > 0 && (
-              <div className="p-1">
-                <p className="text-sm text-gray-500 mb-1">Average Rating</p>
-                <div className="flex justify-center">
-                  <StarRating
-                    rating={
-                      candidateFeedbackData?.finalStatus === "Rejected"
-                        ? 0
-                        : calculateOverallRating()
-                    }
-                  />
-                </div>
-              </div>
+      <Card>
+        <Flex justify="space-between" align="center" wrap gap={16}>
+          <Space direction="vertical" size={0}>
+            <Typography.Title level={4} style={{ margin: 0 }}>
+              <UserOutlined /> Candidate Feedback Summary
+            </Typography.Title>
+            <Typography.Text strong>
+              {candidateName} (<Typography.Link onClick={() => window.history.back()}>{candidateCode}</Typography.Link>)
+            </Typography.Text>
+          </Space>
+          <Space size="large" wrap>
+            <Statistic title="Interview Rounds" value={rounds.length} />
+            {overall > 0 && (
+              <Statistic
+                title="Average Rating"
+                valueRender={() => <StarRating rating={candidateFeedbackData?.finalStatus === "Rejected" ? 0 : overall} />}
+              />
             )}
-            <div className="p-1 border-x border-gray-100">
-              <p className="text-sm text-gray-500 mb-1">Final Status</p>
-              <StatusBadge status={candidateFeedbackData?.finalStatus} />
-            </div>
-          </div>
-        </div>
-      </div>
-      <div className="space-y-2">
-        {getCnadidateInterviewRoundFeedbackDetailsDtos?.map((round, index) =>{
+            <Statistic title="Final Status" valueRender={() => <StatusBadge status={candidateFeedbackData?.finalStatus} />} />
+          </Space>
+        </Flex>
+      </Card>
 
-       const tat = tatBetween(round?.interviewDate, round?.feedbackGivenOn ?? round?.interviewDate);
-         return(
+      {rounds.map((round, index) => {
+        const tat = tatBetween(round?.interviewDate, round?.feedbackGivenOn ?? round?.interviewDate);
+        const tatOverdue = getTatHours(round?.interviewDate, round?.feedbackGivenOn ? round?.feedbackGivenOn : round?.interviewDate) > EnumType.tat;
+        return (
           <Card
-            key={round?.interviewSlotId}
-            className="shadow-sm border border-gray-200 py-4 gap-1"
-          >
-            <CardHeader className="pb-1 bg-gray-50">
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center justify-center bg-[#1677ff] text-white w-6 h-6 rounded-full text-xs font-medium">
-                    {index + 1}
-                  </div>
-                  <h2 className="font-semibold text-gray-800">
-                    {round?.interviewRoundName}
-                  </h2>
-                </div>
-                <div className="text-sm font-semibold text-green-600">
-                  <span className="text-gray-800">Interview Mode:</span>{" "}
-                  {round?.interviewModeName}
-                </div>
-
-                <p className="font-semibold text-sm  text-green-600">
-                  <span className="text-gray-800">Interview Date: </span>{" "}
-                  {formatDate(round?.interviewDate)}
-                  <span className="text-gray-800">, Time: </span>
-                  {formatTime(round?.interviewTime)}
-                </p>
-             
-                  <StatusBadge
-                     color={(getTatHours(round?.interviewDate,round?.feedbackGivenOn ? round?.feedbackGivenOn : round?.interviewDate) > EnumType.tat) ? "red" : "green"}
-                    status={tat}
-                  />
-
-                {/* <p className="font-semibold text-sm text-gray-800">
-                 {tatFormat( round?.interviewDate ? round?.interviewDate : new Date())}
-                </p> */}
+            key={round?.interviewSlotId ?? index}
+            size="small"
+            title={
+              <Space wrap>
+                <Tag color="blue">{index + 1}</Tag>
+                <Typography.Text strong>{round?.interviewRoundName}</Typography.Text>
+                <Typography.Text type="secondary">Interview Mode:</Typography.Text>
+                <Typography.Text>{round?.interviewModeName}</Typography.Text>
+                <Typography.Text type="secondary">Interview Date:</Typography.Text>
+                <Typography.Text>
+                  {formatDate(round?.interviewDate)}, Time: {formatTime(round?.interviewTime)}
+                </Typography.Text>
+              </Space>
+            }
+            extra={
+              <Space>
+                <StatusBadge color={tatOverdue ? "red" : "green"} status={tat} />
                 <StatusBadge status={round?.candidateInterviewStatusName} />
-              </div>
-            </CardHeader>
-            <CardContent className="pt-1 py-0">
-              {round?.panelFeedbackComments &&
-                round?.feedbackCategoryDetails.length === 0 && (
-                  <div className="">
-                    <h3 className="text-sm font-medium mb-1 text-gray-700">
-                      Feedback Comments : {round?.panelFeedbackComments}
-                    </h3>
-                  </div>
-                )}
-                 <div className="flex justify-between items-center">
-              
-                {round?.feedbackGivenByUserName && (
-                  <div className="mt-2">
-                    <h3 className="text-sm font-medium mb-1 text-gray-700">
-                      Feedback Given By :{" "}
-                      <span className="font-semibold text-green-600">
-                        {round?.feedbackGivenByUserName}
-                      </span>{" "}
-                      (
-                      <span className="font-semibold text-green-600">
-                        {round?.feedbackGivenByUserRoleName}
-                      </span>
-                      )
-                    </h3>
-                  </div>
-                )}
-                {round?.feedbackGivenOn && (
-                  <div className="mt-2">
-                    <h3 className="text-sm font-medium mb-1 text-gray-700">
-                      Feedback given On :{" "}
-                      <span className="font-semibold text-green-600">
-                        {format(
-                          parseISO(round?.feedbackGivenOn),
-                          "dd MMM yyyy, hh:mm a"
-                        )}
-                      </span>
-                    </h3>
-                  </div>
-                )}
-                {round?.interviewPanelNames && (
-                  <div className="mt-2">
-                    <h3 className="text-sm font-medium mb-1 text-gray-700">
-                      Panel :{" "}
-                      <span className="font-semibold text-green-600">
-                        {round?.interviewPanelNames}
-                      </span>
-                    </h3>
-                  </div>
-                )}
-                {round?.interviewAdditionalPanelNames && (
-                  <div className="mt-2">
-                    <h3 className="text-sm font-medium mb-1 text-gray-700">
-                      Additional Panel :{" "}
-                      <span className="font-semibold text-green-600">
-                        {round?.interviewAdditionalPanelNames}
-                      </span>
-                    </h3>
-                  </div>
-                )}
-              </div>
+              </Space>
+            }
+          >
+            {round?.panelFeedbackComments && round?.feedbackCategoryDetails?.length === 0 && (
+              <Typography.Paragraph>
+                <Typography.Text strong>Feedback Comments : </Typography.Text>
+                {round?.panelFeedbackComments}
+              </Typography.Paragraph>
+            )}
 
-              {/* Feedback details */}
-              {round?.feedbackCategoryDetails?.length > 0 && (
-                <div>
-                  <h3 className="text-sm font-medium mb-1 text-gray-700">
-                    Feedback Categories
-                  </h3>
-                  <div className="space-y-4">
-                    {round?.feedbackCategoryDetails?.map((feedback, idx) => (
-                      <div
-                        key={idx}
-                        className="pb-1 border-b border-gray-100 last:border-0 last:pb-0"
-                      >
-                        <div className="flex justify-between items-center ">
-                          <p className="text-sm font-medium">
-                            {/* <span className="mr-1 w-5 h-5 rounded-full  font-medium">
-                                    {idx + 1}
-                                </span> */}
-                            {feedback.criteriaOptionName} :{" "}
-                            <span className="text-xs text-gray-600 bg-gray-50  rounded">
-                              {feedback.comments}
-                            </span>
-                          </p>
-                          <StarRating rating={feedback.rating} />
-                        </div>
-                        {/* <p className="text-xs text-gray-600 bg-gray-50 p-2 rounded">
-                          {feedback.comments}
-                        </p> */}
-                      </div>
-                    ))}
-                  </div>
-                </div>
+            <Descriptions size="small" column={{ xs: 1, md: 2, xl: 4 }}>
+              {round?.feedbackGivenByUserName && (
+                <Descriptions.Item label="Feedback Given By">
+                  {round?.feedbackGivenByUserName} ({round?.feedbackGivenByUserRoleName})
+                </Descriptions.Item>
               )}
-            </CardContent>
+              {round?.feedbackGivenOn && (
+                <Descriptions.Item label="Feedback given On">{format(parseISO(round?.feedbackGivenOn), "dd MMM yyyy, hh:mm a")}</Descriptions.Item>
+              )}
+              {round?.interviewPanelNames && <Descriptions.Item label="Panel">{round?.interviewPanelNames}</Descriptions.Item>}
+              {round?.interviewAdditionalPanelNames && <Descriptions.Item label="Additional Panel">{round?.interviewAdditionalPanelNames}</Descriptions.Item>}
+            </Descriptions>
+
+            {round?.feedbackCategoryDetails?.length > 0 && (
+              <>
+                <Divider titlePlacement="left" plain>
+                  Feedback Categories
+                </Divider>
+                <Row gutter={[12, 12]}>
+                  {round.feedbackCategoryDetails.map((feedback: any, idx: number) => (
+                    <Col xs={24} key={idx}>
+                      <Flex justify="space-between" align="center" wrap gap={8}>
+                        <Typography.Text>
+                          <Typography.Text strong>{feedback.criteriaOptionName} : </Typography.Text>
+                          <Typography.Text type="secondary">{feedback.comments}</Typography.Text>
+                        </Typography.Text>
+                        <StarRating rating={feedback.rating} />
+                      </Flex>
+                    </Col>
+                  ))}
+                </Row>
+              </>
+            )}
           </Card>
-        )})}
-      </div>
-    </div>
+        );
+      })}
+    </Flex>
   );
 }

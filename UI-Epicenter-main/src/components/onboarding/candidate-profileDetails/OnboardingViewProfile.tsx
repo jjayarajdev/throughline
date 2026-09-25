@@ -1,11 +1,6 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Building } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
-import InfoBlock from "./InfoBlock";
-import { useQuery } from "@tanstack/react-query";
-import { MasterTypes } from "@/constants/masterTypes";
-import { onboarding } from "@/services/api/onboarding.api";
+"use client";
+import { Card, Descriptions } from "antd";
+import { BankOutlined } from "@ant-design/icons";
 
 interface CandidateData {
   id?: number;
@@ -29,81 +24,51 @@ interface CandidateData {
   phone?: string;
   transportRequirementName?: string;
   employeeStatusId?: number;
-  subDomainName?:string;
-  resourceTypeName?:string
-  nameAsPerAadhar?:string
-  candidateName?:string
+  subDomainName?: string;
+  resourceTypeName?: string;
+  nameAsPerAadhar?: string;
+  candidateName?: string;
 }
 
 export default function OnboardingViewProfile({ candidateData }: { candidateData: CandidateData }) {
-  const { data: categoryOptions = [] } = useQuery({
-    queryKey: ["getEmployeeCategoryData", MasterTypes.EMPLOYEE_CATEGORY_TYPE],
-    queryFn: () => onboarding.getEmployeeCategory(MasterTypes.EMPLOYEE_CATEGORY_TYPE).then(res => res.data),
-    retry: 1,
-  });
-
-  const { data: employeeStatusOptions = [] } = useQuery({
-    queryKey: ["getEmployeeStatusData", MasterTypes.EMPLOYEE_STATUS],
-    queryFn: () => onboarding.getEmployeeCategory(MasterTypes.EMPLOYEE_STATUS).then(res => res.data),
-    retry: 1,
-  });
-
-  const categoryName = getLabelById(categoryOptions, candidateData?.categoryId);
-  // const employeeStatus = getLabelById(employeeStatusOptions, candidateData?.employeeStatusId);
+  const items = [
+    { key: "candidateName", label: "Candidate Code", children: candidateData?.candidateName || "N/A" },
+    { key: "aadhar", label: "Aadhar Last 4 Digits", children: candidateData?.aadharLast4Digits || "N/A" },
+    { key: "resourceType", label: "Resource Category", children: candidateData?.resourceTypeName || "N/A" },
+    { key: "dob", label: "Date Of Birth", children: candidateData?.dob || "N/A" },
+    { key: "nameAsPerAadhar", label: "Name As Per Aadhar", children: candidateData?.nameAsPerAadhar || "N/A" },
+    { key: "finalOnboarding", label: "Final Onboarding Date", children: formatDate(candidateData?.finalOnboaridngDate) },
+    { key: "doj", label: "Date of Joining", children: formatDate(candidateData?.dateOfJoining) },
+    { key: "hiringManager", label: "Hiring Manager", children: candidateData?.hiringManagerName || "N/A" },
+    { key: "role", label: "Role Hired For", children: candidateData?.roleHiredFor || "N/A" },
+    { key: "domain", label: "Domain", children: candidateData?.domainName || "N/A" },
+    { key: "subDomain", label: "Sub Domain", children: candidateData?.subDomainName || "N/A" },
+    { key: "address", label: "Current Address", children: candidateData?.currentAddress || "N/A" },
+    { key: "jobLocation", label: "Job Location", children: candidateData?.jobLocation || "N/A" },
+    { key: "city", label: "City", children: candidateData?.cityName || "N/A" },
+    { key: "state", label: "State", children: candidateData?.stateName || "N/A" },
+    { key: "country", label: "Country", children: candidateData?.countryName || "N/A" },
+    { key: "gender", label: "Gender", children: candidateData?.genderName || "N/A" },
+    { key: "email", label: "Email", children: candidateData?.personalMailId || "N/A" },
+    { key: "phone", label: "Phone", children: candidateData?.phone || "N/A" },
+    { key: "transport", label: "Transport Requirement", children: candidateData?.transportRequirementName || "N/A" },
+  ];
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center">
-          <Building className="h-5 w-5 mr-2" />
-          Candidate Onboarding
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <InfoBlock label="Candidate Code" value={candidateData?.candidateName || "N/A"} />
-          <InfoBlock label="Aadhar Last 4 Digits" value={candidateData?.aadharLast4Digits || "N/A"} />
-          <InfoBlock label="Resource Category" value={candidateData?.resourceTypeName} />
-          <InfoBlock label="Date Of Birth" value={candidateData?.dob} />
-          <InfoBlock label="Name As Per Aadhar" value={candidateData?.nameAsPerAadhar} />
-          <InfoBlock label="Final Onboarding Date" value={formatDate(candidateData?.finalOnboaridngDate)} />
-          <InfoBlock label="Date of Joining" value={formatDate(candidateData?.dateOfJoining)} />
-          {/* <InfoBlock label="HRQ ID" value={candidateData?.hrqId || "N/A"} /> */}
-          <InfoBlock label="Hiring Manager" value={candidateData?.hiringManagerName || "N/A"} />
-          <InfoBlock label="Role Hired For" value={candidateData?.roleHiredFor || "N/A"} />
-          <InfoBlock label="Domain" value={candidateData?.domainName || "N/A"} />
-          <InfoBlock label="Sub Domain" value={candidateData?.subDomainName || "N/A"} />
-          <InfoBlock label="Current Address" value={candidateData?.currentAddress || "N/A"} />
-          <InfoBlock label="Job Location" value={candidateData?.jobLocation || "N/A"} />
-          <InfoBlock label="City" value={candidateData?.cityName || "N/A"} />
-          <InfoBlock label="State" value={candidateData?.stateName || "N/A"} />
-          <InfoBlock label="Country" value={candidateData?.countryName || "N/A"} />
-          <InfoBlock label="Gender" value={candidateData?.genderName || "N/A"} />
-          <InfoBlock label="Email" value={candidateData?.personalMailId || "N/A"} />
-          <InfoBlock label="Phone" value={candidateData?.phone || "N/A"} />
-          <InfoBlock label="Transport Requirement" value={candidateData?.transportRequirementName || "N/A"} />
-          {/* <div>
-            <p className="text-sm font-medium text-muted-foreground">Employee Status</p>
-            <Badge className={cn("mt-1")}>{employeeStatus}</Badge>
-          </div> */}
-        </div>
-      </CardContent>
+    <Card
+      title={
+        <span className="inline-flex items-center gap-2">
+          <BankOutlined /> Candidate Onboarding
+        </span>
+      }
+    >
+      <Descriptions bordered size="small" column={{ xs: 1, md: 2, lg: 3 }} items={items} />
     </Card>
   );
-}
-
-function getLabelById(list: { id: number; name: string }[], id?: number): string {
-  if (!id) return "N/A";
-  const item = list.find(option => option.id === Number(id));
-  return item?.name || "N/A";
 }
 
 function formatDate(dateStr?: string): string {
   if (!dateStr) return "N/A";
   const date = new Date(dateStr);
-  return date.toLocaleDateString("en-IN", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
+  return date.toLocaleDateString("en-IN", { year: "numeric", month: "short", day: "numeric" });
 }

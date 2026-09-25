@@ -1,45 +1,28 @@
-import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+"use client";
+import { Card, Table } from "antd";
 
 interface EngagementTableProps {
   engagements: any[];
 }
 
+/** Read-only engagement list on the partner profile. */
 export function EngagementTable({ engagements }: EngagementTableProps) {
   return (
-    <Card>
-      <div className="overflow-x-auto">
-        <table className="w-full border-collapse table-auto">
-          <thead>
-            <tr className="bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
-              <th className="px-4 py-2 text-left">Type</th>
-              <th className="px-4 py-2 text-left">Business Unit Name</th>
-              <th className="px-4 py-2 text-left">Engagement status</th>
-              <th className="px-4 py-2 text-left">Evaluated By</th>
-              <th className="px-4 py-2 text-left">Evalutaion Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {engagements?.map((engagement: any) => (
-              <tr key={engagement.id} className="border-b">
-                <td className="px-4 py-2">{engagement.engagementTypeName}</td>
-                <td className="px-4 py-2">{engagement.businessUnitName}</td>
-                <td className="px-4 py-2">{engagement.engagementStatusName}</td>
-                <td className="px-4 py-2">{engagement.evaluatedBy}</td>
-                <td className="px-4 py-2">{engagement.evaluationStatusName}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+    <Card size="small">
+      <Table
+        size="small"
+        rowKey={(r: any) => r.id ?? `${r.engagementTypeName}-${r.businessUnitName}`}
+        dataSource={engagements ?? []}
+        pagination={false}
+        scroll={{ x: "max-content" }}
+        columns={[
+          { key: "engagementTypeName", title: "Type", dataIndex: "engagementTypeName" },
+          { key: "businessUnitName", title: "Business Unit Name", dataIndex: "businessUnitName" },
+          { key: "engagementStatusName", title: "Engagement status", dataIndex: "engagementStatusName" },
+          { key: "evaluatedBy", title: "Evaluated By", dataIndex: "evaluatedBy" },
+          { key: "evaluationStatusName", title: "Evalutaion Status", dataIndex: "evaluationStatusName" },
+        ]}
+      />
     </Card>
   );
 }

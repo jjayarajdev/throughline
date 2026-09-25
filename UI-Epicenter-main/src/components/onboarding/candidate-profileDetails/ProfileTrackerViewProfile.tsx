@@ -1,9 +1,6 @@
-'use client';
-
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { FileCheck } from 'lucide-react';
-import InfoBlock from './InfoBlock';
-import { Badge } from '@/components/ui/badge';
+"use client";
+import { Card, Descriptions, Tag } from "antd";
+import { FileDoneOutlined } from "@ant-design/icons";
 
 interface CandidateProfileData {
   profileCreatedOn?: string;
@@ -16,46 +13,41 @@ interface CandidateProfileData {
   hpeEmailId?: string;
   isEmployeeIdGenerated?: boolean;
   candidatePersonalDetailsId?: number;
-  costCenterName?:string
+  costCenterName?: string;
 }
 
 export default function ProfileTrackerViewProfile({ candidateData }: { candidateData: CandidateProfileData }) {
+  const items = [
+    { key: "employeeId", label: "Employee ID", children: candidateData?.employeeId?.toString() || "N/A" },
+    { key: "employeeName", label: "Employee Name As Per ID", children: candidateData?.employeeNameAsPerId || "N/A" },
+    { key: "hpeEmailId", label: "Company Email ID", children: candidateData?.hpeEmailId || "N/A" },
+    { key: "smartProfileId", label: "Smart Profile ID", children: candidateData?.smartProfileId || "N/A" },
+    { key: "lhcc", label: "LHCC (IN97/IN99)", children: candidateData?.lhccCode || "N/A" },
+    { key: "costCenter", label: "Cost Center", children: candidateData?.costCenterName || "N/A" },
+    { key: "createdOn", label: "Profile Created On", children: formatDate(candidateData?.profileCreatedOn) },
+    { key: "approvalDate", label: "Profile Approval Date", children: formatDate(candidateData?.profileApprovalDate) },
+    {
+      key: "generated",
+      label: "Employee ID Generated",
+      children: <Tag color={candidateData?.isEmployeeIdGenerated ? "green" : "default"}>{candidateData?.isEmployeeIdGenerated ? "Yes" : "No"}</Tag>,
+    },
+  ];
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center">
-          <FileCheck className="h-5 w-5 mr-2" />
-          Profile Tracker
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <InfoBlock label="Employee ID" value={candidateData?.employeeId?.toString() || 'N/A'} />
-          <InfoBlock label="Employee Name As Per ID" value={candidateData?.employeeNameAsPerId || 'N/A'} />
-          <InfoBlock label="Company Email ID" value={candidateData?.hpeEmailId || 'N/A'} />
-          <InfoBlock label="Smart Profile ID" value={candidateData?.smartProfileId || 'N/A'} />
-          <InfoBlock label="LHCC (IN97/IN99)" value={candidateData?.lhccCode || 'N/A'} />
-          <InfoBlock label="Cost Center" value={candidateData?.costCenterName || 'N/A'} />
-          <InfoBlock label="Profile Created On" value={formatDate(candidateData?.profileCreatedOn)} />
-          <InfoBlock label="Profile Approval Date" value={formatDate(candidateData?.profileApprovalDate)} />
-          <div>
-            <p className="text-sm font-medium text-muted-foreground">Employee ID Generated</p>
-            <Badge variant={candidateData?.isEmployeeIdGenerated ? 'default' : 'outline'} className="mt-1">
-              {candidateData?.isEmployeeIdGenerated ? 'Yes' : 'No'}
-            </Badge>
-          </div>
-        </div>
-      </CardContent>
+    <Card
+      title={
+        <span className="inline-flex items-center gap-2">
+          <FileDoneOutlined /> Profile Tracker
+        </span>
+      }
+    >
+      <Descriptions bordered size="small" column={{ xs: 1, md: 2, lg: 3 }} items={items} />
     </Card>
   );
 }
 
 function formatDate(dateStr?: string): string {
-  if (!dateStr) return '-';
+  if (!dateStr) return "-";
   const date = new Date(dateStr);
-  return date.toLocaleDateString('en-IN', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
+  return date.toLocaleDateString("en-IN", { year: "numeric", month: "short", day: "numeric" });
 }

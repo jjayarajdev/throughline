@@ -1,716 +1,429 @@
 "use client";
-
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import * as z from "zod";
-import { Button } from "@/components/ui/button";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { InputField } from "@/components/form-fields/InputField";
-import { SelectField } from "@/components/form-fields/SelectField";
-import { FileField } from "@/components/form-fields/FileField";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { MasterTypes } from "@/constants/masterTypes";
-import { dropdownApi } from "@/services/api/master";
 import { useEffect, useState } from "react";
-import { MultiSelectField } from "@/components/form-fields/MultiSelectField";
-import { toast } from "@/lib/toast";
-import { candidateApi } from "@/services/api/candidate.api";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import * as z from "zod";
+import { Button, Checkbox, Col, DatePicker, Divider, Flex, Form, Input, Row, Select, Spin, Typography } from "antd";
 
-import { Input } from "@/components/ui/input";
-import api from "@/lib/axiosInstance";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Separator } from "@/components/ui/separator";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
-import Link from "next/link";
-import { DatePickerField } from "@/components/form-fields/DatePickerField";
-import { SearchableDropdown } from "@/components/form-fields/searchable-dropdown";
+import { toast } from "@/lib/toast";
+import { validateWithZod, zodRules } from "@/lib/zodRules";
+import { candidateApi } from "@/services/api/candidate.api";
+import { dropdownApi } from "@/services/api/master";
+import { MasterTypes } from "@/constants/masterTypes";
 import { useUserStore } from "@/store/userStore";
-import { Breadcrumbs } from "@/components/common/Breadcrumbs";
-import SubmitFormLoader from "@/components/common/SubmitFormLoader";
+import { TermsConditionsModal } from "@/components/dialog/TermsConditionsModal";
+import { CandidateBreadcrumb } from "@/components/candidate/CandidateBreadcrumb";
+import { ResumeUploadField } from "@/components/candidate/candidate-forms/ResumeUploadField";
+import {
+  dateStringProps,
+  idNameSelectProps,
+  REFERRED_OPTIONS,
+  toStringOptions,
+  YES_NO_OPTIONS,
+  type IdName,
+} from "@/components/candidate/candidate-forms/formFieldProps";
+
+const idName = z.object({ id: z.number(), name: z.string() });
 
 const candidateFormSchema = z.object({
-    fullName: z.string().min(1, "Full Name is required"),
-    phoneNumber: z.string().min(1, "Phone Number is required"),
-    email: z.string().email("Invalid email address").min(1, "Email is required"),
-    primarySkills: z
-        .array(
-            z.object({
-                id: z.number(),
-                name: z.string(),
-            })
-        )
-        .optional(),
-    secondarySkills: z
-        .array(
-            z.object({
-                id: z.number(),
-                name: z.string(),
-            })
-        )
-        .optional(),
-    PreferredWorkLocationId:  z
-        .array(
-            z.object({
-                id: z.number(),
-                name: z.string(),
-            })
-        )
-        .optional(),
-    countryId: z.string().min(1, "Country is required"),
-    stateId: z.string().min(1, "State is required"),
-    cityId: z.string().min(1, "City is required"),
-    diversity: z.string().optional(),
-    noticePeriod: z.string().optional(),
-    relevantExperience: z.string().optional(),
-    currentlyWorking: z.string().optional(),
-    currentOrganisation: z.string().optional(),
-    lastWorkingDay: z.string().optional(),
-    resume: z.object({
-        attachmentName: z.string().min(1, "Resume is required"),
-        attachmentURL: z.string().min(1, "Resume is required")
-    }),
-    isReferred: z.string().optional(),
-    referredBy: z.string().optional(),
-    hrqId: z.string().min(1, "HRQ ID is required"),
-    partnerId: z.string().min(1, "Partner is required"),
-    jobTitle: z.string().min(1, "Role Hired For is required"),
-    hrqStatusName: z.string().min(1, "HRQ Status is required"),
-    intakeStatusId: z.string().min(1, "Intake Status is required"),
-    resourceTypeId: z.string().min(1, "Resource Type is required"),
-    isAgreedForTermsConditions: z.boolean().refine((val) => val === true, {
-        message: "You must accept the terms and conditions",
-    }),
-    hiringRequestId: z.string()
+  fullName: z.string().min(1, "Full Name is required"),
+  phoneNumber: z.string().min(1, "Phone Number is required"),
+  email: z.string().email("Invalid email address").min(1, "Email is required"),
+  primarySkills: z.array(idName).optional(),
+  secondarySkills: z.array(idName).optional(),
+  PreferredWorkLocationId: z.array(idName).optional(),
+  countryId: z.string().min(1, "Country is required"),
+  stateId: z.string().min(1, "State is required"),
+  cityId: z.string().min(1, "City is required"),
+  diversity: z.string().optional(),
+  noticePeriod: z.string().optional(),
+  relevantExperience: z.string().optional(),
+  currentlyWorking: z.string().optional(),
+  currentOrganisation: z.string().optional(),
+  lastWorkingDay: z.string().optional(),
+  resume: z.object({
+    attachmentName: z.string().min(1, "Resume is required"),
+    attachmentURL: z.string().min(1, "Resume is required"),
+  }),
+  isReferred: z.string().optional(),
+  referredBy: z.string().optional(),
+  hrqId: z.string().min(1, "HRQ ID is required"),
+  partnerId: z.string().min(1, "Partner is required"),
+  jobTitle: z.string().min(1, "Role Hired For is required"),
+  hrqStatusName: z.string().min(1, "HRQ Status is required"),
+  intakeStatusId: z.string().min(1, "Intake Status is required"),
+  resourceTypeId: z.string().min(1, "Resource Type is required"),
+  isAgreedForTermsConditions: z.boolean().refine((val) => val === true, { message: "You must accept the terms and conditions" }),
+  hiringRequestId: z.string(),
 });
 
 type FormValues = z.infer<typeof candidateFormSchema>;
 
+/** Edit a candidate that is still under review (CandidateBin). */
 const EditReviewCandidate = () => {
-    const [showTermsDialog, setShowTermsDialog] = useState(false);
-    const [selectedHrqID, setSelectedHrqID] = useState<string | null>(null);
-    const [loader, setLoader] = useState(false);
-    const [jobLocations, setJobLocations] = useState<{ id: number; name: string }[]>([]);
-    const { partnerId } = useUserStore();
-    const searchParams = useSearchParams()
-    const candidateId = searchParams.get("id")
-    const router = useRouter();
+  const [showTermsDialog, setShowTermsDialog] = useState(false);
+  const [selectedHrqID, setSelectedHrqID] = useState<string | null>(null);
+  const [jobLocations, setJobLocations] = useState<IdName[]>([]);
+  const { partnerId } = useUserStore();
+  const searchParams = useSearchParams();
+  const candidateId = searchParams.get("id");
+  const router = useRouter();
+  const [form] = Form.useForm<FormValues>();
 
-    const form = useForm<FormValues>({
-        resolver: zodResolver(candidateFormSchema),
-        defaultValues: {
-            fullName: "",
-            phoneNumber: "",
-            email: "",
-            hiringRequestId: "",
-            countryId: "",
-            stateId: "",
-            cityId: "",
-            diversity: "",
-            noticePeriod: "",
-            relevantExperience: "",
-            currentlyWorking: "",
-            currentOrganisation: "",
-            lastWorkingDay: "",
-            isReferred: "",
-            referredBy: "",
-            resume: {
-                attachmentName: "",
-                attachmentURL: ""
-            },
-            hrqId: "",
-            partnerId: "",
-            jobTitle: "",
-            hrqStatusName: "",
-            intakeStatusId: "",
-            resourceTypeId: "",
-            isAgreedForTermsConditions: false,
-            PreferredWorkLocationId: [],
-            primarySkills: [],
-            secondarySkills: [],
-        },
-    });
+  const selectedCountry = Form.useWatch("countryId", form);
+  const selectedState = Form.useWatch("stateId", form);
 
-    const selectedCountry = form.watch("countryId");
-    const selectedState = form.watch("stateId");
+  const { data: hrqids = [] } = useQuery({
+    queryKey: ["hrqids"],
+    queryFn: () => candidateApi.getHrqid(partnerId ? Number(partnerId) : null),
+  });
 
+  const UpdateCandidateMutation = useMutation({
+    mutationFn: (data: any) => candidateApi.updateReviewCandidate(Number(candidateId), data),
+    onSuccess: (data) => {
+      toast.success(data.message);
+      router.back();
+    },
+    onError: (error) => {
+      toast.error((error as any)?.response?.data?.message || "An error occurred");
+    },
+  });
 
-    const { data: hrqids = [] } = useQuery({
-        queryKey: ["hrqids"],
-        queryFn: () => candidateApi.getHrqid(partnerId ? Number(partnerId) : null),
-        enabled: true,
-    });
-
-
-    const UpdateCandidateMutation = useMutation({
-        mutationFn: (data: FormValues) => candidateApi.updateReviewCandidate(Number(candidateId), data),
-        onSuccess: (data) => {
-            toast.success(data.message);
-            router.back();
-        },
-        onError: (error) => {
-            toast.error((error as any)?.response?.data?.message || "An error occurred");
-        }
-    });
-
-    const { data: country = [] } = useQuery({
-        queryKey: ["country"],
-        queryFn: () => dropdownApi.fetchDropdown(MasterTypes.COUNTRY),
-    });
-
-    const { data: states = [], refetch: refetchStates } = useQuery({
-        queryKey: ["states", selectedCountry],
-        queryFn: () => dropdownApi.fetchDropdown(MasterTypes.STATE, {
-            countryId: parseInt(selectedCountry)
-        }),
-        enabled: !!selectedCountry,
-    });
-
-    const { data: cities = [], refetch: refetchCities } = useQuery({
-        queryKey: ["cities", selectedState],
-        queryFn: () => dropdownApi.fetchDropdown(MasterTypes.CITY, {
-            stateId: parseInt(selectedState)
-        }),
-        enabled: !!selectedState,
-    });
-
-    const { data: skills = [] } = useQuery({
-        queryKey: ["skills"],
-        queryFn: () => dropdownApi.fetchDropdown(MasterTypes.SKILL),
-    });
-
-    const { data:PRIMARY_SKILLS = [] } = useQuery({
+  const { data: country = [] } = useQuery({ queryKey: ["country"], queryFn: () => dropdownApi.fetchDropdown(MasterTypes.COUNTRY) });
+  const { data: states = [] } = useQuery({
+    queryKey: ["states", selectedCountry],
+    queryFn: () => dropdownApi.fetchDropdown(MasterTypes.STATE, { countryId: parseInt(selectedCountry) }),
+    enabled: !!selectedCountry,
+  });
+  const { data: cities = [] } = useQuery({
+    queryKey: ["cities", selectedState],
+    queryFn: () => dropdownApi.fetchDropdown(MasterTypes.CITY, { stateId: parseInt(selectedState) }),
+    enabled: !!selectedState,
+  });
+  const { data: PRIMARY_SKILLS = [], isFetched: primaryFetched } = useQuery({
     queryKey: ["PRIMARY_SKILLS"],
     queryFn: () => dropdownApi.fetchDropdown(MasterTypes.PRIMARY_SKILLS),
   });
-   const { data: SECONDARY_SKILLS = [] } = useQuery({
+  const { data: SECONDARY_SKILLS = [], isFetched: secondaryFetched } = useQuery({
     queryKey: ["SECONDARY_SKILLS"],
     queryFn: () => dropdownApi.fetchDropdown(MasterTypes.SECONDARY_SKILLS),
   });
+  const { data: IntakeStatus = [] } = useQuery({
+    queryKey: ["instakeStatus"],
+    queryFn: () => dropdownApi.fetchDropdown(MasterTypes.CANDIDATE_INTAKE_STATUS),
+  });
+  const { data: ResourceType = [] } = useQuery({ queryKey: ["resourceType"], queryFn: () => dropdownApi.fetchDropdown(MasterTypes.RESOURCE_TYPE) });
+  const { data: hrqPartnersList = [] } = useQuery({
+    queryKey: ["hrqPartnersList", selectedHrqID],
+    queryFn: () => dropdownApi.fetchSpecificpartner(MasterTypes.HRQ_SPECIFIC_PARTNERS, selectedHrqID),
+    enabled: !!selectedHrqID,
+  });
 
-    const { data: IntakeStatus = [] } = useQuery({
-        queryKey: ["instakeStatus"],
-        queryFn: () => dropdownApi.fetchDropdown(MasterTypes.CANDIDATE_INTAKE_STATUS),
+  const { data: candidateData, isFetched } = useQuery({
+    queryKey: ["candidate", candidateId],
+    queryFn: () => candidateApi.fetchCandidateReviewDetails(Number(candidateId)),
+    enabled: !!candidateId,
+  });
+
+  const [populated, setPopulated] = useState(false);
+  useEffect(() => {
+    if (!candidateData || !primaryFetched || !secondaryFetched || populated) return;
+    const candidate = candidateData;
+    const pick = (ids: unknown, rows: IdName[]) =>
+      Array.isArray(ids) ? rows.filter((s) => ids.includes(s.id)).map((s) => ({ id: s.id, name: s.name })) : [];
+    form.setFieldsValue({
+      fullName: candidate?.fullName || "",
+      phoneNumber: candidate?.phoneNumber || "",
+      email: candidate?.email || "",
+      primarySkills: pick(candidate.primarySkillIds, PRIMARY_SKILLS),
+      secondarySkills: pick(candidate.secondarySkillIds, SECONDARY_SKILLS),
+      PreferredWorkLocationId: pick(candidate.preferredWorkLocationIds, candidate?.preferredWorkLocations ?? []),
+      countryId: candidate?.countryId?.toString() || "",
+      stateId: candidate.stateId?.toString() || "",
+      cityId: candidate.cityId?.toString() || "",
+      intakeStatusId: String(candidateData?.intakeStatusId),
+      diversity: candidate?.diversity?.toLowerCase() === "yes" ? "yes" : "no",
+      noticePeriod: candidate?.noticePeriod?.toString() || "",
+      relevantExperience: candidate?.relevantExperience?.toString() || "",
+      currentlyWorking: candidate?.currentlyWorking?.toLowerCase() === "yes" ? "yes" : "no",
+      currentOrganisation: candidate?.currentOrganisation || "",
+      lastWorkingDay: candidate?.lastWorkingDay || "",
+      resume: candidate?.resume || { attachmentName: "", attachmentURL: "" },
+      isReferred: candidate?.isReferred,
+      referredBy: candidate?.referredBy || "",
+      hrqId: candidate?.hrqId || "",
+      partnerId: candidate?.partnerId?.toString() || "",
+      jobTitle: candidate?.jobTitle || "",
+      hrqStatusName: candidate?.hiringStatusName || "WIP",
+      resourceTypeId: candidate?.resourceTypeId?.toString() || "",
+      hiringRequestId: candidate?.hiringRequestId?.toString() || "",
+      isAgreedForTermsConditions: true,
     });
-
-    const { data: ResourceType = [] } = useQuery({
-        queryKey: ["resourceType"],
-        queryFn: () => dropdownApi.fetchDropdown(MasterTypes.RESOURCE_TYPE),
-    });
-
-    const { data: hrqPartnersList = [] } = useQuery({
-        queryKey: ["hrqPartnersList", selectedHrqID],
-        queryFn: () => dropdownApi.fetchSpecificpartner(MasterTypes.HRQ_SPECIFIC_PARTNERS, selectedHrqID),
-        enabled: !!selectedHrqID,
-    });
-
-    useEffect(() => {
-        if (selectedCountry) {
-            form.setValue("stateId", "");
-            form.setValue("cityId", "");
-            refetchStates();
-        }
-    }, [selectedCountry, form, refetchStates]);
-
-    useEffect(() => {
-        if (selectedState) {
-            form.setValue("cityId", "");
-            refetchCities();
-        }
-    }, [selectedState, form, refetchCities]);
-
-    const { data: candidateData, isLoading: isLoadingCandidate, isFetched } = useQuery({
-        queryKey: ["candidate", candidateId],
-        queryFn: () => candidateApi.fetchCandidateReviewDetails(Number(candidateId)),
-        enabled: !!candidateId
-    });
-
-    useEffect(() => {
-        if (candidateData) {
-            setLoader(true);
-            const candidate = candidateData;
-
-            const setvalues = setTimeout(() => {
-                form.setValue("fullName", candidate?.fullName || "");
-                form.setValue("phoneNumber", candidate?.phoneNumber || "");
-                form.setValue("email", candidate?.email || "");
-                form.setValue(
-          "primarySkills",
-          Array.isArray(candidate.primarySkillIds )
-          ? PRIMARY_SKILLS.filter((s: any) =>
-              candidate.primarySkillIds.includes(s.id)
-            ).map((s: any) => ({
-              id: s.id,
-              name: s.name,
-            }))
-          : []);
-        form.setValue(
-          "secondarySkills",
-           Array.isArray(candidate.secondarySkillIds)
-          ? SECONDARY_SKILLS.filter((s: any) =>
-              candidate.secondarySkillIds.includes(s.id)
-            ).map((s: any) => ({
-              id: s.id,
-              name: s.name,
-            }))
-          : []);
-        form.setValue(
-          "PreferredWorkLocationId",
-          Array.isArray(candidate.preferredWorkLocationIds)
-          ? candidate?.preferredWorkLocations.filter((s: any) =>
-              candidate.preferredWorkLocationIds.includes(s.id)
-            ).map((s: any) => ({
-              id: s.id,
-              name: s.name,
-            }))
-          : []);
-                form.setValue("countryId", candidate?.countryId?.toString() || "");
-                form.setValue("intakeStatusId", String(candidateData?.intakeStatusId));
-                form.setValue("diversity", candidate?.diversity?.toLowerCase() === "yes" ? "yes" : "no");
-                form.setValue("noticePeriod", candidate?.noticePeriod?.toString() || "");
-                form.setValue("relevantExperience", candidate?.relevantExperience?.toString() || "");
-                form.setValue("currentlyWorking", candidate?.currentlyWorking?.toLowerCase() === "yes" ? "yes" : "no");
-                form.setValue("currentOrganisation", candidate?.currentOrganisation || "");
-                form.setValue("lastWorkingDay", candidate?.lastWorkingDay || "");
-                form.setValue("resume", candidate?.resume || { attachmentName: "", attachmentURL: "" });
-                form.setValue("isReferred", candidate?.isReferred);
-                form.setValue("referredBy", candidate?.referredBy || "");
-                form.setValue("hrqId", candidate?.hrqId || "");
-                form.setValue("partnerId", candidate?.partnerId?.toString() || "");
-                form.setValue("jobTitle", candidate?.jobTitle || "");
-                form.setValue("hrqStatusName", candidate?.hiringStatusName || "WIP");
-                form.setValue("resourceTypeId", candidate?.resourceTypeId?.toString() || "");
-                form.setValue("hiringRequestId", candidate?.hiringRequestId?.toString() || "");
-                form.setValue("isAgreedForTermsConditions", true);
-                // Set jobLocations if present in candidateData
-                if (Array.isArray(candidate.jobLocations)) {
-                    setJobLocations(
-                        candidate.jobLocations.map((loc: any) => ({
-                            id: loc.id,
-                            name: loc.value,
-                        }))
-                    );
-                }
-            }, 2000);
-
-            // Set state and city with a delay to ensure dropdowns are populated
-            const stateTimer = setTimeout(() => {
-                form.setValue("stateId", candidate.stateId?.toString() || "");
-            }, 3000);
-
-            const cityTimer = setTimeout(() => {
-                form.setValue("cityId", candidate.cityId?.toString() || "");
-                setLoader(false); // Set loader to false after all data is loaded
-            }, 4000);
-
-            setSelectedHrqID(candidate?.hiringRequestId || null);
-
-            return () => {
-                clearTimeout(stateTimer);
-                clearTimeout(cityTimer);
-                clearTimeout(setvalues);
-            };
-        }
-
-    }, [candidateData, form, skills, IntakeStatus]);
-    const handleTermsAccept = () => {
-        form.setValue("isAgreedForTermsConditions", true, {
-            shouldValidate: true,
-            shouldDirty: true,
-            shouldTouch: true
-        });
-        setShowTermsDialog(false);
-    };
-
-    async function onSubmit(values: FormValues) {
-        const primarySkillIds = values.primarySkills.map((skill: any) => skill.id);
-        const secondarySkillIds = values.secondarySkills?.map((skill: any) => skill.id) || [];
-        const { PreferredWorkLocationId,lastWorkingDay, ...rest } = values;
-        try {
-            const payload = {
-                ...rest,
-                primarySkillIds: primarySkillIds,
-                secondarySkillIds: secondarySkillIds,
-                preferredWorkLocationIds:  values.PreferredWorkLocationId
-                ? values.PreferredWorkLocationId.map((item: any) => item.id)
-                : [], 
-                CandidateBinId: candidateData?.candidateBinId,
-                noticePeriod: values.noticePeriod,
-                isBin: candidateData.isBin,
-                partnerId: values.partnerId,
-                lastWorkingDay:values.lastWorkingDay?values.lastWorkingDay:null
-            };
-            await UpdateCandidateMutation.mutateAsync(payload);
-        } catch (error) {
-            console.error("Form submission error:", error);
-        }
+    if (Array.isArray(candidate.jobLocations)) {
+      setJobLocations(candidate.jobLocations.map((loc: any) => ({ id: loc.id, name: loc.value })));
     }
+    setSelectedHrqID(candidate?.hiringRequestId || null);
+    setPopulated(true);
+  }, [candidateData, primaryFetched, secondaryFetched, PRIMARY_SKILLS, SECONDARY_SKILLS, form, populated]);
 
-    const fillRandomData = async () => {
-        const hrqId = form.getValues("hrqId");
-        if (!hrqId) {
-            toast.error("Please enter HRQ ID");
-            return;
-        }
+  const handleTermsAccept = () => {
+    form.setFieldValue("isAgreedForTermsConditions", true);
+    form.validateFields(["isAgreedForTermsConditions"]);
+    setShowTermsDialog(false);
+  };
 
-        try {
-            const response = await api.get(`/HiringRequest/hiring/${hrqId}`);
-            const data = response.data.data;
-            form.setValue("hiringRequestId", data.id)
-            form.setValue("jobTitle", data.jobTitle);
-            form.setValue("hrqStatusName", data.hiringStatusName);
-            form.setValue("resourceTypeId", String(data.resourceTypeId))
-            form.setValue("intakeStatusId", "15001")
-            // Fetch jobLocations from API response if available
-            if (Array.isArray(data.jobLocations)) {
-                setJobLocations(
-                    data.jobLocations.map((loc: any) => ({
-                        id: String(loc.id),
-                        name: loc.value,
-                    }))
-                );
-            } else {
-                setJobLocations([]);
-            }
-            toast.success("HRQ details loaded successfully");
-            setSelectedHrqID(data.id)
-        } catch (error) {
-            toast.error("Failed to fetch HRQ details");
-            console.error("Error fetching HRQ details:", error);
-        }
+  const onFinish = (raw: FormValues) => {
+    const values = validateWithZod(candidateFormSchema, form, raw);
+    if (!values) return;
+    const primarySkillIds = (values.primarySkills ?? []).map((skill) => skill.id);
+    const secondarySkillIds = values.secondarySkills?.map((skill) => skill.id) || [];
+    const { PreferredWorkLocationId, lastWorkingDay, ...rest } = values;
+    const payload = {
+      ...rest,
+      primarySkillIds,
+      secondarySkillIds,
+      preferredWorkLocationIds: PreferredWorkLocationId ? PreferredWorkLocationId.map((item) => item.id) : [],
+      CandidateBinId: candidateData?.candidateBinId,
+      noticePeriod: values.noticePeriod,
+      isBin: candidateData.isBin,
+      partnerId: values.partnerId,
+      lastWorkingDay: lastWorkingDay ? lastWorkingDay : null,
     };
+    UpdateCandidateMutation.mutate(payload);
+  };
 
-    if (!isFetched || loader) {
-        return <SubmitFormLoader />;
-    }
+  if (!isFetched || (candidateData && !populated)) return <Spin fullscreen />;
 
-    return (<>
-        <Breadcrumbs />
-        <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <FormField
-                        control={form.control}
-                        name="hrqId"
-                        render={({ field }) => (
-                            <FormItem className="flex-1">
-                                <FormLabel>HRQ ID*</FormLabel>
-                                <FormControl>
-                                    <div className="flex gap-2">
-                                        <SearchableDropdown
-                                            options={hrqids?.map((option: any) => ({
-                                                value: option.hrqId,
-                                                label: option.hrqId
-                                            }))}
-                                            value={field.value}
-                                            onChange={field.onChange}
-                                            placeholder="Select or search HRQ ID"
-                                            searchPlaceholder="Search HRQ ID..."
-                                            className="flex-1"
-                                            disabled
-                                        />
-                                       
-                                    </div>
-                                </FormControl>
-                                <FormMessage />
-                            </FormItem>
-                        )}
-                    />
-                </div>
+  return (
+    <Flex vertical gap={16} className="p-4">
+      <CandidateBreadcrumb />
+      <Typography.Title level={4} style={{ margin: 0 }}>
+        Edit Review Candidate
+      </Typography.Title>
 
-                <div className="grid grid-cols-2 gap-4">
+      <Form
+        form={form}
+        layout="vertical"
+        onFinish={onFinish}
+        initialValues={{
+          fullName: "",
+          phoneNumber: "",
+          email: "",
+          hiringRequestId: "",
+          countryId: "",
+          stateId: "",
+          cityId: "",
+          diversity: "",
+          noticePeriod: "",
+          relevantExperience: "",
+          currentlyWorking: "",
+          currentOrganisation: "",
+          lastWorkingDay: "",
+          isReferred: "",
+          referredBy: "",
+          resume: { attachmentName: "", attachmentURL: "" },
+          hrqId: "",
+          partnerId: "",
+          jobTitle: "",
+          hrqStatusName: "",
+          intakeStatusId: "",
+          resourceTypeId: "",
+          isAgreedForTermsConditions: false,
+          PreferredWorkLocationId: [],
+          primarySkills: [],
+          secondarySkills: [],
+        }}
+      >
+        <Row gutter={[16, 8]}>
+          <Col xs={24} md={12}>
+            <Form.Item name="hrqId" label="HRQ ID" rules={zodRules(candidateFormSchema, "hrqId")}>
+              <Select
+                showSearch
+                optionFilterProp="label"
+                placeholder="Select or search HRQ ID"
+                options={(hrqids as any[])?.map((option) => ({ value: option.hrqId, label: option.hrqId }))}
+                disabled
+              />
+            </Form.Item>
+          </Col>
+        </Row>
 
-                    <SelectField
-                        control={form.control}
-                        name="partnerId"
-                        label="Partner"
-                        placeholder="Select intake status"
-                        options={hrqPartnersList}
-                        required
-                    />
+        <Row gutter={[16, 8]}>
+          <Col xs={24} md={12}>
+            <Form.Item name="partnerId" label="Partner" rules={zodRules(candidateFormSchema, "partnerId")}>
+              <Select showSearch optionFilterProp="label" placeholder="Select intake status" options={toStringOptions(hrqPartnersList)} />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={12}>
+            <Form.Item name="jobTitle" label="Role Hired For" rules={zodRules(candidateFormSchema, "jobTitle")}>
+              <Input readOnly variant="filled" />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={12}>
+            <Form.Item name="hrqStatusName" label="HRQ Status" rules={zodRules(candidateFormSchema, "hrqStatusName")}>
+              <Input readOnly variant="filled" />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={12}>
+            <Form.Item name="intakeStatusId" label="Intake Status" rules={zodRules(candidateFormSchema, "intakeStatusId")}>
+              <Select placeholder="Select intake status" options={toStringOptions(IntakeStatus)} disabled />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={12}>
+            <Form.Item name="resourceTypeId" label="Resource type" rules={zodRules(candidateFormSchema, "resourceTypeId")}>
+              <Select placeholder="Select resource type" options={toStringOptions(ResourceType)} />
+            </Form.Item>
+          </Col>
+          <Form.Item name="hiringRequestId" hidden>
+            <Input />
+          </Form.Item>
+        </Row>
 
-                    <FormField
-                        control={form.control}
-                        name="jobTitle"
-                        render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Role Hired For*</FormLabel>
-                                <FormControl>
-                                    <Input {...field} readOnly />
-                                </FormControl>
-                                <FormMessage />
-                            </FormItem>
-                        )}
-                    />
+        <Divider />
 
-                    <FormField
-                        control={form.control}
-                        name="hrqStatusName"
-                        render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>HRQ Status*</FormLabel>
-                                <FormControl>
-                                    <Input {...field} readOnly />
-                                </FormControl>
-                                <FormMessage />
-                            </FormItem>
-                        )}
-                    />
+        <Row gutter={[16, 8]}>
+          <Col xs={24} md={12}>
+            <Form.Item name="fullName" label="Full Name" rules={zodRules(candidateFormSchema, "fullName")}>
+              <Input placeholder="Full Name" />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={12}>
+            <Form.Item name="phoneNumber" label="Phone Number" rules={zodRules(candidateFormSchema, "phoneNumber")}>
+              <Input placeholder="Phone Number" />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={12}>
+            <Form.Item name="email" label="Email" rules={zodRules(candidateFormSchema, "email")}>
+              <Input placeholder="Email" />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={12}>
+            <Form.Item name="primarySkills" label="Primary Skills" required {...idNameSelectProps(PRIMARY_SKILLS)}>
+              <Select
+                mode="multiple"
+                showSearch
+                optionFilterProp="label"
+                allowClear
+                maxTagCount="responsive"
+                placeholder="Select primary skills"
+                options={(PRIMARY_SKILLS as IdName[]).map((o) => ({ value: o.id, label: o.name }))}
+              />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={12}>
+            <Form.Item name="secondarySkills" label="Secondary Skills" {...idNameSelectProps(SECONDARY_SKILLS)}>
+              <Select
+                mode="multiple"
+                showSearch
+                optionFilterProp="label"
+                allowClear
+                maxTagCount="responsive"
+                placeholder="Select secondary skills"
+                options={(SECONDARY_SKILLS as IdName[]).map((o) => ({ value: o.id, label: o.name }))}
+              />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={12}>
+            <Form.Item name="countryId" label="Country" rules={zodRules(candidateFormSchema, "countryId")}>
+              <Select
+                showSearch
+                optionFilterProp="label"
+                placeholder="Select country"
+                options={toStringOptions(country)}
+                onChange={() => form.setFieldsValue({ stateId: "", cityId: "" })}
+              />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={12}>
+            <Form.Item name="stateId" label="State" rules={zodRules(candidateFormSchema, "stateId")}>
+              <Select showSearch optionFilterProp="label" placeholder="Select state" options={toStringOptions(states)} onChange={() => form.setFieldValue("cityId", "")} />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={12}>
+            <Form.Item name="cityId" label="City" rules={zodRules(candidateFormSchema, "cityId")}>
+              <Select showSearch optionFilterProp="label" placeholder="Select city" options={toStringOptions(cities)} />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={12}>
+            <Form.Item name="diversity" label="Diversity">
+              <Select placeholder="Diversity" options={YES_NO_OPTIONS} allowClear />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={12}>
+            <Form.Item name="noticePeriod" label="Notice Period" required>
+              <Input type="number" placeholder="Notice Period" />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={12}>
+            <Form.Item name="relevantExperience" label="Relevant Experience" required>
+              <Input placeholder="Relevant Experience" />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={12}>
+            <Form.Item name="currentlyWorking" label="Currently Working" required>
+              <Select placeholder="Currently Working" options={YES_NO_OPTIONS} />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={12}>
+            <Form.Item name="currentOrganisation" label="Current Organisation">
+              <Input placeholder="Current Organisation" />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={12}>
+            <Form.Item name="lastWorkingDay" label="Last Working Date" {...dateStringProps("")}>
+              <DatePicker className="w-full" format="YYYY-MM-DD" placeholder="YYYY-MM-DD" />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={12}>
+            <Form.Item
+              name="resume"
+              label="Resume"
+              required
+              rules={[{ validator: async (_, v) => (v?.attachmentURL ? undefined : Promise.reject(new Error("Resume is required"))) }]}
+            >
+              <ResumeUploadField accept=".ppt,.pptx,.pdf,.doc,.docx" />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={12}>
+            <Form.Item name="isReferred" label="Is Referred">
+              <Select placeholder="Select..." options={REFERRED_OPTIONS} allowClear />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={12}>
+            <Form.Item name="referredBy" label="Referred By">
+              <Input placeholder="Referred By" />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={12}>
+            <Form.Item name="PreferredWorkLocationId" label="Preferred Work Location" {...idNameSelectProps(jobLocations)}>
+              <Select
+                mode="multiple"
+                showSearch
+                optionFilterProp="label"
+                allowClear
+                maxTagCount="responsive"
+                placeholder="Select preferred work locations"
+                options={jobLocations.map((o) => ({ value: o.id, label: o.name }))}
+                disabled={jobLocations.length === 0}
+              />
+            </Form.Item>
+          </Col>
+        </Row>
 
-                    <SelectField
-                        control={form.control}
-                        name="intakeStatusId"
-                        label="Intake Status"
-                        placeholder="Select intake status"
-                        options={IntakeStatus}
-                        required
-                        disabled
-                    />
+        <Form.Item name="isAgreedForTermsConditions" valuePropName="checked" rules={zodRules(candidateFormSchema, "isAgreedForTermsConditions")}>
+          <Checkbox>
+            I read and agree to <Typography.Link onClick={() => setShowTermsDialog(true)}>terms and conditions</Typography.Link>
+          </Checkbox>
+        </Form.Item>
 
-                    <SelectField
-                        control={form.control}
-                        name="resourceTypeId"
-                        label="Resource type"
-                        placeholder="Select resource type"
-                        options={ResourceType}
-                        required
-                    />
-                </div>
-                <Separator className="w-full my-4 bg-gray-200 border border-gray-200 dark:bg-green-800 dark:border-green-100" />
+        <Button type="primary" htmlType="submit" loading={UpdateCandidateMutation.isPending}>
+          Submit
+        </Button>
+      </Form>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <InputField
-                        control={form.control}
-                        name="fullName"
-                        label="Full Name"
-                        placeholder="Full Name"
-                        required
-                    />
-                    <InputField
-                        control={form.control}
-                        name="phoneNumber"
-                        label="Phone Number"
-                        placeholder="Phone Number"
-                        required
-                    />
-                    <InputField
-                        control={form.control}
-                        name="email"
-                        label="Email"
-                        placeholder="Email"
-                        required
-                    />
-                    {/* Primary Skills */}
-                    <MultiSelectField
-                        control={form.control}
-                        name="primarySkills"
-                        label="Primary Skills"
-                        placeholder="Select primary skills"
-                        options={PRIMARY_SKILLS}
-                        required
-                    />
-                    {/* Secondary Skills */}
-                    <MultiSelectField
-                        control={form.control}
-                        name="secondarySkills"
-                        label="Secondary Skills"
-                        placeholder="Select secondary skills"
-                        options={SECONDARY_SKILLS}
-                    />
-                    <SelectField
-                        control={form.control}
-                        name="countryId"
-                        label="Country"
-                        placeholder="Select country"
-                        options={country}
-                        required
-                    />
-                    <SelectField
-                        control={form.control}
-                        name="stateId"
-                        label="State"
-                        placeholder="Select state"
-                        options={states}
-                        required
-                    />
-                    <SelectField
-                        control={form.control}
-                        name="cityId"
-                        label="City"
-                        placeholder="Select city"
-                        options={cities}
-                        required
-                    />
-                    <SelectField
-                        control={form.control}
-                        name="diversity"
-                        label="Diversity"
-                        placeholder="Diversity"
-                        options={[
-                            { id: "yes", name: "Yes" },
-                            { id: "no", name: "No" },
-                        ]}
-                    />
-                    <InputField
-                        control={form.control}
-                        name="noticePeriod"
-                        label="Notice Period"
-                        placeholder="Notice Period"
-                        required
-                        type="number"
-                    />
-                    <InputField
-                        control={form.control}
-                        name="relevantExperience"
-                        label="Relevant Experience"
-                        placeholder="Relevant Experience"
-                        required
-                    />
-                    <SelectField
-                        control={form.control}
-                        name="currentlyWorking"
-                        label="Currently Working"
-                        placeholder="Currently Working"
-                        required
-                        options={[
-                            { id: "yes", name: "Yes" },
-                            { id: "no", name: "No" },
-                        ]}
-                    />
-                    <InputField
-                        control={form.control}
-                        name="currentOrganisation"
-                        label="Current Organisation"
-                        placeholder="Current Organisation"
-                    />
-                    <DatePickerField
-                        control={form.control}
-                        name="lastWorkingDay"
-                        label="Last Working Date"
-                         disabledDates={[]}
-                    />
-                    <FileField
-                        control={form.control}
-                        name="resume"
-                        label="Resume"
-                        accept=".ppt,.pptx,.pdf,.doc,.docx"
-                        required
-                    />
-                    <SelectField
-                        control={form.control}
-                        name="isReferred"
-                        label="Is Referred"
-                        placeholder="Select..."
-                        options={[
-                            { id: 1, name: "External" },
-                            { id: 2, name: "Internal" },
-                            { id: 3, name: "Others" },
-                        ]}
-                    />
-                    <InputField
-                        control={form.control}
-                        name="referredBy"
-                        label="Referred By"
-                        placeholder="Referred By"
-                    />
-                </div>
-                {/* PreferredWorkLocationId MultiSelect */}
-                <div className="grid grid-cols-2 gap-4">
-                    <MultiSelectField
-                        control={form.control}
-                        name="PreferredWorkLocationId"
-                        label="Preferred Work Location"
-                        placeholder="Select preferred work locations"
-                        options={jobLocations}
-                        
-                        disabled={jobLocations.length === 0}
-                    />
-                </div>
-                <div className="space-y-1 leading-none ml-2">
-                    <FormField
-                        control={form.control}
-                        name="isAgreedForTermsConditions"
-                        render={({ field }) => (
-                            <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                                <FormControl>
-                                    <Checkbox
-                                        checked={field.value}
-                                        onCheckedChange={field.onChange}
-                                    />
-                                </FormControl>
-                                <div className="space-y-1 leading-none">
-                                    <FormLabel>
-                                        I read and agree to{" "}
-                                        <Button
-                                            variant="link"
-                                            type="button"
-                                            className="p-0 text-[#4096ff] hover:underline h-auto font-normal"
-                                            onClick={() => setShowTermsDialog(true)}
-                                        >
-                                            terms and conditions
-                                        </Button>
-                                    </FormLabel>
-                                    <FormMessage />
-                                </div>
-                            </FormItem>
-                        )}
-                    />
-                </div>
-                <div className="flex justify-between pt-6">
-                    <div className="flex gap-4">
-                        <Button type="submit" className="px-8">
-                            Submit
-                        </Button>
-                    </div>
-                </div>
-                <Dialog open={showTermsDialog} onOpenChange={setShowTermsDialog}>
-                    <DialogContent>
-                        <DialogHeader>
-                            <DialogTitle>Terms and Conditions</DialogTitle>
-                            <DialogDescription className="max-h-[60vh] overflow-y-auto mt-4">
-                                <div className="space-y-4">
-                                    <h3 className="font-semibold">1. Introduction</h3>
-                                    <p>
-                                        These Terms and Conditions govern your use of our candidate intake system. By using this system, you agree to these terms in full.
-                                    </p>
+      <TermsConditionsModal open={showTermsDialog} onCancel={() => setShowTermsDialog(false)} onAccept={handleTermsAccept} />
+    </Flex>
+  );
+};
 
-                                    <h3 className="font-semibold">2. Data Privacy</h3>
-                                    <p>
-                                        We are committed to protecting candidate data and comply with all relevant data protection laws. All information submitted will be handled confidentially.
-                                    </p>
-
-                                    <h3 className="font-semibold">3. Responsibilities</h3>
-                                    <p>
-                                        You agree to:
-                                    </p>
-                                    <ul className="list-disc pl-6">
-                                        <li>Provide accurate and complete information</li>
-                                        <li>Maintain the confidentiality of candidate data</li>
-                                        <li>Use the system only for its intended purpose</li>
-                                        <li>Comply with all applicable laws and regulations</li>
-                                    </ul>
-
-                                    <h3 className="font-semibold">4. Usage Guidelines</h3>
-                                    <p>
-                                        The system must be used in accordance with our usage guidelines, which prohibit any unauthorized or malicious activities.
-                                    </p>
-                                </div>
-                            </DialogDescription>
-                        </DialogHeader>
-                        <DialogFooter className="mt-6">
-                            <Button variant="outline" onClick={() => setShowTermsDialog(false)}>
-                                Cancel
-                            </Button>
-                            <Button onClick={handleTermsAccept} className="bg-[#4096ff] hover:bg-[#009e79]">
-                                Accept
-                            </Button>
-                        </DialogFooter>
-                    </DialogContent>
-                </Dialog>
-            </form>
-        </Form>
-    </>)
-}
-
-export default EditReviewCandidate
+export default EditReviewCandidate;

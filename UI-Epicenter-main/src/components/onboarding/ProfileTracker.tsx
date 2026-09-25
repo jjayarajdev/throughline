@@ -1,57 +1,40 @@
-'use client';
+"use client";
 
-import React, { useEffect } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-
-import { Button } from '@/components/ui/button';
-import { Form } from '@/components/ui/form';
-import { InputField } from '../form-fields/InputField';
-import { DatePickerField } from '../form-fields/DatePickerField';
+import React, { useEffect, useMemo, useState } from "react";
+import * as z from "zod";
+import dayjs, { type Dayjs } from "dayjs";
+import { Button, Checkbox, Col, DatePicker, Flex, Form, Input, Row, Space } from "antd";
 import { toast } from "@/lib/toast";
-import { Loader2 } from 'lucide-react';
-import api from '@/lib/axiosInstance';
-export const employmentFormSchema = z.object({
-  profileCreatedOn: z.string().min(1, { message: 'Profile Created On is required' }),
-  smartProfileId: z.string().min(1,"Smart Profile ID must be required"),
-  profileApprovalDate: z.string().min(1, { message: 'Profile Approval Date is required' }),
-  lhccCode: z.string().min(1, { message: 'LHCC is required' }),
-  costCenterName: z.string().min(1, { message: 'Cost Center is required' }),
+import { validateWithZod, zodRules } from "@/lib/zodRules";
+import api from "@/lib/axiosInstance";
+
+const employmentBaseSchema = z.object({
+  profileCreatedOn: z.string().min(1, { message: "Profile Created On is required" }),
+  smartProfileId: z.string().min(1, "Smart Profile ID must be required"),
+  profileApprovalDate: z.string().min(1, { message: "Profile Approval Date is required" }),
+  lhccCode: z.string().min(1, { message: "LHCC is required" }),
+  costCenterName: z.string().min(1, { message: "Cost Center is required" }),
 
   employeeNameAsPerId: z.string(),
   employeeId: z.string(),
 
   hpeEmailId: z.string(),
   isEmployeeIdGenerated: z.boolean(),
-}).superRefine((data, ctx) => {
+});
+
+export const employmentFormSchema = employmentBaseSchema.superRefine((data, ctx) => {
   if (data.isEmployeeIdGenerated) {
     if (!data.employeeNameAsPerId || data.employeeNameAsPerId.trim() === "") {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Employee Name is required",
-        path: ["employeeNameAsPerId"],
-      });
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Employee Name is required", path: ["employeeNameAsPerId"] });
     }
-
     if (!data.employeeId || !/^\d{8}$/.test(data.employeeId)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Employee ID must be exactly 8 digits",
-        path: ["employeeId"],
-      });
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Employee ID must be exactly 8 digits", path: ["employeeId"] });
     }
-
     if (!data.hpeEmailId || !/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(data.hpeEmailId)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Enter a valid company email address",
-        path: ["hpeEmailId"],
-      });
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Enter a valid company email address", path: ["hpeEmailId"] });
     }
   }
 });
-
 
 type EmploymentFormValues = z.infer<typeof employmentFormSchema>;
 type ITPCSetupFormValuesWithId = EmploymentFormValues & { id?: string };
@@ -61,230 +44,145 @@ interface IProps {
   onboardingTimeline: Partial<ITPCSetupFormValuesWithId>;
 }
 
-function ProfileTracker({ onSave, onboardingTimeline }: IProps) {
-  const form = useForm<EmploymentFormValues>({
-    resolver: zodResolver(employmentFormSchema),
-    defaultValues: {
-      profileCreatedOn: onboardingTimeline?.profileCreatedOn || '',
-      smartProfileId: onboardingTimeline?.smartProfileId || '',
-      profileApprovalDate: onboardingTimeline?.profileApprovalDate || '',
-      lhccCode: onboardingTimeline?.lhccCode || '',
-      costCenterName: onboardingTimeline?.costCenterName || '',
-      employeeNameAsPerId: onboardingTimeline?.employeeNameAsPerId || '',
-      employeeId: onboardingTimeline?.employeeId?.toString() || "",
-      hpeEmailId: onboardingTimeline?.hpeEmailId || '',
-      isEmployeeIdGenerated: onboardingTimeline?.isEmployeeIdGenerated || false,
-    },
-  });
+/** Form value is a `YYYY-MM-DD` string; the picker works with dayjs. */
+const dateItem = {
+  getValueProps: (v?: string) => ({ value: v && dayjs(v).isValid() ? dayjs(v) : null }),
+  normalize: (d: Dayjs | null) => (d ? d.format("YYYY-MM-DD") : ""),
+};
+const noPast = (d: Dayjs) => d.isBefore(dayjs(), "day");
 
-  const watchIsGenerated = form.watch('isEmployeeIdGenerated');
+function ProfileTracker({ onSave, onboardingTimeline }: IProps) {
+  const [form] = Form.useForm<EmploymentFormValues>();
+  const [loadingEmpValidation, setLoadingEmpValidation] = useState(false);
+
+  const initial = useMemo<EmploymentFormValues>(
+    () => ({
+      profileCreatedOn: onboardingTimeline?.profileCreatedOn || "",
+      smartProfileId: onboardingTimeline?.smartProfileId || "",
+      profileApprovalDate: onboardingTimeline?.profileApprovalDate || "",
+      lhccCode: onboardingTimeline?.lhccCode || "",
+      costCenterName: onboardingTimeline?.costCenterName || "",
+      employeeNameAsPerId: onboardingTimeline?.employeeNameAsPerId || "",
+      employeeId: onboardingTimeline?.employeeId?.toString() || "",
+      hpeEmailId: onboardingTimeline?.hpeEmailId || "",
+      isEmployeeIdGenerated: onboardingTimeline?.isEmployeeIdGenerated || false,
+    }),
+    [onboardingTimeline]
+  );
 
   useEffect(() => {
-    if (onboardingTimeline) {
-      form.reset({
-        profileCreatedOn: onboardingTimeline.profileCreatedOn || '',
-        smartProfileId: onboardingTimeline.smartProfileId || '',
-        profileApprovalDate: onboardingTimeline.profileApprovalDate || '',
-        lhccCode: onboardingTimeline.lhccCode || '',
-        costCenterName: onboardingTimeline.costCenterName || '',
-        employeeNameAsPerId: onboardingTimeline.employeeNameAsPerId || '',
-        employeeId: onboardingTimeline?.employeeId?.toString() || "",
-        hpeEmailId: onboardingTimeline.hpeEmailId || '',
-        isEmployeeIdGenerated: onboardingTimeline.isEmployeeIdGenerated || false,
-      });
-    }
-  }, [onboardingTimeline, form]);
+    if (onboardingTimeline) form.setFieldsValue(initial);
+  }, [onboardingTimeline, initial, form]);
 
-  const onSubmit = (data: EmploymentFormValues) => {
-    const uploadData = {
-  id: onboardingTimeline?.id,
-  profileCreatedOn: data.profileCreatedOn?data.profileCreatedOn: null,
-  smartProfileId: data.smartProfileId?data.smartProfileId : null,
-  profileApprovalDate: data.profileApprovalDate?data.profileApprovalDate:null,
-  lhccCode: data.lhccCode?data.lhccCode: null,
-  costCenterName: data.costCenterName?data.costCenterName:null,
-  employeeNameAsPerId: data.employeeNameAsPerId?data.employeeNameAsPerId: null,
-  employeeId: data.employeeId?.toString().trim() ? Number(data.employeeId) : null,
-  hpeEmailId: data.hpeEmailId?data.hpeEmailId: null,
-  isEmployeeIdGenerated: data.isEmployeeIdGenerated?data.isEmployeeIdGenerated:null,
-};
+  const watchIsGenerated = Form.useWatch("isEmployeeIdGenerated", form);
 
-    onSave(uploadData);
+  const onFinish = (values: EmploymentFormValues) => {
+    const data = validateWithZod(employmentFormSchema, form, values);
+    if (!data) return;
+    onSave({
+      id: onboardingTimeline?.id,
+      profileCreatedOn: data.profileCreatedOn ? data.profileCreatedOn : null,
+      smartProfileId: data.smartProfileId ? data.smartProfileId : null,
+      profileApprovalDate: data.profileApprovalDate ? data.profileApprovalDate : null,
+      lhccCode: data.lhccCode ? data.lhccCode : null,
+      costCenterName: data.costCenterName ? data.costCenterName : null,
+      employeeNameAsPerId: data.employeeNameAsPerId ? data.employeeNameAsPerId : null,
+      employeeId: data.employeeId?.toString().trim() ? Number(data.employeeId) : null,
+      hpeEmailId: data.hpeEmailId ? data.hpeEmailId : null,
+      isEmployeeIdGenerated: data.isEmployeeIdGenerated ? data.isEmployeeIdGenerated : null,
+    } as unknown as ITPCSetupFormValuesWithId);
   };
 
-const [loadingEmpValidation, setLoadingEmpValidation] = React.useState(false);
+  const getEmployeeDetailsById = async (employeeId: string) => {
+    const response = await api.get(`/User/emp-details-by-emp-code?empCode=${employeeId}`);
+    return response.data;
+  };
 
- const getEmployeeDetailsById = async (employeeId: string) => {
-  const response = await api.get(`/User/emp-details-by-emp-code?empCode=${employeeId}`);
-  return response.data;
- 
-};
-
-
-
-const validateEmployeeId = async () => {
-  const empId = form.getValues("employeeId")?.trim();
-
-  if (!/^\d{8}$/.test(empId)) {
-    toast.error("Employee ID must be exactly 8 digits");
-    return;
-  }
-
-  try {
-    setLoadingEmpValidation(true);
-    const data = await getEmployeeDetailsById(empId);
-
-    if (!data?.status) {
-      toast.error(data?.message || "No employee details found. You can enter them manually.");
-      
-      form.setValue("employeeNameAsPerId", "");
-      form.setValue("hpeEmailId", "");
+  const validateEmployeeId = async () => {
+    const empId = (form.getFieldValue("employeeId") as string | undefined)?.trim() ?? "";
+    if (!/^\d{8}$/.test(empId)) {
+      toast.error("Employee ID must be exactly 8 digits");
       return;
     }
-
-    form.setValue("employeeNameAsPerId", data.employeeNameAsPerId || "");
-    form.setValue("hpeEmailId", data.hpeEmailId || "");
-
-    toast.success("Employee details fetched successfully");
-  } catch (error) {
-    const message = error?.response?.data?.message || "Failed to validate Employee ID";
-   toast.error(message);
-  } finally {
-    setLoadingEmpValidation(false);
-  }
-};
-
-
-
-
+    try {
+      setLoadingEmpValidation(true);
+      const data = await getEmployeeDetailsById(empId);
+      if (!data?.status) {
+        toast.error(data?.message || "No employee details found. You can enter them manually.");
+        form.setFieldsValue({ employeeNameAsPerId: "", hpeEmailId: "" });
+        return;
+      }
+      form.setFieldsValue({ employeeNameAsPerId: data.employeeNameAsPerId || "", hpeEmailId: data.hpeEmailId || "" });
+      toast.success("Employee details fetched successfully");
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || "Failed to validate Employee ID");
+    } finally {
+      setLoadingEmpValidation(false);
+    }
+  };
 
   return (
-    <div>
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-          
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-10 mt-4 w-full">
-            <DatePickerField
-              control={form.control}
-              name="profileCreatedOn"
-              label="Profile Created On"
-              required
-            
-            />
-             <InputField
-              control={form.control}
-              name="smartProfileId"
-              label="Smart Profile ID"
-              placeholder="Enter Smart Profile ID"
-              required
-              maxLength={8}
-            />
-            <InputField
-              control={form.control}
-              name="lhccCode"
-              label="LHCC (IN97/IN99)"
-              placeholder="Enter LHCC code"
-              required
-            
-            />
-            <InputField
-              control={form.control}
-              name="costCenterName"
-              label="Cost Center"
-              placeholder="Enter cost center"
-              required
-            
-            />
-            <DatePickerField
-              control={form.control}
-              name="profileApprovalDate"
-              label="Profile Approval Date"
-              required
-            
-            />
-            
-           
-            
-            
-            <div className="flex items-center space-x-2 mt-4">
-            <div className="md:col-span-2">
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  {...form.register("isEmployeeIdGenerated")}
-                  id="isEmployeeIdGenerated"
-                  className="h-4 w-4 accent-blue-600"
-                />
-                <label
-                  htmlFor="isEmployeeIdGenerated"
-                  className="text-sm font-medium"
-                >
-                  Is Employee ID Generated?
-                </label>
-              </div>
-            </div>
-          </div>
-          <div className="flex items-end gap-2">
-  <div className="flex-1">
-    <InputField
-      control={form.control}
-      name="employeeId"
-      label="EMP ID"
-      placeholder="Enter Employee ID"
-      required={watchIsGenerated}
-      disabled={!watchIsGenerated}
-      maxLength={8}
-    />
-  </div>
-  <Button
-    type="button"
-    onClick={validateEmployeeId}
-    disabled={!watchIsGenerated || loadingEmpValidation}
-   className="bg-[#4096ff] hover:bg-[#009e79] h-9"
-   size="sm"
-    
-  >
-    {loadingEmpValidation ? <Loader2 className="animate-spin w-4 h-4" /> : "Validate"}
-  </Button>
-</div>
-
-            <InputField
-              control={form.control}
-              name="employeeNameAsPerId"
-              label="Employee Name As per Directory"
-              placeholder="Enter name"
-              required={watchIsGenerated}
-              disabled={!watchIsGenerated}
-            />
-            
-            <InputField
-              control={form.control}
-              name="hpeEmailId"
-              label="Company Email ID"
-              placeholder="Enter company email address"
-              required={watchIsGenerated}
-              disabled={!watchIsGenerated}
-            />
-            
-            
-            
-            
-          </div>
-
-          <div className="flex justify-end">
-            <Button
-              type="submit"
-              size="sm"
-              className="bg-[#4096ff] hover:bg-[#009e79] h-9"
-            
-            >
-              {onboardingTimeline?.id ? "Update" : "Submit"}
-            </Button>
-          </div>
-        </form>
-      </Form>
-    </div>
+    <Form form={form} layout="vertical" initialValues={initial} onFinish={onFinish} className="mt-4">
+      <Row gutter={[16, 8]}>
+        <Col xs={24} md={12}>
+          <Form.Item name="profileCreatedOn" label="Profile Created On" rules={zodRules(employmentBaseSchema, "profileCreatedOn")} {...dateItem}>
+            <DatePicker className="w-full" format="YYYY-MM-DD" disabledDate={noPast} />
+          </Form.Item>
+        </Col>
+        <Col xs={24} md={12}>
+          <Form.Item name="smartProfileId" label="Smart Profile ID" rules={zodRules(employmentBaseSchema, "smartProfileId")}>
+            <Input placeholder="Enter Smart Profile ID" maxLength={8} />
+          </Form.Item>
+        </Col>
+        <Col xs={24} md={12}>
+          <Form.Item name="lhccCode" label="LHCC (IN97/IN99)" rules={zodRules(employmentBaseSchema, "lhccCode")}>
+            <Input placeholder="Enter LHCC code" />
+          </Form.Item>
+        </Col>
+        <Col xs={24} md={12}>
+          <Form.Item name="costCenterName" label="Cost Center" rules={zodRules(employmentBaseSchema, "costCenterName")}>
+            <Input placeholder="Enter cost center" />
+          </Form.Item>
+        </Col>
+        <Col xs={24} md={12}>
+          <Form.Item name="profileApprovalDate" label="Profile Approval Date" rules={zodRules(employmentBaseSchema, "profileApprovalDate")} {...dateItem}>
+            <DatePicker className="w-full" format="YYYY-MM-DD" disabledDate={noPast} />
+          </Form.Item>
+        </Col>
+        <Col xs={24} md={12}>
+          <Form.Item name="isEmployeeIdGenerated" valuePropName="checked" className="mt-4">
+            <Checkbox>Is Employee ID Generated?</Checkbox>
+          </Form.Item>
+        </Col>
+        <Col xs={24} md={12}>
+          <Form.Item label="EMP ID" required={!!watchIsGenerated}>
+            <Space.Compact className="w-full">
+              <Form.Item name="employeeId" noStyle>
+                <Input placeholder="Enter Employee ID" maxLength={8} disabled={!watchIsGenerated} />
+              </Form.Item>
+              <Button type="primary" onClick={validateEmployeeId} disabled={!watchIsGenerated} loading={loadingEmpValidation}>
+                Validate
+              </Button>
+            </Space.Compact>
+          </Form.Item>
+        </Col>
+        <Col xs={24} md={12}>
+          <Form.Item name="employeeNameAsPerId" label="Employee Name As per Directory" required={!!watchIsGenerated}>
+            <Input placeholder="Enter name" disabled={!watchIsGenerated} />
+          </Form.Item>
+        </Col>
+        <Col xs={24} md={12}>
+          <Form.Item name="hpeEmailId" label="Company Email ID" required={!!watchIsGenerated}>
+            <Input placeholder="Enter company email address" disabled={!watchIsGenerated} />
+          </Form.Item>
+        </Col>
+      </Row>
+      <Flex justify="flex-end">
+        <Button type="primary" htmlType="submit">
+          {onboardingTimeline?.id ? "Update" : "Submit"}
+        </Button>
+      </Flex>
+    </Form>
   );
 }
 

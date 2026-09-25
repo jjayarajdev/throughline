@@ -1,339 +1,139 @@
 "use client";
-
-import * as React from "react";
-import { useState } from "react";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
-import {
-  ChevronDown,
-  ChevronRight,
-  Menu,
-  Check,
-  X,
-} from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardHeader, CardContent } from "@/components/ui/card";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-} from "@/components/ui/tooltip";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { useForm } from "react-hook-form";
-import { Form } from "@/components/ui/form";
+import React, { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import Pagination from "@/components/common/Pagination";
-import { onboarding } from "@/services/api/onboarding.api";
-import api from "@/lib/axiosInstance";
+import { Button, Card, Dropdown, Table, Tag, Typography } from "antd";
+import type { MenuProps } from "antd";
+import { CheckOutlined, CloseOutlined, MoreOutlined } from "@ant-design/icons";
+
+import DataTable, { type DataColumn } from "@/components/data-table/DataTable";
+import { useTableState } from "@/components/data-table/useTableState";
+import { useSearchColumns } from "@/components/data-table/useSearchColumns";
 import { toast } from "@/lib/toast";
+import api from "@/lib/axiosInstance";
+import { onboarding } from "@/services/api/onboarding.api";
 import { formatDate } from "@/helpers/helper";
-import SearchFilter from "@/components/common/SearchFilter";
 import { FilterTypeEnum } from "@/constants/FilterTypeEnum";
 
+interface PoRow {
+  poNumber: string;
+  startDate: string;
+  endDate: string;
+  poValue?: number;
+  status: boolean;
+}
 
-interface FormValues {
+interface SowRow {
+  [key: string]: any;
+  id?: string | number;
+  type?: number;
   sowNumber: string;
   startDate: string;
   endDate: string;
-  tcvValue: number;
-  status: "Active" | "Inactive";
+  tcValue?: number;
+  status: boolean;
+  poDetails?: PoRow[];
 }
 
+const activeTag = (active: boolean) => <Tag color={active ? "green" : "red"}>{active ? "Active" : "Inactive"}</Tag>;
 
-
-
-
-
+/** Pending SOW / PO entries awaiting approval; each SOW expands to its POs. */
 export default function SowApproval() {
-  const [expandedRows, setExpandedRows] = useState<string[]>([]);
+  const t = useTableState({ pageSize: 50 });
+  const searchColumns = useSearchColumns(FilterTypeEnum.SOW);
+  const [actingKey, setActingKey] = useState<string | null>(null);
 
-  const [pageSize, setPageSize] = useState(50);
-
-  const [currentPage, setCurrentPage] = useState(1);
-  const [searchText, setSearchText] = useState("");
-
-  const [searchColumn, setSearchColumn] = useState<string>("");
-
-  const toggleRow = (sowNumber: string) => {
-    setExpandedRows((prev) =>
-      prev.includes(sowNumber)
-        ? prev.filter((row) => row !== sowNumber)
-        : [...prev, sowNumber]
-    );
-  };
-
-  const {
-    data: candidatesResponse,
-    isLoading: candidatesResponseLoading,
-    error,
-    refetch: reFetchData,
-  } = useQuery({
-    queryKey: [
-      "ContactMatrixformApproval",
-      currentPage,
-      pageSize,
-      searchColumn,
-      searchText,
-    ],
+  const { data: response, isLoading, refetch } = useQuery({
+    queryKey: ["SowApproval", t.query],
     queryFn: () =>
       onboarding.fetchSowformApprovalList({
-        pageNumber: currentPage,
-        pageSize,
-        searchColumn: searchColumn,
-        searchText: searchText || undefined,
+        pageNumber: t.query.pageNumber,
+        pageSize: t.query.pageSize,
+        searchColumn: t.query.searchColumn ?? "",
+        searchText: t.query.searchText || undefined,
       }),
     refetchIntervalInBackground: true,
   });
 
-  const getsowData = candidatesResponse?.data?.items || [];
-  const hasPrevious = candidatesResponse?.data?.hasPrevious;
-  const hasNext = candidatesResponse?.data?.hasNext;
-  const totalPages = candidatesResponse?.data?.totalPages;
-
-  const [loader, setLoader] = useState(false);
-  const handleClear = () => {
-    setSearchColumn("");
-    setSearchText("");
-    setCurrentPage(1);
-  };
-  const handleFilterChange = (column: string, text: string) => {
-    setSearchColumn(column);
-    setSearchText(text);
-  };
-  const handleApprove = async (candidate: any, status: number) => {
-    setLoader(true);
+  const handleApprove = async (sow: SowRow, status: number) => {
+    setActingKey(sow.sowNumber);
     try {
-      const payload = {
-        id: candidate?.id,
-        newStatus: status,
-        type: candidate?.type,
-      };
+      const payload = { id: sow?.id, newStatus: status, type: sow?.type };
       const res = await api.post(`/Partner/approve-SOW-matrix`, payload);
       if (res.status === 200) {
         toast.success(res.data?.message || "Candidate Approved");
-        reFetchData();
+        refetch();
       } else {
         toast.error("Error approving candidate");
       }
-    } catch (error) {
+    } catch {
       toast.error("Error approving candidate");
     }
-    setLoader(false);
+    setActingKey(null);
   };
 
+  const rowMenu = (sow: SowRow): MenuProps["items"] => [
+    { key: "accept", icon: <CheckOutlined />, label: "Accept", onClick: () => handleApprove(sow, 2) },
+    { key: "reject", icon: <CloseOutlined />, label: "Reject", danger: true, onClick: () => handleApprove(sow, 3) },
+  ];
+
+  const columns = useMemo<DataColumn<SowRow>[]>(
+    () => [
+      { key: "sowNumber", title: "SOW Number", dataIndex: "sowNumber", render: (v: string) => <Typography.Text strong>{v}</Typography.Text> },
+      { key: "startDate", title: "Start Date", dataIndex: "startDate", render: (v: string) => formatDate(v) },
+      { key: "endDate", title: "End Date", dataIndex: "endDate", render: (v: string) => formatDate(v) },
+      { key: "tcValue", title: "TC Value", dataIndex: "tcValue", render: (v?: number) => v?.toLocaleString("en-IN") },
+      { key: "status", title: "Status", dataIndex: "status", render: (v: boolean) => activeTag(v) },
+      {
+        key: "actions",
+        title: "Actions",
+        locked: true,
+        align: "center",
+        width: 80,
+        render: (_: unknown, s: SowRow) => (
+          <Dropdown menu={{ items: rowMenu(s) }} trigger={["click"]}>
+            <Button size="small" icon={<MoreOutlined />} loading={actingKey === s.sowNumber} />
+          </Dropdown>
+        ),
+      },
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [actingKey]
+  );
+
+  const poColumns = [
+    { key: "poNumber", title: "PO Number", dataIndex: "poNumber" },
+    { key: "startDate", title: "Start Date", dataIndex: "startDate", render: (v: string) => formatDate(v) },
+    { key: "endDate", title: "End Date", dataIndex: "endDate", render: (v: string) => formatDate(v) },
+    { key: "poValue", title: "Value", dataIndex: "poValue", render: (v?: number) => v?.toLocaleString("en-IN") },
+    { key: "status", title: "Status", dataIndex: "status", render: (v: boolean) => activeTag(v) },
+  ];
+
   return (
-    <>
-
-        <Card className="shadow-md bg-white dark:bg-gray-900 text-gray-900 dark:text-white">
-          <CardHeader className="border-b bg-gray-50/40 dark:bg-gray-800">
-            <div className="flex items-center justify-between">
-              <SearchFilter
-                filterType={FilterTypeEnum.SOW}
-                onFilterChange={handleFilterChange}
-                onClear={handleClear}
-                placeholder="Search by"
-                setCurrentPage={setCurrentPage}
-              />
-            </div>
-          </CardHeader>
-
-          <CardContent className="p-6">
-            <ScrollArea className="rounded-md">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-teal-200 hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700">
-                    <TableHead className="w-[50px]"></TableHead>
-                    <TableHead className="font-semibold">SOW Number</TableHead>
-                    <TableHead className="font-semibold">Start Date</TableHead>
-                    <TableHead className="font-semibold">End Date</TableHead>
-                    <TableHead className="font-semibold">TC Value</TableHead>
-                    <TableHead className="font-semibold">Status</TableHead>
-                    <TableHead className="font-semibold">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {getsowData?.map((sow) => (
-                    <React.Fragment key={sow.sowNumber}>
-                      <TableRow className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                        <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => toggleRow(sow.sowNumber)}
-                            className="hover:bg-gray-100"
-                          >
-                            {expandedRows.includes(sow.sowNumber) ? (
-                              <ChevronDown className="h-4 w-4 text-gray-500" />
-                            ) : (
-                              <ChevronRight className="h-4 w-4 text-gray-500" />
-                            )}
-                          </Button>
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          {sow.sowNumber}
-                        </TableCell>
-                        <TableCell>{formatDate(sow.startDate)}</TableCell>
-                        <TableCell>{formatDate(sow.endDate)}</TableCell>
-                        <TableCell className="font-medium">
-                          {sow?.tcValue?.toLocaleString("en-IN")}
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={sow.status ? "default" : "secondary"}
-                            className={`${
-                              sow.status
-                                ? "bg-green-100 text-green-600 dark:bg-green-900/20 dark:text-green-300"
-                                : "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300"
-                            }`}
-                          >
-                            {sow.status ? "Active" : "Inactive"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="outline" className="h-8 p-2">
-                                <Menu className="h-4 w-4" />
-                                <ChevronDown className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem
-                                onClick={() => handleApprove(sow, 2)}
-                                className="text-green-600 hover:text-green-700"
-                              >
-                                <Check className="mr-2 h-4 w-4" />
-                                Accept
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => handleApprove(sow, 3)}
-                                className="text-red-600 hover:text-red-700"
-                              >
-                                <X className="mr-2 h-4 w-4" />
-                                Reject
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-
-                      {/* PO Details Expandable Section */}
-                      {expandedRows.includes(sow.sowNumber) && (
-                        <TableRow>
-                          <TableCell colSpan={7} className="p-0">
-                            <div className="p-4 bg-gray-50/30 dark:bg-gray-800 border-l-2 border-[#0958d9]">
-                              <div className="flex justify-between items-center mb-4">
-                                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-100">
-                                  PO Details
-                                </h3>
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipContent>
-                                      <p>Add new PO to this SOW</p>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                              </div>
-                              <div className="rounded-md border">
-                                <Table>
-                                  <TableHeader>
-                                    <TableRow className="bg-gray-50 hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700">
-                                      <TableHead className="font-medium">
-                                        PO Number
-                                      </TableHead>
-                                      <TableHead className="font-medium">
-                                        Start Date
-                                      </TableHead>
-                                      <TableHead className="font-medium">
-                                        End Date
-                                      </TableHead>
-                                      <TableHead className="font-medium">
-                                        Value
-                                      </TableHead>
-                                      <TableHead className="font-medium">
-                                        Status
-                                      </TableHead>
-                                    </TableRow>
-                                  </TableHeader>
-                                  <TableBody>
-                                    {sow?.poDetails?.map((po) => (
-                                      <TableRow
-                                        key={po.poNumber}
-                                        className="hover:bg-gray-50/30"
-                                      >
-                                        <TableCell>{po.poNumber}</TableCell>
-                                        <TableCell>
-                                          {formatDate(po.startDate)}
-                                        </TableCell>
-                                        <TableCell>
-                                          {formatDate(po.endDate)}
-                                        </TableCell>
-                                        <TableCell className="font-medium">
-                                          {po?.poValue?.toLocaleString("en-IN")}
-                                        </TableCell>
-                                        <TableCell>
-                                          <Badge
-                                            variant={
-                                              po.status
-                                                ? "default"
-                                                : "secondary"
-                                            }
-                                            className={`${
-                                              po.status
-                                                ? "bg-green-100 text-green-600"
-                                                : "bg-red-100 text-red-800"
-                                            }`}
-                                          >
-                                            {po.status ? "Active" : "Inactive"}
-                                          </Badge>
-                                        </TableCell>
-                                      </TableRow>
-                                    ))}
-                                  </TableBody>
-                                </Table>
-                              </div>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </React.Fragment>
-                  ))}
-                </TableBody>
-              </Table>
-            </ScrollArea>
-          </CardContent>
-          <div className="flex items-center justify-between p-4">
-            <div className="text-sm text-gray-500">
-              Page {currentPage} of {totalPages}
-            </div>
-            <Pagination
-              value={pageSize}
-              totalEntry={candidatesResponse?.data?.totalCount}
-              onChange={(newSize) => {
-                setPageSize(newSize);
-              }}
-              currentPage={currentPage}
-              totalPages={totalPages}
-              onPageChange={setCurrentPage}
-              hasNext={hasNext}
-              hasPrevious={hasPrevious}
+    <Card>
+      <DataTable<SowRow>
+        storageKey="sow-approval"
+        rowKey="sowNumber"
+        columns={columns}
+        data={response?.data?.items}
+        loading={isLoading}
+        pagination={{ current: t.pageNumber, pageSize: t.pageSize, total: response?.data?.totalCount ?? 0 }}
+        onChange={t.onTableChange}
+        search={{ columns: searchColumns, column: t.searchColumn, text: t.searchText, onChange: t.setSearch, placeholder: "Search by" }}
+        emptyText="No SOWs found"
+        expandable={{
+          expandedRowRender: (sow) => (
+            <Table<PoRow>
+              title={() => <Typography.Text strong>PO Details</Typography.Text>}
+              size="small"
+              rowKey="poNumber"
+              columns={poColumns}
+              dataSource={sow.poDetails ?? []}
+              pagination={false}
             />
-          </div>
-        </Card>
-    </>
+          ),
+          rowExpandable: () => true,
+        }}
+      />
+    </Card>
   );
 }

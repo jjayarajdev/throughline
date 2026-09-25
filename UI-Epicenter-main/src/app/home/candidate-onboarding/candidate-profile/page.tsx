@@ -1,44 +1,51 @@
-'use client';
+"use client";
 
-import React, { useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
-import { onboarding } from '@/services/api/onboarding.api';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import {
-  User,
-  Building,
-  FileCheck,
-  Calendar,
- } from 'lucide-react';
-import OnboardingViewProfile from '@/components/onboarding/candidate-profileDetails/OnboardingViewProfile';
-import ProfileTrackerViewProfile from '@/components/onboarding/candidate-profileDetails/ProfileTrackerViewProfile';
-import AssetsViewProfile from '@/components/onboarding/candidate-profileDetails/AssetsViewProfile';
-import TrainingViewProfile from '@/components/onboarding/candidate-profileDetails/TrainingViewProfile';
-import BGVViewProfile from '@/components/onboarding/candidate-profileDetails/BGVViewProfile';
-import { Breadcrumbs } from '@/components/common/Breadcrumbs';
-import api from '@/lib/axiosInstance';
-import { toast } from 'sonner';
-import { useOnboardCandidateStore } from '@/store/useCandidateOnboarding';
-import { Button } from '@/components/ui/button';
-import { isPartner } from '@/store/userStore';
+import React, { useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
+import { Breadcrumb, Card, Col, Flex, Row, Space, Tabs, Tag, Typography } from "antd";
+import { BankOutlined, CalendarOutlined, FileDoneOutlined, UserOutlined } from "@ant-design/icons";
+import { onboarding } from "@/services/api/onboarding.api";
+import OnboardingViewProfile from "@/components/onboarding/candidate-profileDetails/OnboardingViewProfile";
+import ProfileTrackerViewProfile from "@/components/onboarding/candidate-profileDetails/ProfileTrackerViewProfile";
+import AssetsViewProfile from "@/components/onboarding/candidate-profileDetails/AssetsViewProfile";
+import TrainingViewProfile from "@/components/onboarding/candidate-profileDetails/TrainingViewProfile";
+import BGVViewProfile from "@/components/onboarding/candidate-profileDetails/BGVViewProfile";
+import api from "@/lib/axiosInstance";
+import { toast } from "@/lib/toast";
+import { useOnboardCandidateStore } from "@/store/useCandidateOnboarding";
+import { isPartner } from "@/store/userStore";
 
-
-function ColoredBadge({ value, color }: { value: string | number; color: 'blue' | 'green' | 'purple' | 'orange' | 'red' }) {
-  const colorMap = {
-    blue: 'bg-blue-100 text-blue-800 border border-blue-300 hover:bg-blue-200',
-    green: 'bg-green-100 text-green-600 border border-green-300 hover:bg-green-200',
-    purple: 'bg-purple-100 text-purple-800 border border-purple-300 hover:bg-purple-200',
-    orange: 'bg-orange-100 text-orange-800 border border-orange-300 hover:bg-orange-200',
-    red: 'bg-red-100 text-red-800 border border-red-300 hover:bg-red-200',
-  };
-
+/** Breadcrumb from the current path (Home > … ); intermediate crumbs go back. */
+function PathBreadcrumb() {
+  const pathname = usePathname();
+  const router = useRouter();
+  const segments = pathname.split("/").filter(Boolean).filter((seg) => seg !== "home");
+  const getLabel = (segment: string) => segment.replace(/-/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
   return (
-    <Badge className={`rounded-full px-3 py-1 text-sm font-medium transition-all ${colorMap[color]}`}>
-      {value || '-'}
-    </Badge>
+    <Breadcrumb
+      items={[
+        { title: <Link href="/home/dashboard">Home</Link> },
+        ...segments.map((segment, idx) => ({
+          title: idx === segments.length - 1 ? getLabel(segment) : <Typography.Link onClick={() => router.back()}>{getLabel(segment)}</Typography.Link>,
+        })),
+      ]}
+    />
+  );
+}
+
+function StatCard({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: React.ReactNode; color?: string }) {
+  return (
+    <Card size="small">
+      <Space size="middle" align="center">
+        <Typography.Text style={{ fontSize: 24 }}>{icon}</Typography.Text>
+        <div>
+          <Typography.Text type="secondary">{label}</Typography.Text>
+          <div>{color ? <Tag color={color}>{value || "-"}</Tag> : <Typography.Text strong>{value || "-"}</Typography.Text>}</div>
+        </div>
+      </Space>
+    </Card>
   );
 }
 
@@ -47,177 +54,99 @@ interface CandidateDetailsViewProps {
   onBack: () => void;
 }
 
-export default function CandidateDetailsView({ candidateId, onBack }: CandidateDetailsViewProps) {
+/** Read-only view of an onboarded employee: personal, profile tracker, assets, training and BGV details. */
+export default function CandidateDetailsView(_props: CandidateDetailsViewProps) {
   const searchParams = useSearchParams();
-  const candidate = searchParams.get('id');
+  const candidate = searchParams.get("id");
   const { candidateRateCardId } = useOnboardCandidateStore.getState();
   const hasShownError = useRef(false);
-  const [activeTab, setActiveTab] = useState('onboarding');
+  const [activeTab, setActiveTab] = useState("onboarding");
   const [personalDetails, setPersonalDetails] = useState<any>(null);
- 
-useEffect(() => {
-  if (candidate) {
-    const numericId = Number(candidate);
-    fetchOnboardingDataWithId(numericId);
-  }
-}, [candidate]);
 
+  useEffect(() => {
+    if (candidate) fetchOnboardingDataWithId(Number(candidate));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [candidate]);
 
   const fetchOnboardingDataWithId = async (id: number) => {
     try {
       const res = await api.get(`/onboarding/CandidatePersonalDetails/${id}`);
-      const personal = res.data.data;
-      setPersonalDetails(personal);
+      setPersonalDetails(res.data.data);
       hasShownError.current = false;
-    } catch (err) {
+    } catch {
       if (!hasShownError.current) {
         toast.error("Failed to load personal details.");
         hasShownError.current = true;
       }
     }
   };
-const { data:rateCarddata , isPending:israteCardPending  } = useQuery({
+
+  const { data: rateCarddata } = useQuery({
     queryKey: ["getProfileTracker", candidateRateCardId],
     queryFn: () => onboarding.getRateCard(candidateRateCardId),
     enabled: !!candidateRateCardId,
     retry: 1,
   });
-
-
-const { data: profileTracker, isPending: isProfileLoading } = useQuery({
+  const { data: profileTracker } = useQuery({
     queryKey: ["getProfileTracker", personalDetails?.id],
     queryFn: () => onboarding.getProfileTracker(personalDetails.id),
     enabled: !!personalDetails?.id,
     retry: 1,
   });
-
-  const { data: assetDetails, isPending: isAssetLoading } = useQuery({
+  const { data: assetDetails } = useQuery({
     queryKey: ["getAssetDetails", personalDetails?.id],
     queryFn: () => onboarding.getAssetDetails(personalDetails.id),
     enabled: !!personalDetails?.id && activeTab === "assets",
     retry: 1,
   });
- 
-
-  const { data: trainingDetails, isPending: isTrainingLoading } = useQuery(
-    {
-      queryKey: ["getTrainingDetails", personalDetails?.id],
-      queryFn: () => onboarding.getTrainingDetails(personalDetails.id),
-      enabled: !!personalDetails?.id && activeTab === "training",
-      retry: 1,
-    }
-  );
-  
-
-  const { data: bgvDetails, isPending: isBgvLoading } = useQuery({
+  const { data: trainingDetails } = useQuery({
+    queryKey: ["getTrainingDetails", personalDetails?.id],
+    queryFn: () => onboarding.getTrainingDetails(personalDetails.id),
+    enabled: !!personalDetails?.id && activeTab === "training",
+    retry: 1,
+  });
+  const { data: bgvDetails } = useQuery({
     queryKey: ["getCandidateBgvDetails", personalDetails?.id],
     queryFn: () => onboarding.getCandidateBgvDetails(personalDetails.id),
     enabled: !!personalDetails?.id && activeTab === "bgv",
     retry: 1,
   });
 
-
- 
+  const tabItems = [
+    { key: "onboarding", label: "PersonalDetails", children: <OnboardingViewProfile candidateData={personalDetails} /> },
+    { key: "profile", label: "Profile Tracker", disabled: isPartner, children: <ProfileTrackerViewProfile candidateData={profileTracker} /> },
+    { key: "assets", label: "Asset Details", disabled: isPartner, children: <AssetsViewProfile candidateData={assetDetails} personalDetails={personalDetails} /> },
+    { key: "training", label: "Training Details", disabled: isPartner, children: <TrainingViewProfile candidateData={trainingDetails} personalDetails={personalDetails} /> },
+    { key: "bgv", label: "BGV Details", children: <BGVViewProfile candidateData={bgvDetails} personalDetails={personalDetails} /> },
+  ];
 
   return (
-    <div className="min-h-screen bg-background p-6">
-      <Breadcrumbs/>
-      <div className=" mx-auto">
-        <div className="mb-8 flex items-center justify-between">
-          
-           <h1 className="text-3xl font-bold text-foreground">Employee Details View</h1>
-           
-          
-           {/* <Button  className="bg-[#4096ff] hover:bg-[#009e79] h-9">Reinitiate</Button> */}
-        </div>
+    <Flex vertical gap={16} className="p-4">
+      <PathBreadcrumb />
+      <Typography.Title level={4} style={{ margin: 0 }}>
+        Employee Details View
+      </Typography.Title>
 
-        
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+      <Row gutter={[16, 16]}>
+        <Col xs={24} md={12} lg={6}>
+          <StatCard icon={<UserOutlined />} label="HRQID" value={personalDetails?.hrqId} color="blue" />
+        </Col>
+        <Col xs={24} md={12} lg={6}>
+          <StatCard icon={<BankOutlined />} label="Candidate Code" value={personalDetails?.candidateCode} />
+        </Col>
+        {!isPartner && (
+          <Col xs={24} md={12} lg={6}>
+            <StatCard icon={<FileDoneOutlined />} label="Category" value={rateCarddata?.categoryName} color="purple" />
+          </Col>
+        )}
+        {!isPartner && (
+          <Col xs={24} md={12} lg={6}>
+            <StatCard icon={<CalendarOutlined />} label="Partner Rate" value={rateCarddata?.partnerRate} color="orange" />
+          </Col>
+        )}
+      </Row>
 
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center">
-                <User className="h-8 w-8 text-blue-600" />
-                <div className="ml-4 max-w-xs break-words">
-                  <p className="text-sm font-medium text-muted-foreground">HRQID</p>
-                  <ColoredBadge value={personalDetails?.hrqId} color="blue" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center">
-                <Building className="h-8 w-8 text-green-600" />
-                <div className="ml-4 max-w-xs break-words">
-                  <p className="text-sm font-medium text-muted-foreground">Candidate Code</p>
-                  <p className="text-lg font-bold">{personalDetails?.candidateCode || '-'}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {!isPartner&&<Card>
-            <CardContent className="p-6">
-              <div className="flex items-center">
-                <FileCheck className="h-8 w-8 text-purple-600" />
-                <div className="ml-4 max-w-[200px] ">
-                  <p className="text-sm font-medium text-muted-foreground">Category</p>
-                  <ColoredBadge value={rateCarddata?.categoryName} color="purple" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>}
-
-          {!isPartner && <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center">
-                <Calendar className="h-8 w-8 text-orange-600" />
-                <div className="ml-4 max-w-[200px] ">
-                  <p className="text-sm font-medium text-muted-foreground">Partner Rate</p>
-                  <div className='w-32'>
-                  <ColoredBadge  value={rateCarddata?.partnerRate} color="orange" />
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>}
-
-        </div>
-
-       
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="onboarding">PersonalDetails</TabsTrigger>
-            <TabsTrigger disabled={isPartner} value="profile">Profile Tracker</TabsTrigger>
-            <TabsTrigger disabled={isPartner} value="assets">Asset Details</TabsTrigger>
-            <TabsTrigger disabled={isPartner} value="training">Training Details</TabsTrigger>
-            <TabsTrigger  value="bgv">BGV Details</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="onboarding" className="space-y-6">
-            <OnboardingViewProfile candidateData={personalDetails} />
-          </TabsContent>
-
-          <TabsContent value="profile"  className="space-y-6">
-            <ProfileTrackerViewProfile candidateData={profileTracker} />
-          </TabsContent>
-
-          <TabsContent value="assets" className="space-y-6">
-            <AssetsViewProfile candidateData={assetDetails}  personalDetails={personalDetails}/>
-          </TabsContent>
-
-          <TabsContent value="training" className="space-y-6">
-            <TrainingViewProfile candidateData={trainingDetails} personalDetails={personalDetails}/>
-          </TabsContent>
-
-
-          <TabsContent value="bgv" className="space-y-6">
-            <BGVViewProfile candidateData={bgvDetails} personalDetails={personalDetails}/>
-          </TabsContent>
-        </Tabs>
-      </div>
-    </div>
+      <Tabs activeKey={activeTab} onChange={setActiveTab} items={tabItems} />
+    </Flex>
   );
 }
