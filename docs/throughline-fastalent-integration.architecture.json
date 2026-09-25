@@ -1,0 +1,391 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Hiring Pipeline — fastalent and Throughline working together",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "forward",
+        "label": "Candidates flow forward",
+        "focus": [
+          "recruiters",
+          "fastalent",
+          "hub",
+          "throughline",
+          "hris"
+        ],
+        "note": "Sourcing on fastalent, intake and onboarding on Throughline, employee record in the HR system."
+      },
+      {
+        "id": "backward",
+        "label": "Status and money flow back",
+        "focus": [
+          "throughline",
+          "hub",
+          "fastalent",
+          "identity"
+        ],
+        "note": "Every shortlist, interview, hire and join on Throughline is written back so fastalent can pay and rate recruiters."
+      },
+      {
+        "id": "adapters",
+        "label": "Screening and interview adapters",
+        "focus": [
+          "screener",
+          "videoscreen",
+          "interviewtools",
+          "fastalent",
+          "throughline"
+        ],
+        "note": "One screening service used by both products; third-party video tools plugged in through adapters."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "recruiters",
+      "type": "external",
+      "label": "Recruiters & agencies",
+      "sublabel": "marketplace supply",
+      "pos": [
+        30,
+        230
+      ],
+      "size": [
+        140,
+        62
+      ]
+    },
+    {
+      "id": "fastalent",
+      "type": "backend",
+      "label": "fastalent",
+      "sublabel": "roles · submissions · wallet",
+      "pos": [
+        240,
+        230
+      ],
+      "size": [
+        190,
+        62
+      ],
+      "tag": "sourcing"
+    },
+    {
+      "id": "fastdb",
+      "type": "database",
+      "label": "PostgreSQL + S3",
+      "sublabel": "roles · submissions · CVs",
+      "pos": [
+        240,
+        430
+      ],
+      "size": [
+        190,
+        60
+      ]
+    },
+    {
+      "id": "screener",
+      "type": "backend",
+      "label": "Screening Service",
+      "sublabel": "JD crux · profile-vs-JD",
+      "pos": [
+        520,
+        40
+      ],
+      "size": [
+        190,
+        62
+      ],
+      "tag": "to build"
+    },
+    {
+      "id": "videoscreen",
+      "type": "external",
+      "label": "Video screening",
+      "sublabel": "third-party platform",
+      "pos": [
+        800,
+        40
+      ],
+      "size": [
+        160,
+        62
+      ]
+    },
+    {
+      "id": "hub",
+      "type": "messagebus",
+      "label": "Hiring Event Hub",
+      "sublabel": "signed webhooks · outbox",
+      "pos": [
+        520,
+        230
+      ],
+      "size": [
+        190,
+        62
+      ],
+      "tag": "to build"
+    },
+    {
+      "id": "identity",
+      "type": "security",
+      "label": "Identity & ID mapping",
+      "sublabel": "SSO · id correlation",
+      "pos": [
+        520,
+        430
+      ],
+      "size": [
+        190,
+        62
+      ],
+      "tag": "to build"
+    },
+    {
+      "id": "throughline",
+      "type": "backend",
+      "label": "Throughline",
+      "sublabel": "HRQs · interviews · onboarding",
+      "pos": [
+        800,
+        230
+      ],
+      "size": [
+        180,
+        62
+      ],
+      "tag": "onboarding"
+    },
+    {
+      "id": "tldb",
+      "type": "database",
+      "label": "SQL Server + FileServer",
+      "sublabel": "HRQs · candidates · docs",
+      "pos": [
+        800,
+        430
+      ],
+      "size": [
+        180,
+        60
+      ]
+    },
+    {
+      "id": "interviewtools",
+      "type": "external",
+      "label": "Interview tools",
+      "sublabel": "Teams · Zoom · Meet · F2F",
+      "pos": [
+        1070,
+        40
+      ],
+      "size": [
+        180,
+        62
+      ]
+    },
+    {
+      "id": "hiringteam",
+      "type": "external",
+      "label": "Hiring team",
+      "sublabel": "managers · panels · RM owners",
+      "pos": [
+        1070,
+        430
+      ],
+      "size": [
+        180,
+        62
+      ]
+    },
+    {
+      "id": "hris",
+      "type": "external",
+      "label": "HR System",
+      "sublabel": "Workday · SuccessFactors",
+      "pos": [
+        1070,
+        230
+      ],
+      "size": [
+        180,
+        62
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "fastalent — sourcing",
+      "wraps": [
+        "fastalent",
+        "fastdb"
+      ],
+      "pad": 18
+    },
+    {
+      "kind": "region",
+      "label": "Integration layer (to build)",
+      "wraps": [
+        "screener",
+        "hub",
+        "identity"
+      ],
+      "pad": 18
+    },
+    {
+      "kind": "region",
+      "label": "Throughline — hiring & onboarding",
+      "wraps": [
+        "throughline",
+        "tldb"
+      ],
+      "pad": 18
+    }
+  ],
+  "connections": [
+    {
+      "from": "recruiters",
+      "to": "fastalent",
+      "label": "submit CVs",
+      "variant": "emphasis",
+      "labelDy": 22
+    },
+    {
+      "from": "fastalent",
+      "to": "hub",
+      "label": "candidate.submitted",
+      "variant": "emphasis",
+      "labelDy": -24
+    },
+    {
+      "from": "hub",
+      "to": "throughline",
+      "label": "intake",
+      "variant": "emphasis",
+      "labelDy": -24
+    },
+    {
+      "from": "throughline",
+      "to": "hub",
+      "label": "status events",
+      "variant": "dashed",
+      "labelDy": 22
+    },
+    {
+      "from": "hub",
+      "to": "fastalent",
+      "label": "write-back",
+      "variant": "dashed",
+      "labelDy": 22
+    },
+    {
+      "from": "fastalent",
+      "to": "screener",
+      "label": "score at submission",
+      "route": "auto",
+      "fromSide": "top",
+      "toSide": "left",
+      "labelDy": -14,
+      "labelDx": 0,
+      "via": [
+        [
+          335,
+          71
+        ]
+      ],
+      "labelSegment": 1
+    },
+    {
+      "from": "throughline",
+      "to": "screener",
+      "label": "score at review",
+      "route": "auto",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "labelDy": -14
+    },
+    {
+      "from": "screener",
+      "to": "videoscreen",
+      "label": "invite · results",
+      "variant": "dashed",
+      "labelDy": -24
+    },
+    {
+      "from": "throughline",
+      "to": "interviewtools",
+      "label": "schedule · links · outcomes",
+      "route": "auto",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "labelDy": -14
+    },
+    {
+      "from": "throughline",
+      "to": "hris",
+      "label": "joiner → employee",
+      "variant": "security",
+      "labelDy": -24
+    },
+    {
+      "from": "hiringteam",
+      "to": "throughline",
+      "label": "manage HRQs, panels, onboarding",
+      "route": "auto",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "labelDy": -14
+    },
+    {
+      "from": "fastalent",
+      "to": "fastdb",
+      "route": "straight"
+    },
+    {
+      "from": "throughline",
+      "to": "tldb",
+      "route": "straight"
+    },
+    {
+      "from": "hub",
+      "to": "identity",
+      "label": "resolve ids",
+      "route": "straight",
+      "labelDy": 26
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Who owns what",
+      "items": [
+        "fastalent: marketplace supply, wallets, earnings, recruiter reputation",
+        "Throughline: the requisition (HRQ) and everything after intake — screening, interviews, offers, onboarding",
+        "HR system: the employee record; Throughline hands over on join and stores the employee id"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "The contract between them",
+      "items": [
+        "Events: requisition.published, candidate.submitted, candidate.status_changed, interview.completed, hire.joined",
+        "Signed webhooks + outbox on each side, idempotency keys, retries; no shared database",
+        "Mapping store keeps HRQ ↔ fastalent Role and Throughline candidate ↔ fastalent Submission"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Build order",
+      "items": [
+        "1 — Intake and status write-back (payouts flow on verified placements)",
+        "2 — Screening Service, seeded from fastalent's JD-crux and resume-match code, used by both products",
+        "3 — Interview and video-screening adapters · 4 — HR system connector · 5 — SSO and cross-pipeline analytics"
+      ]
+    }
+  ]
+}
