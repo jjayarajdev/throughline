@@ -1,5 +1,6 @@
 "use client";
-import { Button, Card, List, Tooltip, Typography } from "antd";
+import { List } from "@/components/throughline/List";
+import { Button, Card, Tooltip, Typography } from "antd";
 import { DownloadOutlined, FileTextOutlined } from "@ant-design/icons";
 
 interface DocumentsListProps {

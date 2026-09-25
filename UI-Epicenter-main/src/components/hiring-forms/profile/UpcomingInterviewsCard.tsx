@@ -1,5 +1,6 @@
 "use client";
-import { Avatar, Card, Empty, Flex, List, Space, Tag, Typography } from "antd";
+import { List } from "@/components/throughline/List";
+import { Avatar, Card, Empty, Flex, Space, Tag, Typography } from "antd";
 import { CalendarOutlined, FileTextOutlined, ShopOutlined } from "@ant-design/icons";
 import { format } from "date-fns";
 
@@ -54,7 +55,7 @@ export function UpcomingInterviewsCard({ interviews }: UpcomingInterviewsCardPro
                   </Flex>
                 }
                 description={
-                  <Space direction="vertical" size={2}>
+                  <Space orientation="vertical" size={2}>
                     <Typography.Text type="secondary">
                       <Space size={6}>
                         <FileTextOutlined />

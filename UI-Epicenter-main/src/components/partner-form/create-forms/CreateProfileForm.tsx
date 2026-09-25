@@ -1,28 +1,11 @@
 "use client";
+import { List } from "@/components/throughline/List";
 
 import React, { useEffect, useState } from "react";
 import * as z from "zod";
 import dayjs from "dayjs";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Alert,
-  Button,
-  Col,
-  DatePicker,
-  Flex,
-  Form,
-  Input,
-  List,
-  Modal,
-  Row,
-  Select,
-  Space,
-  Spin,
-  Table,
-  Tooltip,
-  Typography,
-  Upload,
-} from "antd";
+import { Alert, Button, Col, DatePicker, Flex, Form, Input, Modal, Row, Select, Space, Spin, Table, Tooltip, Typography, Upload } from "antd";
 import { DeleteOutlined, DownloadOutlined, EyeOutlined, FileTextOutlined, UploadOutlined } from "@ant-design/icons";
 import axios from "axios";
 import api from "@/lib/axiosInstance";

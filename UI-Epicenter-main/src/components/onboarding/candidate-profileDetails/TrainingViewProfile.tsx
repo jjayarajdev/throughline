@@ -1,6 +1,7 @@
 "use client";
+import { List } from "@/components/throughline/List";
 
-import { Button, Card, Descriptions, Flex, List, Space, Tag, Typography } from "antd";
+import { Button, Card, Descriptions, Flex, Space, Tag, Typography } from "antd";
 import { BookOutlined, CalendarOutlined, CheckCircleOutlined, CloseCircleOutlined, DownloadOutlined, FileTextOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
 import { MasterTypes } from "@/constants/masterTypes";

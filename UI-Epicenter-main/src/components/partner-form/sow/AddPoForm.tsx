@@ -281,7 +281,7 @@ export function AddPoForm({ onCancel, sowData, initialData, isEditing, crType, a
   return (
     <Card
       title={
-        <Space direction="vertical" size={0}>
+        <Space orientation="vertical" size={0}>
           <Space>
             <Button type="text" icon={<ArrowLeftOutlined />} onClick={onCancel} />
             <Typography.Title level={5} style={{ margin: 0 }}>

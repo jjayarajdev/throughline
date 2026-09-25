@@ -1,6 +1,7 @@
 "use client";
+import { List } from "@/components/throughline/List";
 import React, { useState } from "react";
-import { Button, Flex, List, Modal, Space, Spin, Table, Tooltip, Typography, Upload } from "antd";
+import { Button, Flex, Modal, Space, Spin, Table, Tooltip, Typography, Upload } from "antd";
 import type { UploadProps } from "antd";
 import { DeleteOutlined, DownloadOutlined, EyeOutlined, FileTextOutlined, UploadOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";

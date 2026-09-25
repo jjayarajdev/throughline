@@ -65,7 +65,7 @@ export default function CandidateFeedbackReview() {
 
       <Card>
         <Flex justify="space-between" align="center" wrap gap={16}>
-          <Space direction="vertical" size={0}>
+          <Space orientation="vertical" size={0}>
             <Typography.Title level={4} style={{ margin: 0 }}>
               <UserOutlined /> Candidate Feedback Summary
             </Typography.Title>

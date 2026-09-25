@@ -63,7 +63,7 @@ export default function PartnerHrqs() {
         title: "Engagement Type",
         dataIndex: "engagementTypeName",
         render: (v: string) => (
-          <Space direction="vertical" size={0}>
+          <Space orientation="vertical" size={0}>
             {[...new Set((v || "").split(",").map((item) => item.trim()))].map((item, idx) => (
               <Typography.Text key={idx}>{item || "N/A"}</Typography.Text>
             ))}

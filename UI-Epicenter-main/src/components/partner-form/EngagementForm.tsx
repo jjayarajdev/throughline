@@ -1,28 +1,9 @@
 "use client";
+import { List } from "@/components/throughline/List";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import {
-  Button,
-  Card,
-  Checkbox,
-  Col,
-  DatePicker,
-  Descriptions,
-  Divider,
-  Dropdown,
-  Flex,
-  Form,
-  Input,
-  List,
-  Modal,
-  Row,
-  Select,
-  Space,
-  Table,
-  Typography,
-  Upload,
-} from "antd";
+import { Button, Card, Checkbox, Col, DatePicker, Descriptions, Divider, Dropdown, Flex, Form, Input, Modal, Row, Select, Space, Table, Typography, Upload } from "antd";
 import type { MenuProps } from "antd";
 import {
   CheckCircleOutlined,

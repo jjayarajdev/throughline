@@ -1,6 +1,7 @@
 "use client";
+import { List } from "@/components/throughline/List";
 import { useEffect, useState } from "react";
-import { Button, DatePicker, Divider, Drawer, Form, Input, List, Select, Space, Typography } from "antd";
+import { Button, DatePicker, Divider, Drawer, Form, Input, Select, Space, Typography } from "antd";
 import type { FormInstance } from "antd";
 import { useQuery } from "@tanstack/react-query";
 import dayjs from "dayjs";
@@ -156,7 +157,7 @@ export const EvaluationSidebarOnly = ({ open, onOpenChange, evaluationForm, onSu
             }}
             renderItem={(candidate: any) => (
               <List.Item key={candidate.id}>
-                <Space direction="vertical" size={2}>
+                <Space orientation="vertical" size={2}>
                   <Typography.Text>
                     <Typography.Text strong>Extended By:</Typography.Text> {candidate?.createdUserName || "-"}
                   </Typography.Text>

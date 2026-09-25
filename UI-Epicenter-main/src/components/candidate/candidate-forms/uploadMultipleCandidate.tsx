@@ -251,7 +251,7 @@ const UploadMultipleCandidate = () => {
       const convertedValue = convertExcelDate(value);
       if (typeof value === "number") {
         return (
-          <Space direction="vertical" size={0}>
+          <Space orientation="vertical" size={0}>
             <Typography.Text type="secondary">Original: {value}</Typography.Text>
             <Typography.Text type="success">Converted: {convertedValue || "Invalid"}</Typography.Text>
           </Space>

@@ -1,6 +1,7 @@
 "use client";
+import { List } from "@/components/throughline/List";
 import type { ReactNode } from "react";
-import { Card, Empty, List, Space, Tag, Typography } from "antd";
+import { Card, Empty, Space, Tag, Typography } from "antd";
 import { BankOutlined, TeamOutlined } from "@ant-design/icons";
 
 interface Partner {
