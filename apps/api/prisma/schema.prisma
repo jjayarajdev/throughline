@@ -1,0 +1,932 @@
+// ============================================================
+// fastalent — Phase 1-4 + Phase 11-16
+// Prisma 7 (pure JS engine)
+// Phase 1 models: User, RecruiterProfile, CompanyProfile, AuditLog
+// Phase 2 models: Role, Submission, SubmissionStatusEvent
+// Phase 3 models: CompanyWallet, WalletTransaction, Earning,
+//                 PayoutBatch, PayoutRequest, PlatformSetting
+// Phase 4 models: Notification, RoleInvitation
+// Phase 11 models: CountryConfig, RoleStatusHistory
+// Phase 12 models: HiringMetric
+// Phase 15 models: AnomalyAlert, AiUsageLog
+// Phase 16 models: JdCrux (+ Submission.matchScore/matchBreakdown/matchExplanation)
+// Feature flags: FeatureFlag
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  // Prisma 7: connection URL lives in apps/api/prisma.config.ts, not here.
+}
+
+// -----------------------------
+// Enums (mirror @gigcruite/types)
+// -----------------------------
+
+enum UserRole {
+  recruiter
+  company
+  admin
+}
+
+enum UserStatus {
+  active
+  inactive
+  blocked
+  pending_verification
+}
+
+enum ReputationTier {
+  bronze
+  silver
+  gold
+  platinum
+}
+
+enum CompanySize {
+  SIZE_1_10     @map("1-10")
+  SIZE_11_50    @map("11-50")
+  SIZE_51_200   @map("51-200")
+  SIZE_201_500  @map("201-500")
+  SIZE_500_PLUS @map("500+")
+}
+
+// Phase 2 — Role / Submission enums.
+// IMPORTANT: NO `@map()` on enum VALUES. Identifiers must match the public
+// API strings exactly so plain `as Prisma<Enum>` casts stay safe on both
+// read and write paths. See the CompanySize post-mortem in MEMORY.md.
+
+enum RoleType {
+  regular
+  headhunting
+}
+
+enum RoleStatus {
+  draft
+  submitted  // Company submitted for admin review
+  published  // Visible to recruiters (was 'active')
+  rejected   // Admin rejected with comment
+  paused
+  closed
+  filled
+}
+
+// Phase 11 — Payout mode enum.
+enum PayoutMode {
+  flat
+  percentage
+}
+
+enum PayoutType {
+  per_shortlist
+  per_hire
+  hybrid
+}
+
+enum SubmissionStatus {
+  submitted
+  shortlisted
+  interview
+  hired
+  joined
+  rejected
+  withdrawn
+}
+
+// Phase 3 — Wallet / Payout enums.
+// Same rule: NO `@map()` on enum VALUES.
+
+enum TransactionType {
+  company_deposit
+  company_lock
+  company_unlock
+  company_debit
+  recruiter_credit
+  recruiter_withdrawal
+  platform_commission
+  refund
+}
+
+enum EarningStatus {
+  pending
+  payable
+  processing
+  paid
+  cancelled
+}
+
+enum EarningType {
+  shortlist_payout
+  hire_payout
+}
+
+enum PayoutBatchStatus {
+  created
+  processing
+  completed
+  partial_failure
+  failed
+}
+
+enum PayoutRequestStatus {
+  pending_approval
+  approved
+  processing
+  completed
+  failed
+  cancelled
+}
+
+// Phase 4 — Marketplace Intelligence enums.
+// Same rule: NO `@map()` on enum VALUES.
+
+enum RoleVisibility {
+  open
+  preferred
+  invite_only
+}
+
+// Phase 12 — Structured rejection reason for analytics
+enum RejectionReason {
+  overqualified
+  underqualified
+  salary_mismatch
+  cultural_fit
+  experience_mismatch
+  skills_gap
+  accepted_elsewhere
+  other
+}
+
+enum NotificationType {
+  submission_status_changed
+  role_published
+  role_invitation
+  earning_created
+  payout_update
+  system_announcement
+  role_submitted_for_review
+  role_approved
+  role_rejected
+  // Phase 15 — Analytics AI
+  ai_anomaly_alert
+  ai_role_match
+}
+
+// Feature flags — per-entity monetization gating
+enum FeatureFlagScope {
+  GLOBAL
+  COMPANY
+  RECRUITER
+}
+
+// Phase 16 — JD extraction status
+enum JdCruxStatus {
+  pending
+  processing
+  completed
+  failed
+}
+
+// Phase 15 — Anomaly detection enums
+
+enum AnomalyType {
+  stale_role
+  declining_activity
+  high_rejection_rate
+}
+
+enum AnomalySeverity {
+  low
+  medium
+  high
+}
+
+enum AnomalyStatus {
+  active
+  acknowledged
+  resolved
+  expired
+}
+
+// -----------------------------
+// Models
+// -----------------------------
+
+model User {
+  id                  String     @id @default(uuid()) @db.Uuid
+  email               String     @unique @db.VarChar(255)
+  passwordHash        String     @map("password_hash") @db.VarChar(255)
+  role                UserRole
+  status              UserStatus @default(pending_verification)
+  emailVerified       Boolean    @default(false) @map("email_verified")
+  emailVerifiedAt     DateTime?  @map("email_verified_at")
+  emailVerifyToken    String?    @map("email_verify_token") @db.VarChar(255)
+  passwordResetToken  String?    @map("password_reset_token") @db.VarChar(255)
+  passwordResetExpiry DateTime?  @map("password_reset_expiry")
+  failedLoginAttempts Int        @default(0) @map("failed_login_attempts")
+  lockedUntil         DateTime?  @map("locked_until")
+  lastLoginAt         DateTime?  @map("last_login_at")
+  refreshTokenHash    String?    @map("refresh_token_hash") @db.VarChar(255)
+  createdAt           DateTime   @default(now()) @map("created_at")
+  updatedAt           DateTime   @updatedAt @map("updated_at")
+
+  recruiterProfile   RecruiterProfile?
+  companyProfile     CompanyProfile?
+  auditLogs          AuditLog[]
+  notifications      Notification[]
+  anomalyAlerts      AnomalyAlert[]
+  sentInvitations    RoleInvitation[]      @relation("InvitedByUser")
+  roleStatusChanges  RoleStatusHistory[]
+
+  @@index([role, status])
+  @@map("users")
+}
+
+model RecruiterProfile {
+  id                String   @id @default(uuid()) @db.Uuid
+  userId            String   @unique @map("user_id") @db.Uuid
+  fullName          String   @map("full_name") @db.VarChar(255)
+  phone             String?  @db.VarChar(20)
+  avatarUrl         String?  @map("avatar_url") @db.VarChar(500)
+  bio               String?  @db.Text
+  yearsOfExperience Int?     @map("years_of_experience")
+  specializations   String[] @default([])
+  linkedinUrl       String?  @map("linkedin_url") @db.VarChar(500)
+
+  // Country / currency (Phase 11)
+  country  String @default("IN") @db.VarChar(2)
+  currency String @default("INR") @db.VarChar(3)
+
+  // Encrypted (AES-256-GCM) — never exposed raw in API responses
+  panEncrypted          String? @map("pan_encrypted") @db.Text
+  bankAccountEncrypted  String? @map("bank_account_encrypted") @db.Text
+  bankIfscEncrypted     String? @map("bank_ifsc_encrypted") @db.Text
+  bankAccountHolderName String? @map("bank_account_holder_name") @db.VarChar(255)
+
+  // Wallet (CHECK constraints applied via seed / raw SQL)
+  walletBalance Decimal @default(0) @map("wallet_balance") @db.Decimal(12, 2)
+  lockedBalance Decimal @default(0) @map("locked_balance") @db.Decimal(12, 2)
+
+  // Bank verification (Phase 3 — penny-drop via RazorpayX)
+  bankVerified   Boolean   @default(false) @map("bank_verified")
+  bankVerifiedAt DateTime? @map("bank_verified_at")
+
+  // Reputation
+  reputationScore      Int            @default(0) @map("reputation_score")
+  reputationTier       ReputationTier @default(bronze) @map("reputation_tier")
+  totalPlacements      Int            @default(0) @map("total_placements")
+  successfulPlacements Int            @default(0) @map("successful_placements")
+
+  // Phase 12: Activity tracking for analytics
+  lastSubmissionAt DateTime? @map("last_submission_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  submissions        Submission[]
+  walletTransactions WalletTransaction[]
+  earnings           Earning[]
+  payoutBatches      PayoutBatch[]
+  payoutRequests     PayoutRequest[]
+  roleInvitations    RoleInvitation[]
+
+  @@index([reputationTier, reputationScore(sort: Desc)])
+  @@map("recruiter_profiles")
+}
+
+model CompanyProfile {
+  id            String       @id @default(uuid()) @db.Uuid
+  userId        String       @unique @map("user_id") @db.Uuid
+  companyName   String       @map("company_name") @db.VarChar(255)
+  industry      String?      @db.VarChar(100)
+  companySize   CompanySize? @map("company_size")
+  website       String?      @db.VarChar(500)
+  logoUrl       String?      @map("logo_url") @db.VarChar(500)
+  description   String?      @db.Text
+  foundedYear   Int?         @map("founded_year")
+  headquarters  String?      @db.VarChar(255)
+  contactPerson String?      @map("contact_person") @db.VarChar(255)
+  contactPhone  String?      @map("contact_phone") @db.VarChar(20)
+  gstNumber     String?      @map("gst_number") @db.VarChar(20)
+
+  // Country / currency (Phase 11)
+  country              String   @default("IN") @db.VarChar(2)
+  currency             String   @default("INR") @db.VarChar(3)
+  defaultCommissionPct Decimal? @map("default_commission_pct") @db.Decimal(5, 2)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roles  Role[]
+  wallet CompanyWallet?
+
+  @@index([companyName])
+  @@map("company_profiles")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String?  @map("user_id") @db.Uuid
+  action     String   @db.VarChar(100)
+  entityType String?  @map("entity_type") @db.VarChar(50)
+  entityId   String?  @map("entity_id") @db.Uuid
+  metadata   Json?
+  ipAddress  String?  @map("ip_address") @db.VarChar(45)
+  userAgent  String?  @map("user_agent") @db.Text
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([action, createdAt(sort: Desc)])
+  @@index([entityType, entityId])
+  @@map("audit_logs")
+}
+
+// ============================================================
+// Phase 2 — Marketplace models
+// ============================================================
+
+/// A role (job opening) posted by a company. Recruiters browse published
+/// roles and submit candidates against them. Roles auto-close when
+/// `submissionsCount` hits `maxSubmissions`, or can be manually closed.
+model Role {
+  id          String     @id @default(uuid()) @db.Uuid
+  companyId   String     @map("company_id") @db.Uuid
+  title       String     @db.VarChar(255)
+  description String     @db.Text
+  roleType    RoleType       @default(regular) @map("role_type")
+  status      RoleStatus     @default(draft)
+  visibility  RoleVisibility @default(open)
+
+  // Country / currency (Phase 11 — inherited from company at creation, overridable)
+  country  String @default("IN") @db.VarChar(2)
+  currency String @default("INR") @db.VarChar(3)
+
+  // Location / work style
+  location       String  @db.VarChar(255)
+  isRemote       Boolean @default(false) @map("is_remote")
+  employmentType String  @map("employment_type") @db.VarChar(50) // full_time / contract / gig
+
+  // Experience (years)
+  experienceMin Int      @map("experience_min")
+  experienceMax Int      @map("experience_max")
+  skills        String[] @default([])
+
+  // Compensation (annual)
+  ctcMin Decimal @map("ctc_min") @db.Decimal(12, 2)
+  ctcMax Decimal @map("ctc_max") @db.Decimal(12, 2)
+
+  // Payout — determines how recruiters earn. PER_SHORTLIST = per-shortlist,
+  // PER_HIRE = per-hire, HYBRID = both. Mode = flat amount or % of CTC.
+  payoutType           PayoutType  @map("payout_type")
+  shortlistPayoutMode  PayoutMode? @map("shortlist_payout_mode")
+  shortlistPayoutValue Decimal?    @map("shortlist_payout_value") @db.Decimal(14, 2)
+  hirePayoutMode       PayoutMode? @map("hire_payout_mode")
+  hirePayoutValue      Decimal?    @map("hire_payout_value") @db.Decimal(14, 2)
+
+  // Platform commission — percentage retained by the platform on each earning.
+  // Nullable: null at creation means "inherit from company or global".
+  // Resolved (stamped) at admin-approve time via role > company > global chain.
+  platformCommissionPct Decimal? @map("platform_commission_pct") @db.Decimal(5, 2)
+
+  // Vendor benchmark snapshot — industry-standard agency fee % at the time the
+  // role was approved. Copied from CountryConfig.vendorBenchmarkPct at approve
+  // time so savings reports remain historically accurate even if admin changes it.
+  vendorBenchmarkPct Decimal? @map("vendor_benchmark_pct") @db.Decimal(5, 2)
+
+  // Caps (both enforced at submission time)
+  maxSubmissions  Int @default(50) @map("max_submissions")
+  maxPerRecruiter Int @default(5) @map("max_per_recruiter")
+  openPositions   Int @default(1) @map("open_positions")
+
+  // JD (Job Description) document — optional, same pattern as CV on Submission.
+  jdS3Key            String?  @map("jd_s3_key") @db.VarChar(500)
+  jdOriginalFilename String?  @map("jd_original_filename") @db.VarChar(255)
+  jdSizeBytes        Int?     @map("jd_size_bytes")
+  jdMimeType         String?  @map("jd_mime_type") @db.VarChar(100)
+
+  // Denormalized counters (kept in sync inside submission transactions)
+  submissionsCount Int @default(0) @map("submissions_count")
+  shortlistedCount Int @default(0) @map("shortlisted_count")
+  hiredCount       Int @default(0) @map("hired_count")
+
+  // Phase 12: Denormalized analytics timestamps
+  publishedAt        DateTime? @map("published_at")
+  firstSubmissionAt  DateTime? @map("first_submission_at")
+
+  closedAt  DateTime? @map("closed_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  company        CompanyProfile      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  submissions    Submission[]
+  earnings       Earning[]
+  invitations    RoleInvitation[]
+  statusHistory  RoleStatusHistory[]
+  hiringMetric   HiringMetric?
+  jdCrux         JdCrux?
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([companyId, status])
+  @@index([roleType, status])
+  @@map("roles")
+}
+
+/// A candidate submission from a recruiter to a role. One row per (role,
+/// candidate-fingerprint) — the unique index on `(role_id, candidate_fingerprint)`
+/// enforces "first-submit wins" dedup scoped per-role (founder decision).
+model Submission {
+  id          String @id @default(uuid()) @db.Uuid
+  roleId      String @map("role_id") @db.Uuid
+  recruiterId String @map("recruiter_id") @db.Uuid
+
+  // Candidate contact info — stored plaintext for Phase 2 (PII redaction is
+  // explicitly out of scope per founder). Still gated behind the
+  // `contact_viewed_by_company` audit flag at read time.
+  candidateName        String @map("candidate_name") @db.VarChar(255)
+  candidateEmail       String @map("candidate_email") @db.VarChar(255)
+  candidatePhone       String @map("candidate_phone") @db.VarChar(20) // E.164
+  candidateFingerprint String @map("candidate_fingerprint") @db.VarChar(64) // SHA-256 hex
+
+  // CV metadata — bytes live in S3 at `cvS3Key`. Never returned inline;
+  // download is via POST /api/submissions/:id/download (pre-signed, 5-min TTL).
+  cvS3Key            String @map("cv_s3_key") @db.VarChar(500)
+  cvOriginalFilename String @map("cv_original_filename") @db.VarChar(255)
+  cvSizeBytes        Int    @map("cv_size_bytes")
+  cvMimeType         String @map("cv_mime_type") @db.VarChar(100)
+
+  coverNote        String? @map("cover_note") @db.Text
+  expectedCtc      Decimal @map("expected_ctc") @db.Decimal(12, 2)
+  noticePeriodDays Int     @map("notice_period_days")
+  currentLocation  String? @map("current_location") @db.VarChar(255)
+  currentCompany   String? @map("current_company") @db.VarChar(255)
+
+  status SubmissionStatus @default(submitted)
+
+  // Frozen at Hire transition — neither field is ever mutated after.
+  acceptedCtc  Decimal? @map("accepted_ctc") @db.Decimal(12, 2)
+  finalPayout  Decimal? @map("final_payout") @db.Decimal(14, 2)
+
+  // First-contact-view audit (trust-gating hook for future flags).
+  contactViewedByCompany Boolean   @default(false) @map("contact_viewed_by_company")
+  contactViewedAt        DateTime? @map("contact_viewed_at")
+
+  // Phase 16: AI match score (computed pre-submission, stored for audit)
+  matchScore       Int?    @map("match_score")          // 0-100
+  matchBreakdown   Json?   @map("match_breakdown")       // { skills: 85, experience: 70, qualifications: 90 }
+  matchExplanation String? @map("match_explanation") @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  role         Role                    @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  recruiter    RecruiterProfile        @relation(fields: [recruiterId], references: [id], onDelete: Cascade)
+  statusEvents SubmissionStatusEvent[]
+  earnings     Earning[]
+
+  @@unique([roleId, candidateFingerprint]) // per-role dedup, first-submit wins
+  @@index([roleId, status])
+  @@index([recruiterId, status, createdAt(sort: Desc)])
+  @@index([status, createdAt(sort: Desc)])
+  @@map("submissions")
+}
+
+/// Immutable audit trail for status transitions. One row per transition,
+/// including the implicit "submitted -> submitted" row written at creation
+/// time (so the timeline view always has a starting event).
+model SubmissionStatusEvent {
+  id           String           @id @default(uuid()) @db.Uuid
+  submissionId String           @map("submission_id") @db.Uuid
+  fromStatus   SubmissionStatus @map("from_status")
+  toStatus     SubmissionStatus @map("to_status")
+  actorUserId  String           @map("actor_user_id") @db.Uuid
+  actorRole    UserRole         @map("actor_role")
+  reason       String?          @db.Text
+  /// For `hired`: { acceptedCtc, finalPayout }. For other transitions: null
+  /// (unless the actor chose to attach free-form notes via the API).
+  metadata     Json?
+
+  // Phase 12: Structured rejection reason for analytics
+  rejectionReason RejectionReason? @map("rejection_reason")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  submission Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@index([submissionId, createdAt(sort: Desc)])
+  @@index([toStatus, createdAt(sort: Desc)])
+  @@map("submission_status_events")
+}
+
+// ============================================================
+// Phase 3 — Wallet & Payouts models
+// ============================================================
+
+/// Company wallet — one per company. Balance tracks available funds,
+/// lockedBalance tracks funds reserved for published role payouts.
+model CompanyWallet {
+  id             String  @id @default(uuid()) @db.Uuid
+  companyId      String  @unique @map("company_id") @db.Uuid
+  balance        Decimal @default(0) @db.Decimal(14, 2)
+  lockedBalance  Decimal @default(0) @map("locked_balance") @db.Decimal(14, 2)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  company      CompanyProfile      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  transactions WalletTransaction[]
+
+  @@map("company_wallets")
+}
+
+/// Immutable ledger entry. Every financial movement creates one row.
+/// Polymorphic: either companyWalletId OR recruiterProfileId is set (never both).
+model WalletTransaction {
+  id              String          @id @default(uuid()) @db.Uuid
+  transactionType TransactionType @map("transaction_type")
+  amount          Decimal         @db.Decimal(14, 2)
+  balanceBefore   Decimal         @map("balance_before") @db.Decimal(14, 2)
+  balanceAfter    Decimal         @map("balance_after") @db.Decimal(14, 2)
+  description     String?         @db.VarChar(500)
+
+  // Polymorphic owner — exactly one must be non-null
+  companyWalletId    String? @map("company_wallet_id") @db.Uuid
+  recruiterProfileId String? @map("recruiter_profile_id") @db.Uuid
+
+  // Source tracking
+  referenceType String? @map("reference_type") @db.VarChar(50)
+  referenceId   String? @map("reference_id") @db.Uuid
+  metadata      Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  companyWallet    CompanyWallet?    @relation(fields: [companyWalletId], references: [id], onDelete: SetNull)
+  recruiterProfile RecruiterProfile? @relation(fields: [recruiterProfileId], references: [id], onDelete: SetNull)
+
+  @@index([companyWalletId, createdAt(sort: Desc)])
+  @@index([recruiterProfileId, createdAt(sort: Desc)])
+  @@index([referenceType, referenceId])
+  @@map("wallet_transactions")
+}
+
+/// An earning tied to a specific submission. The @@unique constraint
+/// on (submissionId, earningType) prevents double-credit.
+model Earning {
+  id           String        @id @default(uuid()) @db.Uuid
+  submissionId String        @map("submission_id") @db.Uuid
+  recruiterId  String        @map("recruiter_id") @db.Uuid
+  roleId       String        @map("role_id") @db.Uuid
+  earningType  EarningType   @map("earning_type")
+  status       EarningStatus @default(pending)
+
+  grossAmount            Decimal @map("gross_amount") @db.Decimal(14, 2)
+  platformCommissionPct  Decimal @map("platform_commission_pct") @db.Decimal(5, 2)
+  platformCommission     Decimal @map("platform_commission") @db.Decimal(14, 2)
+  netAmount              Decimal @map("net_amount") @db.Decimal(14, 2)
+
+  payoutBatchId String? @map("payout_batch_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  submission  Submission       @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  recruiter   RecruiterProfile @relation(fields: [recruiterId], references: [id], onDelete: Cascade)
+  role        Role             @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  payoutBatch PayoutBatch?     @relation(fields: [payoutBatchId], references: [id], onDelete: SetNull)
+
+  @@unique([submissionId, earningType])
+  @@index([recruiterId, status, createdAt(sort: Desc)])
+  @@index([roleId, status])
+  @@index([status, createdAt(sort: Desc)])
+  @@map("earnings")
+}
+
+/// Groups payable earnings for a single recruiter into one bank transfer.
+model PayoutBatch {
+  id          String           @id @default(uuid()) @db.Uuid
+  recruiterId String           @map("recruiter_id") @db.Uuid
+  status      PayoutBatchStatus @default(created)
+
+  totalAmount    Decimal @map("total_amount") @db.Decimal(14, 2)
+  earningsCount  Int     @map("earnings_count")
+
+  razorpayPayoutId String? @map("razorpay_payout_id") @db.VarChar(255)
+  failureReason    String? @map("failure_reason") @db.Text
+  processedAt      DateTime? @map("processed_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  recruiter RecruiterProfile @relation(fields: [recruiterId], references: [id], onDelete: Cascade)
+  earnings  Earning[]
+
+  @@index([recruiterId, status, createdAt(sort: Desc)])
+  @@index([status, createdAt(sort: Desc)])
+  @@map("payout_batches")
+}
+
+/// Recruiter-initiated withdrawal request with admin approval workflow.
+model PayoutRequest {
+  id          String              @id @default(uuid()) @db.Uuid
+  recruiterId String              @map("recruiter_id") @db.Uuid
+  status      PayoutRequestStatus @default(pending_approval)
+  amount      Decimal             @db.Decimal(14, 2)
+
+  // Encrypted snapshot of bank details at request time
+  bankDetailsSnapshot Json? @map("bank_details_snapshot")
+
+  adminUserId  String?   @map("admin_user_id") @db.Uuid
+  adminNote    String?   @map("admin_note") @db.Text
+  rejectedAt   DateTime? @map("rejected_at")
+  approvedAt   DateTime? @map("approved_at")
+  completedAt  DateTime? @map("completed_at")
+
+  payoutBatchId String? @map("payout_batch_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  recruiter RecruiterProfile @relation(fields: [recruiterId], references: [id], onDelete: Cascade)
+
+  @@index([recruiterId, status, createdAt(sort: Desc)])
+  @@index([status, createdAt(sort: Desc)])
+  @@map("payout_requests")
+}
+
+/// Key-value platform configuration. Admin-managed.
+model PlatformSetting {
+  id          String  @id @default(uuid()) @db.Uuid
+  key         String  @unique @db.VarChar(100)
+  value       String  @db.VarChar(500)
+  description String? @db.VarChar(500)
+  category    String  @default("general") @db.VarChar(50)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([category])
+  @@map("platform_settings")
+}
+
+// ============================================================
+// Phase 4 — Marketplace Intelligence models
+// ============================================================
+
+/// In-app notification. Created by trigger events (status changes,
+/// invitations, earnings, etc.) and delivered via the notification bell.
+model Notification {
+  id           String           @id @default(uuid()) @db.Uuid
+  userId       String           @map("user_id") @db.Uuid
+  type         NotificationType
+  title        String           @db.VarChar(200)
+  body         String           @db.VarChar(1000)
+  resourceType String?          @map("resource_type") @db.VarChar(50)
+  resourceId   String?          @map("resource_id") @db.Uuid
+  isRead       Boolean          @default(false) @map("is_read")
+  readAt       DateTime?        @map("read_at")
+  createdAt    DateTime         @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead, createdAt(sort: Desc)])
+  @@map("notifications")
+}
+
+/// Invitation from a company to a recruiter for an invite_only role.
+model RoleInvitation {
+  id                 String   @id @default(uuid()) @db.Uuid
+  roleId             String   @map("role_id") @db.Uuid
+  recruiterProfileId String   @map("recruiter_profile_id") @db.Uuid
+  invitedByUserId    String   @map("invited_by_user_id") @db.Uuid
+  status             String   @default("pending") @db.VarChar(20) // pending, accepted, declined
+  message            String?  @db.VarChar(500)
+  respondedAt        DateTime? @map("responded_at")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  role             Role             @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  recruiterProfile RecruiterProfile @relation(fields: [recruiterProfileId], references: [id], onDelete: Cascade)
+  invitedByUser    User             @relation("InvitedByUser", fields: [invitedByUserId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, recruiterProfileId])
+  @@index([recruiterProfileId, status])
+  @@map("role_invitations")
+}
+
+// ============================================================
+// Phase 11 — Country Config + Role Status History
+// ============================================================
+
+/// Country-level configuration for multi-country support.
+/// Stores currency info, payout validation ranges, and vendor benchmark.
+model CountryConfig {
+  id              String  @id @default(uuid()) @db.Uuid
+  countryCode     String  @unique @map("country_code") @db.VarChar(2)
+  countryName     String  @map("country_name") @db.VarChar(100)
+  currencyCode    String  @map("currency_code") @db.VarChar(3)
+  currencySymbol  String? @map("currency_symbol") @db.VarChar(5)
+
+  // Payout validation ranges (per country)
+  shortlistFlatMin  Decimal @default(0) @map("shortlist_flat_min") @db.Decimal(14, 2)
+  shortlistFlatMax  Decimal @default(0) @map("shortlist_flat_max") @db.Decimal(14, 2)
+  shortlistPctMin   Decimal @default(0) @map("shortlist_pct_min") @db.Decimal(5, 2)
+  shortlistPctMax   Decimal @default(0) @map("shortlist_pct_max") @db.Decimal(5, 2)
+  hireFlatMin       Decimal @default(0) @map("hire_flat_min") @db.Decimal(14, 2)
+  hireFlatMax       Decimal @default(0) @map("hire_flat_max") @db.Decimal(14, 2)
+  hirePctMin        Decimal @default(0) @map("hire_pct_min") @db.Decimal(5, 2)
+  hirePctMax        Decimal @default(0) @map("hire_pct_max") @db.Decimal(5, 2)
+
+  // Savings dashboard benchmark
+  vendorBenchmarkPct Decimal @default(0) @map("vendor_benchmark_pct") @db.Decimal(5, 2)
+
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("country_configs")
+}
+
+/// Immutable audit trail for role status transitions (draft → submitted → published etc).
+model RoleStatusHistory {
+  id         String      @id @default(uuid()) @db.Uuid
+  roleId     String      @map("role_id") @db.Uuid
+  fromStatus RoleStatus? @map("from_status")
+  toStatus   RoleStatus  @map("to_status")
+  changedBy  String      @map("changed_by") @db.Uuid
+  comment    String?     @db.Text
+  createdAt  DateTime    @default(now()) @map("created_at")
+
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [changedBy], references: [id], onDelete: SetNull)
+
+  @@index([roleId, createdAt(sort: Desc)])
+  @@map("role_status_history")
+}
+
+// ============================================================
+// Phase 12 — Data Foundation (Hiring Intelligence v3.0)
+// ============================================================
+
+/// Snapshot of key metrics for a role, computed and frozen when the role
+/// reaches a terminal state (filled/closed). One row per role.
+model HiringMetric {
+  id     String @id @default(uuid()) @db.Uuid
+  roleId String @unique @map("role_id") @db.Uuid
+
+  // Time metrics (days)
+  daysToFill       Int?    @map("days_to_fill")         // publishedAt → closedAt
+  daysToFirstSubmission Int? @map("days_to_first_sub")  // publishedAt → firstSubmissionAt
+
+  // Funnel counts
+  submissionCount  Int @default(0) @map("submission_count")
+  shortlistCount   Int @default(0) @map("shortlist_count")
+  interviewCount   Int @default(0) @map("interview_count")
+  hireCount        Int @default(0) @map("hire_count")
+  rejectedCount    Int @default(0) @map("rejected_count")
+  withdrawnCount   Int @default(0) @map("withdrawn_count")
+
+  // Conversion ratios (stored as percentage 0-100)
+  submissionToHireRatio Decimal? @map("sub_to_hire_ratio") @db.Decimal(5, 2)
+
+  // Cost metrics
+  totalPayoutAmount Decimal? @map("total_payout_amount") @db.Decimal(14, 2) // sum of all earnings.grossAmount
+  costPerHire       Decimal? @map("cost_per_hire") @db.Decimal(14, 2)       // totalPayoutAmount / hireCount
+
+  // Recruiter diversity
+  uniqueRecruiters Int @default(0) @map("unique_recruiters")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt(sort: Desc)])
+  @@map("hiring_metrics")
+}
+
+// ============================================================
+// Phase 15 — Analytics AI
+// ============================================================
+
+/// Detected anomaly with explanation. Deduplicated by fingerprint
+/// so the same issue is only surfaced once until resolved.
+model AnomalyAlert {
+  id          String          @id @default(uuid()) @db.Uuid
+  type        AnomalyType
+  severity    AnomalySeverity
+  status      AnomalyStatus   @default(active)
+
+  // Target entity (role or recruiter)
+  targetType  String          @map("target_type") @db.VarChar(20)
+  targetId    String          @map("target_id") @db.Uuid
+
+  // Notification recipient
+  userId      String          @map("user_id") @db.Uuid
+
+  // Explanation
+  title       String          @db.VarChar(200)
+  explanation String          @db.Text
+  factors     Json            @default("[]")
+
+  // Dedup — hash of type + targetId to prevent duplicate active alerts
+  fingerprint String          @unique @db.VarChar(128)
+
+  acknowledgedAt DateTime?    @map("acknowledged_at")
+  resolvedAt     DateTime?    @map("resolved_at")
+  expiresAt      DateTime?    @map("expires_at")
+  createdAt      DateTime     @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status, createdAt(sort: Desc)])
+  @@index([type, status])
+  @@map("anomaly_alerts")
+}
+
+/// Token usage log for LLM calls. Every AI invocation is tracked
+/// for cost monitoring and audit. Phase 16 will populate this heavily.
+model AiUsageLog {
+  id           String   @id @default(uuid()) @db.Uuid
+  provider     String   @db.VarChar(20)
+  model        String   @db.VarChar(50)
+  operation    String   @db.VarChar(50)
+
+  inputTokens  Int      @map("input_tokens")
+  outputTokens Int      @map("output_tokens")
+  totalTokens  Int      @map("total_tokens")
+
+  costUsd      Decimal  @map("cost_usd") @db.Decimal(10, 6)
+  latencyMs    Int      @map("latency_ms")
+
+  referenceType String? @map("reference_type") @db.VarChar(20)
+  referenceId   String? @map("reference_id") @db.Uuid
+
+  metadata     Json?    @default("{}")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([provider, createdAt(sort: Desc)])
+  @@index([operation, createdAt(sort: Desc)])
+  @@map("ai_usage_logs")
+}
+
+// ============================================================
+// Phase 16 — Matching AI
+// ============================================================
+
+/// AI-extracted structured crux from a role's JD document. One per role.
+/// Populated asynchronously when a role with a JD is approved/published.
+model JdCrux {
+  id     String       @id @default(uuid()) @db.Uuid
+  roleId String       @unique @map("role_id") @db.Uuid
+  status JdCruxStatus @default(pending)
+
+  // Extracted structured data
+  keySkills        String[] @default([]) @map("key_skills")
+  niceToHaveSkills String[] @default([]) @map("nice_to_have_skills")
+  mustHaves        String[] @default([]) @map("must_haves")
+  qualifications   String[] @default([])
+  seniorityLevel   String?  @map("seniority_level") @db.VarChar(50)
+  experienceMin    Int?     @map("experience_min")
+  experienceMax    Int?     @map("experience_max")
+  summary          String?  @db.Text
+
+  // Raw extracted text (for audit/debug, not exposed to frontend)
+  rawText String? @map("raw_text") @db.Text
+
+  // Error info (populated when status = failed)
+  errorMessage String? @map("error_message") @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@map("jd_crux")
+}
+
+// ============================================================
+// Feature Flags — Per-entity monetization gating
+// ============================================================
+
+/// Controls feature visibility per company/recruiter. GLOBAL rows use
+/// sentinel scopeId '00000000-0000-0000-0000-000000000000' to avoid
+/// NULL-in-unique-constraint pitfalls. Resolution: entity override > global.
+model FeatureFlag {
+  id        String           @id @default(uuid()) @db.Uuid
+  key       String           @db.VarChar(100)
+  enabled   Boolean          @default(false)
+  scope     FeatureFlagScope @default(GLOBAL)
+  scopeId   String           @map("scope_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([key, scope, scopeId])
+  @@index([scope, scopeId])
+  @@map("feature_flags")
+}
