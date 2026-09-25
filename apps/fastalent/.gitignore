@@ -1,0 +1,70 @@
+# ============================================================
+# GigCruite .gitignore
+# ============================================================
+
+# --- Secrets & Credentials (NEVER COMMIT) ---
+# Note: .aws/ lives outside this repo (../.aws/) — these patterns are
+# defensive in case a .aws/ folder is ever created inside platform/.
+.aws/
+.aws/*.pem
+.aws/*.ppk
+.aws/*.txt
+.aws/Keys.txt
+.env
+.env.local
+.env.development
+.env.production
+.env.staging
+.env.*.local
+
+# --- Node.js ---
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+
+# --- Build outputs ---
+dist/
+build/
+out/
+.next/
+.turbo/
+.vite/
+coverage/
+
+# Emitted TS artefacts that should never live next to sources
+# (workspace packages use src/*.ts only — emit goes to dist/)
+packages/*/src/**/*.js
+packages/*/src/**/*.js.map
+packages/*/src/**/*.d.ts
+packages/*/src/**/*.d.ts.map
+
+# --- Editor / OS ---
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Logs ---
+logs/
+*.log
+
+# --- Python (for reference pptx generator) ---
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+
+# --- Prisma ---
+**/prisma/migrations/migration_lock.toml.local
+
+# --- Misc ---
+nul
+*.local
+.cache/

@@ -1,0 +1,45 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "ui": "tui",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", "build/**", ".vite/**"],
+      "inputs": [
+        "src/**",
+        "public/**",
+        "prisma/**",
+        "package.json",
+        "tsconfig.json",
+        "vite.config.*",
+        "tailwind.config.*"
+      ]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "lint": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
+    "type-check": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "outputs": ["coverage/**"]
+    },
+    "clean": {
+      "cache": false
+    }
+  },
+  "globalDependencies": [
+    "tsconfig.base.json",
+    ".env.development",
+    ".env.production",
+    ".env.local"
+  ],
+  "globalEnv": ["NODE_ENV"]
+}

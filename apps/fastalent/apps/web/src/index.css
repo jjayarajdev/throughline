@@ -1,0 +1,290 @@
+@import 'tailwindcss';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Inter fallback -- matches system font metrics to Inter to minimize CLS */
+@font-face {
+  font-family: 'Inter Fallback';
+  src: local('Arial'), local('Helvetica Neue'), local('Helvetica');
+  size-adjust: 107%;
+  ascent-override: 90%;
+  descent-override: 22%;
+  line-gap-override: 0%;
+}
+
+/*
+ * shadcn/ui v4 theme tokens (CSS-first, no tailwind.config.js).
+ * Tailwind v4 picks these up via @theme inline mapping below.
+ * Edit the :root / .dark OKLCH values to adjust the brand palette.
+ */
+
+/*
+ * Primitive Deep Teal tokens (hue 180 = cyan-teal)
+ * Contrast validation:
+ *   - teal-600 on white (light mode primary): 4.86:1 ✓ WCAG AA
+ *   - teal-400 on dark bg (dark mode primary): 6.12:1 ✓ WCAG AA
+ */
+:root {
+  --teal-50:  oklch(0.97 0.02 180);
+  --teal-100: oklch(0.92 0.04 180);
+  --teal-200: oklch(0.85 0.07 180);
+  --teal-300: oklch(0.75 0.11 180);
+  --teal-400: oklch(0.65 0.14 180); /* Dark mode primary: 6.12:1 on dark bg */
+  --teal-500: oklch(0.55 0.15 180); /* Focus ring */
+  --teal-600: oklch(0.47 0.13 180); /* Light mode primary: 4.86:1 on white */
+  --teal-700: oklch(0.39 0.11 180);
+  --teal-800: oklch(0.31 0.08 180);
+  --teal-900: oklch(0.24 0.06 180);
+  --teal-950: oklch(0.16 0.03 180);
+}
+
+/* Semantic shadcn tokens - Light mode */
+:root {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: var(--teal-600);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0.005 180);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0.005 180);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0.01 180);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(0.922 0.005 180);
+  --input: oklch(0.922 0.005 180);
+  --ring: var(--teal-500);
+  --radius: 0.625rem;
+}
+
+/* Semantic shadcn tokens - Dark mode */
+.dark {
+  --background: oklch(0.145 0.01 180);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0.01 180);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0.01 180);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: var(--teal-400); /* WCAG AA on dark background: 4.5:1+ */
+  --primary-foreground: oklch(0.145 0.01 180);
+  --secondary: oklch(0.269 0.01 180);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0.01 180);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0.015 180);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: var(--teal-400);
+
+  /* Brand tokens - dark mode overrides */
+  --color-brand-subtle: var(--teal-900);
+  --color-brand-surface: var(--teal-950);
+
+  /* Role accents - lighter for dark backgrounds */
+  --color-role-employer: oklch(0.65 0.14 180);
+  --color-role-recruiter: oklch(0.75 0.12 145);
+  --color-role-admin: oklch(0.72 0.17 310);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  /* Brand tokens - use bg-brand-primary, text-brand-subtle, etc. */
+  --color-brand-primary: var(--primary);
+  --color-brand-subtle: var(--teal-100);
+  --color-brand-surface: var(--teal-50);
+
+  /* Feedback tokens */
+  --color-success: oklch(0.60 0.15 145);
+  --color-warning: oklch(0.75 0.15 85);
+  --color-error: oklch(0.60 0.22 25);
+  --color-info: var(--teal-500);
+
+  /* Role accent tokens (namespaced to avoid collision with --primary) */
+  --color-role-employer: oklch(0.47 0.13 180);
+  --color-role-recruiter: oklch(0.60 0.15 145);
+  --color-role-admin: oklch(0.58 0.20 310);
+
+  /* Role accent light backgrounds for sidebar active state */
+  --color-role-employer-light: oklch(0.95 0.03 180);
+  --color-role-recruiter-light: oklch(0.95 0.03 145);
+  --color-role-admin-light: oklch(0.95 0.03 310);
+
+  /* Inter font family */
+  --font-sans: 'Inter', 'Inter Fallback', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -100% 0;
+  }
+  100% {
+    background-position: 100% 0;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.page-fade-in {
+  animation: fadeIn 0.15s ease-in;
+}
+
+/* ── View Transitions (Phase 7) ────────────────────────────── */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.2s;
+  animation-timing-function: ease-in-out;
+}
+
+::view-transition-old(root) {
+  animation-name: vt-fade-out;
+}
+
+::view-transition-new(root) {
+  animation-name: vt-fade-in;
+}
+
+@keyframes vt-fade-out {
+  to { opacity: 0; }
+}
+
+@keyframes vt-fade-in {
+  from { opacity: 0; }
+}
+
+/* Disable View Transitions for users who prefer reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none !important;
+  }
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family:
+      'Inter',
+      'Inter Fallback',
+      system-ui,
+      -apple-system,
+      'Segoe UI',
+      sans-serif;
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: 'cv11', 'ss01';
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+}
+
+/* Utility classes */
+
+/* Tabular numerals for financial data in tables/dashboards */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Teal gradient for primary CTAs */
+.bg-brand-gradient {
+  background: linear-gradient(135deg, var(--teal-500), var(--teal-600));
+}
+.dark .bg-brand-gradient {
+  background: linear-gradient(135deg, var(--teal-400), var(--teal-500));
+}
+
+/* Focus ring token -- visible on all backgrounds */
+.ring-brand {
+  --tw-ring-color: var(--ring);
+}
+
+/* Card hover lift — uses pseudo-element for GPU-composited shadow transition.
+ * Direct box-shadow animation causes repaints (148ms). Opacity on pseudo-element
+ * with pre-rendered shadow reduces to ~51ms. See: tobiasahlin.com/blog/how-to-animate-box-shadow/ */
+.card-hover {
+  position: relative;
+  transition: transform 0.15s ease-out;
+}
+
+.card-hover::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 8px 24px oklch(0 0 0 / 0.12);
+  opacity: 0;
+  transition: opacity 0.15s ease-out;
+  z-index: -1;
+  pointer-events: none;
+}
+
+.dark .card-hover::after {
+  box-shadow: 0 8px 24px oklch(0 0 0 / 0.3);
+}
+
+.card-hover:hover {
+  transform: translateY(-2px);
+}
+
+.card-hover:hover::after {
+  opacity: 1;
+}
+
+/* Respect prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-shimmer,
+  [class*="animate-"] {
+    animation: none !important;
+    transition: none !important;
+  }
+  .card-hover,
+  .card-hover::after {
+    transition: none !important;
+  }
+  .card-hover:hover {
+    transform: none;
+  }
+}
