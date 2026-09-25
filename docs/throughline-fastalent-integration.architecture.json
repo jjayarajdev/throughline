@@ -9,13 +9,14 @@
         "id": "forward",
         "label": "Candidates flow forward",
         "focus": [
-          "recruiters",
+          "agencies",
+          "gigrecruiters",
           "fastalent",
           "hub",
           "throughline",
           "hris"
         ],
-        "note": "Sourcing on fastalent, intake and onboarding on Throughline, employee record in the HR system."
+        "note": "Agencies and gig recruiters supply fastalent; intake and onboarding on Throughline; employee record in the HR system."
       },
       {
         "id": "backward",
@@ -44,16 +45,30 @@
   },
   "components": [
     {
-      "id": "recruiters",
+      "id": "agencies",
       "type": "external",
-      "label": "Recruiters & agencies",
-      "sublabel": "marketplace supply",
+      "label": "Staffing agencies",
+      "sublabel": "Adecco · TeamLease · tenants",
       "pos": [
         30,
-        230
+        110
       ],
       "size": [
-        140,
+        150,
+        62
+      ]
+    },
+    {
+      "id": "gigrecruiters",
+      "type": "external",
+      "label": "Gig recruiters",
+      "sublabel": "independent · per-recruiter",
+      "pos": [
+        30,
+        330
+      ],
+      "size": [
+        150,
         62
       ]
     },
@@ -119,7 +134,7 @@
       "id": "hub",
       "type": "messagebus",
       "label": "Hiring Event Hub",
-      "sublabel": "signed webhooks · outbox",
+      "sublabel": "partner API · signed webhooks",
       "pos": [
         520,
         230
@@ -249,11 +264,21 @@
   ],
   "connections": [
     {
-      "from": "recruiters",
+      "from": "agencies",
+      "to": "fastalent",
+      "label": "bulk: API · CSV",
+      "variant": "emphasis",
+      "labelAt": [
+        232,
+        125
+      ]
+    },
+    {
+      "from": "gigrecruiters",
       "to": "fastalent",
       "label": "submit CVs",
       "variant": "emphasis",
-      "labelDy": 22
+      "labelDy": -12
     },
     {
       "from": "fastalent",
@@ -364,7 +389,7 @@
       "dot": "cyan",
       "title": "Who owns what",
       "items": [
-        "fastalent: marketplace supply, wallets, earnings, recruiter reputation",
+        "fastalent: supply from agencies (tenants with one wallet and rate card) and gig recruiters; earnings, reputation, candidate ownership rules",
         "Throughline: the requisition (HRQ) and everything after intake — screening, interviews, offers, onboarding",
         "HR system: the employee record; Throughline hands over on join and stores the employee id"
       ]
@@ -374,7 +399,7 @@
       "title": "The contract between them",
       "items": [
         "Events: requisition.published, candidate.submitted, candidate.status_changed, interview.completed, hire.joined",
-        "Signed webhooks + outbox on each side, idempotency keys, retries; no shared database",
+        "Hub is a public partner API: signed webhooks + outbox, idempotency keys, retries; Throughline is its first integration",
         "Mapping store keeps HRQ ↔ fastalent Role and Throughline candidate ↔ fastalent Submission"
       ]
     },
