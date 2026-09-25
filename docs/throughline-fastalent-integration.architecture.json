@@ -34,12 +34,13 @@
         "label": "Screening and interview adapters",
         "focus": [
           "screener",
-          "videoscreen",
+          "incruiter",
+          "berribot",
           "interviewtools",
           "fastalent",
           "throughline"
         ],
-        "note": "One screening service used by both products; third-party video tools plugged in through adapters."
+        "note": "Screening lives inside fastalent and sells on its own; InCruiter and Berribot are optional adapters; Throughline calls it via the hub."
       }
     ]
   },
@@ -105,30 +106,16 @@
       "id": "screener",
       "type": "backend",
       "label": "Screening Service",
-      "sublabel": "JD crux · profile-vs-JD",
+      "sublabel": "profile-vs-JD · JD crux · verify",
       "pos": [
-        520,
+        240,
         40
       ],
       "size": [
         190,
         62
       ],
-      "tag": "to build"
-    },
-    {
-      "id": "videoscreen",
-      "type": "external",
-      "label": "Video screening",
-      "sublabel": "third-party platform",
-      "pos": [
-        800,
-        40
-      ],
-      "size": [
-        160,
-        62
-      ]
+      "tag": "fastalent"
     },
     {
       "id": "hub",
@@ -230,13 +217,44 @@
         180,
         62
       ]
+    },
+    {
+      "id": "incruiter",
+      "type": "external",
+      "label": "InCruiter",
+      "sublabel": "IncBot · IncServe · proctor",
+      "pos": [
+        570,
+        16
+      ],
+      "size": [
+        190,
+        52
+      ],
+      "tag": "adapter"
+    },
+    {
+      "id": "berribot",
+      "type": "external",
+      "label": "Berribot",
+      "sublabel": "MasterMind · Proctor · 140+ langs",
+      "pos": [
+        570,
+        88
+      ],
+      "size": [
+        190,
+        52
+      ],
+      "tag": "adapter"
     }
   ],
   "boundaries": [
     {
       "kind": "region",
-      "label": "fastalent — sourcing",
+      "label": "fastalent — sourcing & screening",
       "wraps": [
+        "screener",
         "fastalent",
         "fastdb"
       ],
@@ -246,7 +264,6 @@
       "kind": "region",
       "label": "Integration layer (to build)",
       "wraps": [
-        "screener",
         "hub",
         "identity"
       ],
@@ -285,7 +302,10 @@
       "to": "hub",
       "label": "candidate.submitted",
       "variant": "emphasis",
-      "labelDy": -24
+      "labelAt": [
+        475,
+        308
+      ]
     },
     {
       "from": "hub",
@@ -306,40 +326,16 @@
       "to": "fastalent",
       "label": "write-back",
       "variant": "dashed",
-      "labelDy": 22
+      "labelDy": -24
     },
     {
       "from": "fastalent",
       "to": "screener",
-      "label": "score at submission",
+      "label": "score every submission",
       "route": "auto",
       "fromSide": "top",
-      "toSide": "left",
-      "labelDy": -14,
-      "labelDx": 0,
-      "via": [
-        [
-          335,
-          71
-        ]
-      ],
-      "labelSegment": 1
-    },
-    {
-      "from": "throughline",
-      "to": "screener",
-      "label": "score at review",
-      "route": "auto",
-      "fromSide": "top",
-      "toSide": "bottom",
-      "labelDy": -14
-    },
-    {
-      "from": "screener",
-      "to": "videoscreen",
-      "label": "invite · results",
-      "variant": "dashed",
-      "labelDy": -24
+      "labelDy": 0,
+      "toSide": "bottom"
     },
     {
       "from": "throughline",
@@ -382,6 +378,31 @@
       "label": "resolve ids",
       "route": "straight",
       "labelDy": 26
+    },
+    {
+      "from": "hub",
+      "to": "screener",
+      "label": "score at review",
+      "route": "auto",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "labelDy": -14
+    },
+    {
+      "from": "screener",
+      "to": "incruiter",
+      "label": "AI interview · IaaS",
+      "variant": "dashed",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "from": "screener",
+      "to": "berribot",
+      "label": "AI interview · proctor",
+      "variant": "dashed",
+      "fromSide": "right",
+      "toSide": "left"
     }
   ],
   "cards": [
@@ -389,8 +410,8 @@
       "dot": "cyan",
       "title": "Who owns what",
       "items": [
-        "fastalent: supply from agencies (tenants with one wallet and rate card) and gig recruiters; earnings, reputation, candidate ownership rules",
-        "Throughline: the requisition (HRQ) and everything after intake — screening, interviews, offers, onboarding",
+        "fastalent: agencies and gig recruiters, wallets, reputation, and the Screening Service (profile-vs-JD), sold on its own",
+        "Throughline: the HRQ and everything after intake — interviews, offers, onboarding",
         "HR system: the employee record; Throughline hands over on join and stores the employee id"
       ]
     },
@@ -400,7 +421,7 @@
       "items": [
         "Events: requisition.published, candidate.submitted, candidate.status_changed, interview.completed, hire.joined",
         "Hub is a public partner API: signed webhooks + outbox, idempotency keys, retries; Throughline is its first integration",
-        "Mapping store keeps HRQ ↔ fastalent Role and Throughline candidate ↔ fastalent Submission"
+        "Mapping store: HRQ ↔ fastalent Role, Throughline candidate ↔ fastalent Submission"
       ]
     },
     {
@@ -408,8 +429,8 @@
       "title": "Build order",
       "items": [
         "1 — Intake and status write-back (payouts flow on verified placements)",
-        "2 — Screening Service, seeded from fastalent's JD-crux and resume-match code, used by both products",
-        "3 — Interview and video-screening adapters · 4 — HR system connector · 5 — SSO and cross-pipeline analytics"
+        "2 — Screening Service inside fastalent (from its JD-crux and resume-match code), exposed on the partner API",
+        "3 — InCruiter and Berribot adapters behind screening · 4 — HR system connector · 5 — SSO and cross-pipeline analytics"
       ]
     }
   ]
