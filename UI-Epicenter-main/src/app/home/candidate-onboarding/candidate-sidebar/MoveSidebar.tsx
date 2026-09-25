@@ -255,7 +255,7 @@ export const MoveSidebar = ({ open, onOpenChange, candidate, actionType }: MoveS
     <Drawer
       open={open}
       onClose={() => onOpenChange(false)}
-      width={actionType === "Joined" ? 720 : 480}
+      size={actionType === "Joined" ? "large" : "default"}
       destroyOnHidden
       title={
         <Space>
