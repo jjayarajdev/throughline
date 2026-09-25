@@ -318,7 +318,7 @@ export function HireTable() {
         <div className="flex items-center py-4 gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className=" text-[#007E61]">
+              <Button variant="ghost" className=" text-[#0958d9]">
                 <div className="rotate-90">
                   <Columns4 />
                 </div>
@@ -345,17 +345,17 @@ export function HireTable() {
                 })}
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button variant="ghost" className="text-[#007E61]">
+          <Button variant="ghost" className="text-[#0958d9]">
             <ListFilter /> Add Filter
           </Button>
           <Button
             variant="ghost"
-            className="text-[#007E61]"
+            className="text-[#0958d9]"
             onClick={() => router.push(`/home/hiring-management/${12}/${"create-hiring"}` )}
           >
             <PlusIcon /> Create
           </Button>
-          <Button variant="ghost" className="text-[#007E61]">
+          <Button variant="ghost" className="text-[#0958d9]">
             <Download /> Export
           </Button>
         </div>

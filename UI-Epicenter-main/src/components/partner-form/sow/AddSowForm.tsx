@@ -625,7 +625,7 @@ const computedFlags = selectedCrData
               <Button
                 type="submit"
                 disabled={createSow.isPending || updateLoading}
-                className="bg-[#007E61] hover:bg-[#006D54]"
+                className="bg-[#0958d9] hover:bg-[#006D54]"
               >
                 {createSow.isPending || updateLoading
                   ? submitLabel.replace(/^(Create|Update)/, (m) =>

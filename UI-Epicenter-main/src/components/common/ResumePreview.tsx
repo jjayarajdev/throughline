@@ -23,7 +23,7 @@ export function ResumePreview({ url, fileName }: ResumePreviewProps) {
         type="button"
         variant="ghost"
         size="sm"
-        className="hover:text-[#01a982]"
+        className="hover:text-[#1677ff]"
         onClick={() => setOpen(true)}
       >
         <Eye className="h-4 w-4" />
@@ -33,12 +33,12 @@ export function ResumePreview({ url, fileName }: ResumePreviewProps) {
         <DialogContent className="w-full max-w-[94vw] min-w-[800px] h-[95vh] p-4">
           <DialogHeader className="pb-3 border-b">
             <div className="flex items-center justify-between">
-              <DialogTitle className="text-xl font-semibold text-[#01a982]">
+              <DialogTitle className="text-xl font-semibold text-[#1677ff]">
                 {fileName || "Document"}
               </DialogTitle>
               {loading && (
                 <div className="flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin text-[#01a982]" />
+                  <Loader2 className="h-4 w-4 animate-spin text-[#1677ff]" />
                   <span className="text-sm text-gray-500">Loading document...</span>
                 </div>
               )}
@@ -62,7 +62,7 @@ export function ResumePreview({ url, fileName }: ResumePreviewProps) {
             {loading && (
               <div className="absolute inset-0 flex items-center justify-center bg-white/90 rounded-lg">
                 <div className="text-center bg-white p-6 rounded-lg shadow-sm">
-                  <Loader2 className="h-8 w-8 animate-spin text-[#01a982] mx-auto mb-3" />
+                  <Loader2 className="h-8 w-8 animate-spin text-[#1677ff] mx-auto mb-3" />
                   <p className="text-sm font-medium text-gray-700">
                     Loading document...
                   </p>
@@ -80,7 +80,7 @@ export function ResumePreview({ url, fileName }: ResumePreviewProps) {
                 variant="outline"
                 size="sm"
                 onClick={() => window.open(url, "_blank")}
-                className="flex items-center gap-2 hover:text-[#01a982] hover:border-[#01a982] hover:bg-[#01a982]/5"
+                className="flex items-center gap-2 hover:text-[#1677ff] hover:border-[#1677ff] hover:bg-[#1677ff]/5"
               >
                 <Download className="h-4 w-4" />
                 <span>Download</span>

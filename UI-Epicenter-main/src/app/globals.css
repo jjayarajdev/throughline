@@ -1,6 +1,9 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* Throughline — Ant Design token bridge for the remaining shadcn/Tailwind pages */
+:root { --tl-primary: #1677ff; --tl-primary-hover: #4096ff; --tl-primary-active: #0958d9; --tl-sider: #001529; }
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
@@ -51,35 +54,35 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
+  --primary: #1677ff;
+  --primary-foreground: #ffffff;
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
   --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --accent: #e6f4ff;
+  --accent-foreground: #0958d9;
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-  --color-interviewing: #3B82F6;  
-  --color-new:          #10B981;   
-  --color-onhold:       #FBBF24;   
-  --color-screening:    #EF4444;  
+  --ring: #1677ff;
+  --chart-1: #1677ff;
+  --chart-2: #13c2c2;
+  --chart-3: #52c41a;
+  --chart-4: #faad14;
+  --chart-5: #722ed1;
+  --sidebar: #001529;
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: #1677ff;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #002140;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(255,255,255,0.08);
+  --sidebar-ring: #1677ff;
+  --color-interviewing: #1677ff;  
+  --color-new:          #52c41a;   
+  --color-onhold:       #faad14;   
+  --color-screening:    #ff4d4f;  
 }
  
 .dark {
@@ -89,31 +92,31 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
+  --primary: #1668dc;
+  --primary-foreground: #ffffff;
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
   --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --accent: #111a2c;
+  --accent-foreground: #8dc5f8;
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --ring: #1668dc;
+  --chart-1: #1668dc;
+  --chart-2: #13a8a8;
+  --chart-3: #49aa19;
+  --chart-4: #d89614;
+  --chart-5: #642ab5;
+  --sidebar: #001529;
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: #1668dc;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #002140;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(255,255,255,0.08);
+  --sidebar-ring: #1668dc;
 }
 
 @theme {
@@ -329,12 +332,6 @@
 
 @utility menu-dropdown-item {
   @apply relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-theme-sm font-medium;
-}
-
-.dark-theme .hpe-logo,
-:root.dark .hpe-logo {
-  --hpe-logo-bg: #000;
-  --hpe-logo-color: #fff;
 }
 
 @theme {

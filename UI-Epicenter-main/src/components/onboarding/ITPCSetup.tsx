@@ -447,7 +447,7 @@ function ITPCSetup({ onSave, onboardingTimeline, personalDetails }: IProps) {
         <Button
           type="submit"
           size="sm"
-          className="bg-[#00b388] hover:bg-[#009e79] h-9"
+          className="bg-[#4096ff] hover:bg-[#009e79] h-9"
         >
           {onboardingTimeline?.id ? "Update" : "Submit"}
         </Button>

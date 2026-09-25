@@ -128,7 +128,7 @@ const { data: profileTracker, isPending: isProfileLoading } = useQuery({
            <h1 className="text-3xl font-bold text-foreground">Employee Details View</h1>
            
           
-           {/* <Button  className="bg-[#00b388] hover:bg-[#009e79] h-9">Reinitiate</Button> */}
+           {/* <Button  className="bg-[#4096ff] hover:bg-[#009e79] h-9">Reinitiate</Button> */}
         </div>
 
         

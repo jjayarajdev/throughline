@@ -45,11 +45,11 @@ export default function ToggleButton({
         checked={checked}
         onCheckedChange={onCheckedChange}
         disabled={disabled}
-        className="data-[state=checked]:bg-[#007E61] data-[state=checked]:border-[#007E61] dark:data-[state=checked]:bg-[#00cc99] dark:data-[state=checked]:border-[#00cc99]"
+        className="data-[state=checked]:bg-[#0958d9] data-[state=checked]:border-[#0958d9] dark:data-[state=checked]:bg-[#00cc99] dark:data-[state=checked]:border-[#00cc99]"
       />
       <Label
         htmlFor={id}
-        className={`font-medium text-[#007E61] dark:text-[#00cc99] cursor-pointer ${sizeClasses[size]} ${
+        className={`font-medium text-[#0958d9] dark:text-[#00cc99] cursor-pointer ${sizeClasses[size]} ${
           disabled ? "opacity-50 cursor-not-allowed" : ""
         }`}
       >

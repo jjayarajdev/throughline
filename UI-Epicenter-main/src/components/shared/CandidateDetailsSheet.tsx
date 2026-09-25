@@ -50,7 +50,7 @@ export function CandidateDetailsSheet({
     >
       <SheetContent side="right" className="w-[800px] p-0 overflow-hidden flex flex-col">
         <SheetHeader className="p-4 pb-2 border-b shrink-0">
-          <SheetTitle className="text-xl font-semibold text-[#007E61]">
+          <SheetTitle className="text-xl font-semibold text-[#0958d9]">
             {title}
           </SheetTitle>
         </SheetHeader>

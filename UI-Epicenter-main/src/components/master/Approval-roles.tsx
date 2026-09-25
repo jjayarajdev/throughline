@@ -373,7 +373,7 @@ const columns: Column[] = useMemo(
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-9 text-[#007E61]"
+                  className="h-9 text-[#0958d9]"
                 >
                   <Columns4 className="h-4 w-4 mr-2" />
                   Columns

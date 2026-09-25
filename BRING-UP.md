@@ -1,4 +1,4 @@
-# EpiCenter — Bring-Up Runbook
+# Throughline (EpiCenter codebase) — Bring-Up Runbook
 
 > **Status (25 Sep 2026): brought up and verified locally.** Login → dashboard → Hiring /
 > Candidate lists all work against a local SQL Server. Three things in the sections below
@@ -341,3 +341,31 @@ failed for two reasons and 400'd the whole Slot Allocation page:
 Verified by expiring a real pending slot: with the delete forced to fail, no history row is written and
 the slot survives; without the fault, the endpoint returns 200, one history row exists, slot removed.
 Migrated slots keep `ValidityHours = NULL` so historical data is never auto-cancelled.
+
+---
+
+## 11. Branding and UI framework (25 Sep 2026)
+
+The product is **Throughline**. All HPE / EpiCenter branding was removed from the UI and the
+frontend now runs on **Ant Design 6** (`antd`, `@ant-design/icons`, `@ant-design/nextjs-registry`).
+
+What changed in `UI-Epicenter-main`:
+- **Brand**: `src/components/throughline/Logo.tsx` (mark + wordmark), `public/throughline.svg`
+  favicon, page title, login copy. The HPE logo component and PNGs are deleted. The HPE green
+  palette (`#01a982` family) was replaced everywhere with Ant Design blue (`#1677ff` family) and
+  the sider colour `#001529`; `src/app/globals.css` tokens follow the same palette so the pages
+  still built on shadcn/Tailwind match. Session-storage key is now `throughline-storage`.
+- **Ant Design shell**: `ConfigProvider` + `App` in `src/components/providers.tsx` (theme in
+  `src/components/throughline/theme.ts`, dark mode follows next-themes), `AntdRegistry` in the
+  root layout, `Layout/Sider/Header/Menu` in `src/app/home/layout.tsx`, `AppSidebar.tsx`,
+  `AppHeader.tsx`, `UserDropdown.tsx`, `theme-toggler.tsx`; the login page is an antd `Form`.
+- Fixed: `SidebarContext` hard-coded "mobile", so the sider could never expand.
+
+**Still on shadcn/Radix + Tailwind (migrate page by page)**: every feature page and the
+`src/components/ui/*` primitives (tables, dialogs, tabs, selects, forms, sheets). They render
+correctly inside the Ant shell and use the Ant palette via CSS tokens, but they are not antd
+components yet. Suggested order: shared primitives (`button`, `input`, `select`, `dialog`,
+`tabs`, `table`) → grids (`HiringTable`, candidate tables) → forms → onboarding.
+Field labels that said "HPE Email ID" now read "Company Email ID"; the API field name
+`hpeEmailId` is unchanged (backend contract).
+

@@ -555,7 +555,7 @@ const [submitting, setSubmitting] = useState(false);
                 <Button
                     onClick={submitCandidates}
                     disabled={!isSubmitEnabled ||submitting}
-                    className="bg-[#00b388] hover:bg-[#009e79]"
+                    className="bg-[#4096ff] hover:bg-[#009e79]"
                 >
                     Submit Candidates
                 </Button>

@@ -71,7 +71,7 @@ export default function NotificationDropdown() {
   const getNotificationIcon = (type: Notification["type"]) => {
     switch (type) {
       case "hiring":
-        return <Briefcase className="w-6 h-6 text-[#01a982]" />;
+        return <Briefcase className="w-6 h-6 text-[#1677ff]" />;
       case "partner":
         return <Users2 className="w-6 h-6 text-blue-500" />;
       case "interview":

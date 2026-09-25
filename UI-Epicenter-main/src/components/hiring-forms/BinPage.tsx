@@ -253,7 +253,7 @@ export default function BinPage() {
                     {visibleColumns?.map((column) => (
                       <TableCell key={`${hiring.id}-${column.id}`}>
                         {column.id === "hrqId" ? (
-                          <div className="text-[#00b388] hover:underline">
+                          <div className="text-[#4096ff] hover:underline">
                             {hiring.hrqId}
                           </div>
                         ) : column.id === "hiringStatusName" ? (

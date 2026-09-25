@@ -32,7 +32,7 @@ export default function ProfileTrackerViewProfile({ candidateData }: { candidate
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <InfoBlock label="Employee ID" value={candidateData?.employeeId?.toString() || 'N/A'} />
           <InfoBlock label="Employee Name As Per ID" value={candidateData?.employeeNameAsPerId || 'N/A'} />
-          <InfoBlock label="HPE Email ID" value={candidateData?.hpeEmailId || 'N/A'} />
+          <InfoBlock label="Company Email ID" value={candidateData?.hpeEmailId || 'N/A'} />
           <InfoBlock label="Smart Profile ID" value={candidateData?.smartProfileId || 'N/A'} />
           <InfoBlock label="LHCC (IN97/IN99)" value={candidateData?.lhccCode || 'N/A'} />
           <InfoBlock label="Cost Center" value={candidateData?.costCenterName || 'N/A'} />

@@ -251,11 +251,11 @@ export default function ScreeningPagination() {
               id="assigned-mode"
               checked={isSelf}
               onCheckedChange={setIsSelf}
-              className="data-[state=checked]:bg-[#007E61] data-[state=checked]:border-[#007E61] dark:data-[state=checked]:bg-[#00cc99] dark:data-[state=checked]:border-[#00cc99]"
+              className="data-[state=checked]:bg-[#0958d9] data-[state=checked]:border-[#0958d9] dark:data-[state=checked]:bg-[#00cc99] dark:data-[state=checked]:border-[#00cc99]"
             />
             <Label
               htmlFor="assigned-mode"
-              className="text-sm font-medium text-[#007E61] dark:text-[#00cc99]"
+              className="text-sm font-medium text-[#0958d9] dark:text-[#00cc99]"
             >
               {isSelf ? "Self" : "Team"}
             </Label>
@@ -278,11 +278,11 @@ export default function ScreeningPagination() {
                 id="assigned-mode"
                 checked={isSelf}
                 onCheckedChange={setIsSelf}
-                className="data-[state=checked]:bg-[#007E61] data-[state=checked]:border-[#007E61] dark:data-[state=checked]:bg-[#00cc99] dark:data-[state=checked]:border-[#00cc99]"
+                className="data-[state=checked]:bg-[#0958d9] data-[state=checked]:border-[#0958d9] dark:data-[state=checked]:bg-[#00cc99] dark:data-[state=checked]:border-[#00cc99]"
               />
               <Label
                 htmlFor="assigned-mode"
-                className="text-sm font-medium text-[#007E61] dark:text-[#00cc99]"
+                className="text-sm font-medium text-[#0958d9] dark:text-[#00cc99]"
               >
                 {isSelf ? "Self" : "Team"}
               </Label>
@@ -293,11 +293,11 @@ export default function ScreeningPagination() {
               id="assigned-mode"
               checked={isScreening}
               onCheckedChange={setIsScreening}
-              className="data-[state=checked]:bg-[#007E61] data-[state=checked]:border-[#007E61] dark:data-[state=checked]:bg-[#00cc99] dark:data-[state=checked]:border-[#00cc99]"
+              className="data-[state=checked]:bg-[#0958d9] data-[state=checked]:border-[#0958d9] dark:data-[state=checked]:bg-[#00cc99] dark:data-[state=checked]:border-[#00cc99]"
             />
             <Label
               htmlFor="assigned-mode"
-              className="text-sm font-medium text-[#007E61] dark:text-[#00cc99] flex items-center gap-1"
+              className="text-sm font-medium text-[#0958d9] dark:text-[#00cc99] flex items-center gap-1"
             >
               <span>{isScreening ? "Screening" : "Assessment"}</span>
               <span className="inline-flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-800 px-2 py-0.5 text-xs">

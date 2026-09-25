@@ -101,7 +101,7 @@ export function PODetailsTable({ poDetails }: PODetailsTableProps) {
                   {expandedRows.includes(sow.sowNumber) && (
                     <TableRow>
                       <TableCell colSpan={7} className="p-0">
-                        <div className="p-4 bg-gray-50/30 dark:bg-gray-900 border-l-2 border-[#007E61]">
+                        <div className="p-4 bg-gray-50/30 dark:bg-gray-900 border-l-2 border-[#0958d9]">
                           <div className="flex justify-between items-center mb-4">
                             <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-100">PO Details</h3>
                             <TooltipProvider>

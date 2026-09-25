@@ -275,7 +275,7 @@ export default function PartnerSowManagement() {
                           ) : column.id === "partnerCode" ? (
                             <Link
                               href={`/home/partner-onboarding/partner-profile/${partner.partnerCode}`}
-                              className="text-[#00b388] hover:underline"
+                              className="text-[#4096ff] hover:underline"
                             >
                               {partner.partnerCode}
                             </Link>

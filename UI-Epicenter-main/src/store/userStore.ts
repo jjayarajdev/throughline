@@ -59,7 +59,7 @@ export const useUserStore = create(
         }),
     }),
     {
-      name: 'hp-storage',
+      name: 'throughline-storage',
       storage: createJSONStorage(() => sessionStorage),
     }
   )

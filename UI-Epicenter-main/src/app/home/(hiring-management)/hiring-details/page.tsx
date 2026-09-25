@@ -118,7 +118,7 @@ export default function HiringDetailsPage() {
               <Badge className="bg-green-100 text-green-600 border-green-200">
                 {viewHiringDetails.hrqId}
               </Badge>
-              <Badge className="bg-[#01A982]/10 text-[#01A982] border-[#01A982]/20">
+              <Badge className="bg-[#1677ff]/10 text-[#1677ff] border-[#1677ff]/20">
                 {viewHiringDetails.hiringTypeName}
               </Badge>
             </div>
@@ -189,7 +189,7 @@ export default function HiringDetailsPage() {
             <Card className="shadow-sm border-gray-200 dark:border-gray-800 overflow-hidden">
               <CardHeader className="bg-gray-50 dark:bg-gray-900 py-2 border-b border-gray-200 dark:border-gray-700">
                 <CardTitle className="text-lg flex items-center gap-2 text-gray-800 dark:text-gray-100">
-                  <Briefcase className="h-5 w-5 text-[#01A982]" />
+                  <Briefcase className="h-5 w-5 text-[#1677ff]" />
                   Hiring Information
                 </CardTitle>
               </CardHeader>
@@ -217,7 +217,7 @@ export default function HiringDetailsPage() {
             <Card className="shadow-sm border-gray-200 dark:border-gray-800 overflow-hidden">
               <CardHeader className="bg-gray-50 dark:bg-gray-900 py-2 border-b border-gray-200 dark:border-gray-700">
                 <CardTitle className="text-lg flex items-center gap-2 text-gray-800 dark:text-gray-100">
-                  <FileText className="h-5 w-5 text-[#01A982]" />
+                  <FileText className="h-5 w-5 text-[#1677ff]" />
                   Job Information
                 </CardTitle>
               </CardHeader>
@@ -268,7 +268,7 @@ export default function HiringDetailsPage() {
               <Card className="shadow-sm border-gray-200 dark:border-gray-800 md:col-span-2 mt-4">
                 <CardHeader className="py-2 border-b border-gray-200 dark:border-gray-700">
                   <CardTitle className="text-lg flex items-center gap-2 text-gray-800 dark:text-gray-100">
-                    <FileText className="h-5 w-5 text-[#01A982]" />
+                    <FileText className="h-5 w-5 text-[#1677ff]" />
                     Job Description
                   </CardTitle>
                 </CardHeader>
@@ -288,14 +288,14 @@ export default function HiringDetailsPage() {
             {/* <Card className="shadow-sm border-gray-200 dark:border-gray-800">
               <CardHeader className="py-2 border-b border-gray-200 dark:border-gray-700">
                 <CardTitle className="text-lg flex items-center gap-2 text-gray-800 dark:text-gray-100">
-                  <User className="h-5 w-5 text-[#01A982]" />
+                  <User className="h-5 w-5 text-[#1677ff]" />
                   Key Personnel
                 </CardTitle>
               </CardHeader>
               <CardContent className="py-2">
                 <div className="space-y-2">
                   <div className="flex items-center gap-3">
-                    <Avatar className="h-10 w-10 bg-[#01A982]/20 text-[#01A982]">
+                    <Avatar className="h-10 w-10 bg-[#1677ff]/20 text-[#1677ff]">
                       <AvatarFallback>
                         {getInitials(viewHiringDetails.hiringManagerName)}
                       </AvatarFallback>
@@ -367,7 +367,7 @@ export default function HiringDetailsPage() {
                       <CardHeader className="flex items-start justify-between gap-6 border-b border-gray-200 dark:border-gray-700">
                         {/* Round Number + Title */}
                         <div className="flex items-center gap-3 min-w-[200px]">
-                          <div className="h-8 w-8 rounded-full bg-[#01A982] text-white flex items-center justify-center font-medium shadow">
+                          <div className="h-8 w-8 rounded-full bg-[#1677ff] text-white flex items-center justify-center font-medium shadow">
                             {round.roundNumber}
                           </div>
                           <CardTitle className="text-lg text-gray-800 dark:text-gray-100">
@@ -389,7 +389,7 @@ export default function HiringDetailsPage() {
                                 key={idx}
                                 className="flex items-center gap-2 bg-gray-50 dark:bg-gray-800 px-3 py-1.5 rounded-full"
                               >
-                                <Avatar className="h-6 w-6 bg-[#01A982]/10 text-[#01A982]">
+                                <Avatar className="h-6 w-6 bg-[#1677ff]/10 text-[#1677ff]">
                                   <AvatarFallback>
                                     {getInitials(name.trim())}
                                   </AvatarFallback>
@@ -429,7 +429,7 @@ export default function HiringDetailsPage() {
                                       key={idx}
                                       className="flex items-center gap-2 bg-gray-50 dark:bg-gray-800 px-3 py-1.5 rounded-full"
                                     >
-                                      <Avatar className="h-6 w-6 bg-[#01A982]/10 text-[#01A982]">
+                                      <Avatar className="h-6 w-6 bg-[#1677ff]/10 text-[#1677ff]">
                                         <AvatarFallback>
                                           {idx + 1}
                                         </AvatarFallback>
@@ -463,7 +463,7 @@ export default function HiringDetailsPage() {
                   <CardHeader className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
                     <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
                       <CardTitle className="text-lg flex items-center gap-2 text-gray-800 dark:text-gray-100">
-                        <Award className="h-5 w-5 text-[#01A982]" />
+                        <Award className="h-5 w-5 text-[#1677ff]" />
                         Calibration Session
                       </CardTitle>
 
@@ -487,7 +487,7 @@ export default function HiringDetailsPage() {
                           Attendees
                         </h3>
                         <div className="flex items-center gap-2">
-                          <Avatar className="h-6 w-6 bg-[#01A982]/10 text-[#01A982]">
+                          <Avatar className="h-6 w-6 bg-[#1677ff]/10 text-[#1677ff]">
                             <AvatarFallback>
                               {getInitials(calibration.attendees)}
                             </AvatarFallback>

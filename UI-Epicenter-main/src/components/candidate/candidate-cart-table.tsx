@@ -292,7 +292,7 @@ export function CandidateCartTable() {
             disabled={!candidates.length || downloadExcelLoading}
             variant="ghost"
             size="sm"
-            className="h-9 text-[#007E61] hover:text-[#007E61] hover:bg-[#E6F4F1] dark:text-[#00cc99] dark:hover:bg-[#11332b]"
+            className="h-9 text-[#0958d9] hover:text-[#0958d9] hover:bg-[#E6F4F1] dark:text-[#00cc99] dark:hover:bg-[#11332b]"
           >
             <Download className="h-4 w-4 mr-2" />
             {downloadExcelLoading ? "Exporting..." : "Export"}
@@ -301,7 +301,7 @@ export function CandidateCartTable() {
             <Button
               variant="ghost"
               size="sm"
-              className="h-9 text-[#007E61] hover:text-[#007E61] hover:bg-[#E6F4F1] dark:text-[#00cc99] dark:hover:bg-[#11332b]"
+              className="h-9 text-[#0958d9] hover:text-[#0958d9] hover:bg-[#E6F4F1] dark:text-[#00cc99] dark:hover:bg-[#11332b]"
               onClick={() => {
                 router.push("/home/candidate-management/create-candidate");
               }}
@@ -363,7 +363,7 @@ export function CandidateCartTable() {
                     <TableCell key={`${candidate.id}-${column.id}`}>
                       {column.id === "hrqId" ? (
                         <h2
-                           className="text-[#00b388] hover:cursor-pointer hover:underline"
+                           className="text-[#4096ff] hover:cursor-pointer hover:underline"
                           onClick={() =>
                             router.push(
                               `/home/hiring-details?hrqid=${candidate.hrqId}`

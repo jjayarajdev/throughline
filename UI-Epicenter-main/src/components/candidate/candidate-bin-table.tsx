@@ -380,7 +380,7 @@ export function CandidateBinTable() {
             <Button
               variant="ghost"
               size="sm"
-              className="h-9 text-[#007E61] hover:text-[#007E61] hover:bg-[#E6F4F1] dark:text-[#00cc99] dark:hover:bg-[#11332b]"
+              className="h-9 text-[#0958d9] hover:text-[#0958d9] hover:bg-[#E6F4F1] dark:text-[#00cc99] dark:hover:bg-[#11332b]"
               onClick={() => {
                 router.push("/home/candidate-management/create-candidate");
               }}
@@ -449,7 +449,7 @@ export function CandidateBinTable() {
                     <TableCell key={`${candidate.id}-${column.id}`}>
                       {column.id === "hrqId" ? (
                         <h2
-                          className="text-[#00b388] font-medium hover:cursor-pointer underline"
+                          className="text-[#4096ff] font-medium hover:cursor-pointer underline"
                           onClick={() =>
                             router.push(
                               `/home/hiring-details?hrqid=${candidate.hrqId}`
@@ -627,7 +627,7 @@ export function CandidateBinTable() {
             <Button
             type="submit"
               onClick={handleTermsAccept}
-              className="bg-[#00b388] hover:bg-[#009e79]"
+              className="bg-[#4096ff] hover:bg-[#009e79]"
             >
               Accept
             </Button>
@@ -667,7 +667,7 @@ export function CandidateBinTable() {
                   <Button
                   disabled={!form.watch("resume").attachmentURL}
                     type="submit"
-                    className="bg-[#00b388] hover:bg-[#009e79]"
+                    className="bg-[#4096ff] hover:bg-[#009e79]"
                   >
                     Upload
                   </Button>
@@ -733,7 +733,7 @@ export function CandidateBinTable() {
                   </Button>
                   <Button
                     type="submit"
-                    className="bg-[#00b388] hover:bg-[#009e79]"
+                    className="bg-[#4096ff] hover:bg-[#009e79]"
                   >
                     Submit Request
                   </Button>

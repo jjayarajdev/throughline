@@ -302,7 +302,7 @@ export function HiringDetailsTable({ data }: Props) {
     <CardContent className="space-y-4">
       <div className="flex justify-between mb-4">
         <div className="flex items-center gap-2">
-          <User2 className="h-6 w-6 text-[#01a982]" />
+          <User2 className="h-6 w-6 text-[#1677ff]" />
           <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
             Hiring Request Details
           </h2>
@@ -504,7 +504,7 @@ export function HiringDetailsTable({ data }: Props) {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {fields.map((f) => (
           <div key={f.key} className="flex items-start space-x-2">
-            <div className="mt-1 text-[#01a982]">{f.icon}</div>
+            <div className="mt-1 text-[#1677ff]">{f.icon}</div>
             <div className="flex-1 gap-2">
               <Label className="font-medium my-1">{f.label}</Label>
               {f.isSelect ? (
@@ -514,7 +514,7 @@ export function HiringDetailsTable({ data }: Props) {
                   className="w-full"
                   disabled={true}
                 >
-                  <SelectTrigger className="border-[#01a982]/20 hover:border-[#01a982] focus:ring-[#01a982]/20">
+                  <SelectTrigger className="border-[#1677ff]/20 hover:border-[#1677ff] focus:ring-[#1677ff]/20">
                     <SelectValue placeholder="Select RmOwner" />
                   </SelectTrigger>
                   <SelectContent>
@@ -522,7 +522,7 @@ export function HiringDetailsTable({ data }: Props) {
                       <SelectItem
                         key={opt.id}
                         value={opt.id}
-                        className="hover:bg-[#01a982]/10 focus:bg-[#01a982]/10"
+                        className="hover:bg-[#1677ff]/10 focus:bg-[#1677ff]/10"
                       >
                         {opt.name}
                       </SelectItem>
@@ -536,7 +536,7 @@ export function HiringDetailsTable({ data }: Props) {
                   className="w-full"
                   disabled={rmownerLoading || !(isAdmin || isRmowner || isVendorManager)}
                 >
-                  <SelectTrigger className="border-[#01a982]/20 hover:border-[#01a982] focus:ring-[#01a982]/20">
+                  <SelectTrigger className="border-[#1677ff]/20 hover:border-[#1677ff] focus:ring-[#1677ff]/20">
                     <SelectValue placeholder="Select Status" />
                   </SelectTrigger>
                   <SelectContent>
@@ -544,7 +544,7 @@ export function HiringDetailsTable({ data }: Props) {
                       <SelectItem
                         key={opt.id}
                         value={opt.id}
-                        className="hover:bg-[#01a982]/10 focus:bg-[#01a982]/10"
+                        className="hover:bg-[#1677ff]/10 focus:bg-[#1677ff]/10"
                       >
                         {opt.name}
                       </SelectItem>

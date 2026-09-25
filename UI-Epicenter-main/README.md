@@ -1,4 +1,4 @@
-# 🚀 Epicenter - Deployment Instructions
+# 🚀 Throughline UI - Deployment Instructions
 
 ## Reverse Proxy Configuration:
 1. Extract the ZIP file 

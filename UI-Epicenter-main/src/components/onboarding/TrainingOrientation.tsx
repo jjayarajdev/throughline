@@ -432,12 +432,12 @@ useEffect(() => {
                   <FileField
                     control={form.control}
                     name="resumeUploaded"
-                    label="Upload Resume in HPE Format"
+                    label="Upload Resume in Company Format"
                     accept=".ppt,.pptx,.pdf,.doc,.docx"
                   />
                 </div>
                 <ResumePreview
-                  fileName="Resume in HPE Format"
+                  fileName="Resume in Company Format"
                   url={previewUrl(resumeUploaded)}
                 />
               </div>
@@ -576,7 +576,7 @@ useEffect(() => {
         <Button
           type="submit"
           size="sm"
-          className="bg-[#00b388] hover:bg-[#009e79] h-10 px-6 rounded-lg"
+          className="bg-[#4096ff] hover:bg-[#009e79] h-10 px-6 rounded-lg"
         >
           {onboardingTimeline?.id ? "Update" : "Submit"}
         </Button>

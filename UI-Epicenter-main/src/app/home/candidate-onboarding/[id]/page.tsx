@@ -454,7 +454,7 @@ const handleBGVSubmit = () => {
               !isPartner ? (
                 <Button
                   onClick={() => setShowCompleteDialog(true)}
-                  className="bg-[#00b388] hover:bg-[#009e79] h-9"
+                  className="bg-[#4096ff] hover:bg-[#009e79] h-9"
                   disabled={!bgvDetails?.isBGVAvailableWithPartner}
                 >
                   Completed Onboarding
@@ -489,7 +489,7 @@ const handleBGVSubmit = () => {
                       Cancel
                     </Button>
                     <Button
-                      className="bg-[#00b388] hover:bg-[#009e79] text-base px-6 py-2"
+                      className="bg-[#4096ff] hover:bg-[#009e79] text-base px-6 py-2"
                       onClick={() => {
                         setShowCompleteDialog(false);
                         handleBGVSubmit();

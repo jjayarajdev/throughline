@@ -42,10 +42,10 @@ export const employmentFormSchema = z.object({
       });
     }
 
-    if (!data.hpeEmailId || !/^[a-zA-Z0-9._%+-]+(?:-ext)?@hpe\.com$/.test(data.hpeEmailId)) {
+    if (!data.hpeEmailId || !/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(data.hpeEmailId)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Enter a valid HPE email (e.g., john.doe@hpe.com or john.doe-ext@hpe.com)",
+        message: "Enter a valid company email address",
         path: ["hpeEmailId"],
       });
     }
@@ -241,7 +241,7 @@ const validateEmployeeId = async () => {
     type="button"
     onClick={validateEmployeeId}
     disabled={!watchIsGenerated || loadingEmpValidation}
-   className="bg-[#00b388] hover:bg-[#009e79] h-9"
+   className="bg-[#4096ff] hover:bg-[#009e79] h-9"
    size="sm"
     
   >
@@ -261,8 +261,8 @@ const validateEmployeeId = async () => {
             <InputField
               control={form.control}
               name="hpeEmailId"
-              label="HPE Email ID"
-              placeholder="Enter HPE Employee ID"
+              label="Company Email ID"
+              placeholder="Enter company email address"
               required={watchIsGenerated}
               disabled={!watchIsGenerated}
             />
@@ -276,7 +276,7 @@ const validateEmployeeId = async () => {
             <Button
               type="submit"
               size="sm"
-              className="bg-[#00b388] hover:bg-[#009e79] h-9"
+              className="bg-[#4096ff] hover:bg-[#009e79] h-9"
             
             >
               {onboardingTimeline?.id ? "Update" : "Submit"}

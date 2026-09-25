@@ -52,7 +52,7 @@ export function HiringDetailSheet({
     >
       <SheetContent side="right" className="w-[800px] p-4">
         <SheetHeader className="pb-2 border-b">
-          <SheetTitle className="text-xl font-semibold text-[#007E61]">
+          <SheetTitle className="text-xl font-semibold text-[#0958d9]">
             {title}
           </SheetTitle>
         </SheetHeader>

@@ -22,8 +22,8 @@ export default function UnauthorizedPage() {
     <div className="min-h-screen bg-[#f5f7fa] dark:bg-[#1a1c1e] flex items-center justify-center p-4">
       <Card className="max-w-2xl w-full border-0 shadow-md bg-white dark:bg-gray-800">
         <CardHeader className="text-center pb-2">
-          <div className="mx-auto bg-[#01A982]/10 p-4 rounded-full mb-4">
-            <Shield className="w-10 h-10 text-[#01A982]" />
+          <div className="mx-auto bg-[#1677ff]/10 p-4 rounded-full mb-4">
+            <Shield className="w-10 h-10 text-[#1677ff]" />
           </div>
           <CardTitle className="text-2xl font-semibold text-gray-900 dark:text-white">
             Access Denied
@@ -44,7 +44,7 @@ export default function UnauthorizedPage() {
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Button 
               onClick={handleGoBack}
-              className="bg-[#01A982] hover:bg-[#018A6B] text-white"
+              className="bg-[#1677ff] hover:bg-[#018A6B] text-white"
             >
               <ArrowLeft className="w-4 h-4 mr-2" />
               Go Back

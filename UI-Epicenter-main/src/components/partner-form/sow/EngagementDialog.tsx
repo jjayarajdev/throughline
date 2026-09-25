@@ -146,7 +146,7 @@ export const EvaluationSidebarOnly = ({
                 </Dialog.Close>
                 <Button
                   type="submit"
-                  className="bg-[#00b388] hover:bg-[#009e79]"
+                  className="bg-[#4096ff] hover:bg-[#009e79]"
                 >
                   Submit
                 </Button>
@@ -156,7 +156,7 @@ export const EvaluationSidebarOnly = ({
           {actionType === "extended" && (
             <>
               <div className="mt-6 h-[500px] overflow-auto border-t border-gray-200 dark:border-gray-700 pt-4 space-y-4">
-                <h4 className="text-lg font-semibold text-[#00b388] hover:text-[#009e79] transition-colors duration-200 mb-2">
+                <h4 className="text-lg font-semibold text-[#4096ff] hover:text-[#009e79] transition-colors duration-200 mb-2">
                   Evaluation Extension History
                 </h4>
 

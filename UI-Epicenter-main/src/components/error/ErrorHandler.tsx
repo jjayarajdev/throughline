@@ -55,7 +55,7 @@ export function ErrorHandler({
             <Button
               size="sm"
               onClick={onRetry}
-              className="bg-[#01a982] hover:bg-[#01a982]/90"
+              className="bg-[#1677ff] hover:bg-[#1677ff]/90"
             >
               Try Again
             </Button>
@@ -78,7 +78,7 @@ export function ErrorHandler({
     return (
       <Card className="p-8 dark:bg-gray-800">
         <div className="flex flex-col items-center justify-center text-center space-y-4">
-          <Inbox className="h-12 w-12 text-[#01a982]" />
+          <Inbox className="h-12 w-12 text-[#1677ff]" />
           <div className="space-y-2">
             <h3 className="text-xl font-semibold dark:text-white text-gray-900">
               {emptyMessage}

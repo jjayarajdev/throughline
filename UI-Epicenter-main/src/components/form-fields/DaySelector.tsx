@@ -57,8 +57,8 @@ export function DaySelector({
                   className={cn(
                     "px-4 py-2 rounded-md border transition-colors",
                     field.value?.includes(day)
-                     ? "bg-[#01a982] text-white border-[#01a982] hover:bg-[#019173] dark:bg-[#00b388] dark:hover:bg-[#019173]"
-                      : "border-gray-300 text-gray-800 dark:border-gray-600 dark:text-gray-200 hover:border-[#01a982] hover:text-[#01a982]"
+                     ? "bg-[#1677ff] text-white border-[#1677ff] hover:bg-[#019173] dark:bg-[#4096ff] dark:hover:bg-[#019173]"
+                      : "border-gray-300 text-gray-800 dark:border-gray-600 dark:text-gray-200 hover:border-[#1677ff] hover:text-[#1677ff]"
 
                   )}
                 >

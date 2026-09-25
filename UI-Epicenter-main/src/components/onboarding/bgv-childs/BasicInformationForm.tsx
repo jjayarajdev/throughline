@@ -562,7 +562,7 @@ if (loader) return <SubmitFormLoader />;
         </div>
 
         <div className="flex justify-end pt-4">
-          <Button type="submit" className="bg-[#00b388] hover:bg-[#009e79]">
+          <Button type="submit" className="bg-[#4096ff] hover:bg-[#009e79]">
             {onboardingTimeline?.id ? "Update" : "Submit"}
           </Button>
         </div>

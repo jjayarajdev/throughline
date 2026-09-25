@@ -110,7 +110,7 @@ export default function Pagination({
         buttonSizes[size],
         "border-gray-300 dark:border-gray-600",
         isActive &&
-          "bg-[#01a982] border-[#01a982] text-white hover:bg-[#007E61] dark:bg-[#00d99a] dark:border-[#00d99a] dark:text-gray-900 dark:hover:bg-[#00b388]",
+          "bg-[#1677ff] border-[#1677ff] text-white hover:bg-[#0958d9] dark:bg-[#00d99a] dark:border-[#00d99a] dark:text-gray-900 dark:hover:bg-[#4096ff]",
         !isActive &&
           "hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300",
         disabled && "opacity-50 cursor-not-allowed"

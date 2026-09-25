@@ -49,7 +49,7 @@ export function ExportButton<T extends Record<string, any>>({
       onClick={handleExport}
       variant="ghost"
       size="sm"
-      className="h-9 text-[#007E61] hover:text-[#007E61] hover:bg-[#E6F4F1] dark:text-[#00cc99] dark:hover:bg-[#11332b]"
+      className="h-9 text-[#0958d9] hover:text-[#0958d9] hover:bg-[#E6F4F1] dark:text-[#00cc99] dark:hover:bg-[#11332b]"
     >
       <Download className="h-4 w-4 mr-2" />
       Export

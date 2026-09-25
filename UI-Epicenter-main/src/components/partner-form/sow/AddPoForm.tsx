@@ -589,7 +589,7 @@ crFlagsGlobalForPO = computedFlags;
               <Button
                 type="submit"
                 disabled={createpo.isPending || updateLoading}
-                className="bg-[#007E61] hover:bg-[#006D54]"
+                className="bg-[#0958d9] hover:bg-[#006D54]"
               >
                 {createpo.isPending || updateLoading
                   ? submitLabel.replace(/^(Create|Update)/, (m) =>

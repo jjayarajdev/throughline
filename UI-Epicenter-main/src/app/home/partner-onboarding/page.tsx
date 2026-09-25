@@ -274,11 +274,11 @@ export default function PartnerPage() {
                 id="assigned-mode"
                 checked={isVMApproved}
                 onCheckedChange={setIsvmapproved}
-                className="data-[state=checked]:bg-[#007E61] data-[state=checked]:border-[#007E61] dark:data-[state=checked]:bg-[#00cc99] dark:data-[state=checked]:border-[#00cc99]"
+                className="data-[state=checked]:bg-[#0958d9] data-[state=checked]:border-[#0958d9] dark:data-[state=checked]:bg-[#00cc99] dark:data-[state=checked]:border-[#00cc99]"
               />
               <Label
                 htmlFor="assigned-mode"
-                className="text-sm font-medium text-[#007E61] dark:text-[#00cc99]"
+                className="text-sm font-medium text-[#0958d9] dark:text-[#00cc99]"
               >
                {isVMApproved ? "Approved" : "Unapproved"}
 
@@ -300,7 +300,7 @@ export default function PartnerPage() {
               disabled={!partners.length || downloadExcelLoading}
               variant="ghost"
               size="sm"
-              className="h-9 text-[#007E61] hover:text-[#007E61] hover:bg-[#E6F4F1] dark:text-[#00cc99] dark:hover:bg-[#11332b]"
+              className="h-9 text-[#0958d9] hover:text-[#0958d9] hover:bg-[#E6F4F1] dark:text-[#00cc99] dark:hover:bg-[#11332b]"
             >
               <Download className="h-4 w-4 mr-2" />
               {downloadExcelLoading ? "Exporting..." : "Export"}
@@ -311,7 +311,7 @@ export default function PartnerPage() {
             <Button
               variant="ghost"
               size="sm"
-              className="h-9 text-[#007E61] hover:text-[#007E61] hover:bg-[#E6F4F1] dark:text-[#00cc99] dark:hover:bg-[#11332b]"
+              className="h-9 text-[#0958d9] hover:text-[#0958d9] hover:bg-[#E6F4F1] dark:text-[#00cc99] dark:hover:bg-[#11332b]"
               onClick={() => {
                 setPartnerCode("PID***");
                 setPartnerId("");
@@ -365,7 +365,7 @@ export default function PartnerPage() {
                         {column.id === "partnerCode" ? (
                           <Link
                             href={`/home/partner-onboarding/partner-profile/${partner.partnerCode}`}
-                            className="text-[#00b388] hover:underline"
+                            className="text-[#4096ff] hover:underline"
                           >
                             {partner.partnerCode}
                           </Link>

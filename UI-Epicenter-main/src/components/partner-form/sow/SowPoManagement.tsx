@@ -270,7 +270,7 @@ export default function SowPoManagement() {
                     <TooltipTrigger asChild>
                       <Button
                         variant="default"
-                        className="gap-2 bg-[#007E61] hover:bg-[#006D54]"
+                        className="gap-2 bg-[#0958d9] hover:bg-[#006D54]"
                         onClick={handleOpenAddForm}
                       >
                         <Plus className="h-4 w-4" /> Add New SOW
@@ -430,7 +430,7 @@ export default function SowPoManagement() {
                         {expandedRows.includes(sow.sowNumber) && (
                           <TableRow>
                             <TableCell colSpan={8} className="p-0">
-                              <div className="p-4 bg-gray-50/30 dark:bg-gray-800 border-l-2 border-[#007E61]">
+                              <div className="p-4 bg-gray-50/30 dark:bg-gray-800 border-l-2 border-[#0958d9]">
                                 <div className="flex justify-between items-center mb-4">
                                   <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-100">
                                     PO Details

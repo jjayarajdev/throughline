@@ -737,7 +737,7 @@ const page = () => {
                       <Button
                         variant="link"
                         type="button"
-                        className="p-0 text-[#00b388] hover:underline h-auto font-normal"
+                        className="p-0 text-[#4096ff] hover:underline h-auto font-normal"
                         onClick={() => setShowTermsDialog(true)}
                       >
                         terms and conditions
@@ -803,7 +803,7 @@ const page = () => {
                 </Button>
                 <Button
                   onClick={handleTermsAccept}
-                  className="bg-[#00b388] hover:bg-[#009e79]"
+                  className="bg-[#4096ff] hover:bg-[#009e79]"
                 >
                   Accept
                 </Button>

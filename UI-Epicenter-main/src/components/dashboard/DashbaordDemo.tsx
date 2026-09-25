@@ -46,9 +46,9 @@ import {
 } from "@/store/userStore";
 import { isMainThread } from "worker_threads";
 
-// HPE Color palette
+// Throughline colour palette
 const colors = {
-  primary: "#01A982",
+  primary: "#1677ff",
   secondary: "#00C4A7",
   accent: "#6366F1",
   warning: "#F59E0B",
@@ -125,8 +125,8 @@ export default function DashboardDemo() {
                     </p>
                   </div>
 
-                  <div className="bg-[#01A982]/10 p-3 rounded-full">
-                    <Users className="w-6 h-6 text-[#01A982]" />
+                  <div className="bg-[#1677ff]/10 p-3 rounded-full">
+                    <Users className="w-6 h-6 text-[#1677ff]" />
                   </div>
                 </div>
                 <div className="mt-4 flex items-center text-sm">
@@ -329,7 +329,7 @@ export default function DashboardDemo() {
           <Card className="border-0 shadow-lg">
             <CardHeader>
               <CardTitle className="text-lg font-semibold  flex items-center gap-2">
-                <Target className="w-5 h-5 text-[#01A982]" />
+                <Target className="w-5 h-5 text-[#1677ff]" />
                 Candidate Stage Summary
               </CardTitle>
             </CardHeader>
@@ -377,7 +377,7 @@ export default function DashboardDemo() {
           <Card className="border-0 shadow-lg">
             <CardHeader>
               <CardTitle className="text-lg font-semibold  flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-[#01A982]" />
+                <TrendingUp className="w-5 h-5 text-[#1677ff]" />
                 Weekly Profile Submissions
               </CardTitle>
             </CardHeader>
@@ -424,7 +424,7 @@ export default function DashboardDemo() {
         {/* <Card className="border-0 shadow-lg">
           <CardHeader>
             <CardTitle className="text-lg font-semibold  flex items-center gap-2">
-              <Search className="w-5 h-5 text-[#01A982]" />
+              <Search className="w-5 h-5 text-[#1677ff]" />
               Candidate Pipeline Details
             </CardTitle>
           </CardHeader>
@@ -444,7 +444,7 @@ export default function DashboardDemo() {
                   if (name.includes("rejected"))
                     return <XCircle className="w-5 h-5 text-red-500" />;
                   if (name.includes("screening"))
-                    return <Target className="w-5 h-5 text-[#01A982]" />;
+                    return <Target className="w-5 h-5 text-[#1677ff]" />;
                   return <Users className="w-5 h-5 text-gray-500" />;
                 };
 

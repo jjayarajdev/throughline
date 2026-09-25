@@ -20,7 +20,7 @@ import Link from "next/link";
 import { format, parseISO } from "date-fns";
 import { EnumType } from "@/constants/slot-status";
 
-// Simple star rating component with HPE styling
+// Simple star rating component with Throughline styling
 const StarRating = ({ rating }: { rating: number }) => (
   <div className="flex items-center">
     {[...Array(5)].map((_, i) => (
@@ -28,7 +28,7 @@ const StarRating = ({ rating }: { rating: number }) => (
         key={i}
         size={14}
         className={
-          i < rating ? "fill-[#01A982] text-[#01A982]" : "text-gray-300"
+          i < rating ? "fill-[#1677ff] text-[#1677ff]" : "text-gray-300"
         }
       />
     ))}
@@ -93,10 +93,10 @@ export default function CandidateFeedbackReview() {
       >
         <MoveLeft /> Go Back
       </div>
-      {/* HPE-styled header */}
+      {/* Throughline header */}
       <div className="mb-6 pb-4 border-b border-gray-200">
         <div className="flex items-center gap-2 mb-1">
-          <User className="text-[#01A982] h-5 w-5" />
+          <User className="text-[#1677ff] h-5 w-5" />
           <h1 className="text-xl font-bold text-gray-800">
             Candidate Feedback Summary
           </h1>
@@ -109,7 +109,7 @@ export default function CandidateFeedbackReview() {
           <div className="grid grid-cols-4 gap-4 text-center">
             <div className="p-1">
               <p className="text-sm text-gray-500 mb-1">Interview Rounds</p>
-              <p className="text-md font-bold text-[#01A982]">
+              <p className="text-md font-bold text-[#1677ff]">
                 {getCnadidateInterviewRoundFeedbackDetailsDtos?.length}
               </p>
             </div>
@@ -147,7 +147,7 @@ export default function CandidateFeedbackReview() {
             <CardHeader className="pb-1 bg-gray-50">
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-2">
-                  <div className="flex items-center justify-center bg-[#01A982] text-white w-6 h-6 rounded-full text-xs font-medium">
+                  <div className="flex items-center justify-center bg-[#1677ff] text-white w-6 h-6 rounded-full text-xs font-medium">
                     {index + 1}
                   </div>
                   <h2 className="font-semibold text-gray-800">

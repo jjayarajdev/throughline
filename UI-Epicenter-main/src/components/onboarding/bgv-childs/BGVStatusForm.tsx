@@ -213,7 +213,7 @@ const BGVStatusForm = ({onSave,onboardingTimeline}:Iprops) => {
             </div> */}
 
             <div className="flex justify-end gap-4 pt-4">
-              <Button type="submit" disabled={!isAcknowledged} className="bg-[#00b388] hover:bg-[#009e79]">
+              <Button type="submit" disabled={!isAcknowledged} className="bg-[#4096ff] hover:bg-[#009e79]">
                 {onboardingTimeline?.isBGVAvailableWithPartner?"Update":"Submit"}
               </Button>
             </div>

@@ -511,7 +511,7 @@ useEffect(() => {
                 <Button
                   type="submit"
                   size="sm"
-                  className="bg-[#00b388] hover:bg-[#009e79] h-9"
+                  className="bg-[#4096ff] hover:bg-[#009e79] h-9"
                 >
                   Move
                 </Button>
@@ -588,7 +588,7 @@ useEffect(() => {
                     Cancel
                   </Button>
                   <Button
-                    className="bg-[#00b388] hover:bg-[#009e79]"
+                    className="bg-[#4096ff] hover:bg-[#009e79]"
                     onClick={() => {
                       moveToOnboarding.mutate({
                         ...pendingPayload,

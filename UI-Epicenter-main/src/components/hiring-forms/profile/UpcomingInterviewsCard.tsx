@@ -33,7 +33,7 @@ export function UpcomingInterviewsCard({
     return (
       <Card className=" h-[30vh]  dark:bg-gray-800 p-2">
         <div className="flex items-center justify-between px-4 py-2 border-b dark:border-gray-700">
-          <h4 className="font-semibold text-[#01a982]">Upcoming Interviews</h4>
+          <h4 className="font-semibold text-[#1677ff]">Upcoming Interviews</h4>
         </div>
         <ErrorHandler
           isEmpty={true}
@@ -45,7 +45,7 @@ export function UpcomingInterviewsCard({
   return (
     <Card className="bg-white dark:bg-gray-800">
       <div className="flex items-center justify-between px-4 py-2 border-b dark:border-gray-700">
-        <h4 className="font-semibold text-[#01a982]">Upcoming Interviews</h4>
+        <h4 className="font-semibold text-[#1677ff]">Upcoming Interviews</h4>
       </div>
 
       <ScrollArea className="h-48 p-0">
@@ -56,9 +56,9 @@ export function UpcomingInterviewsCard({
               className="bg-gray-50 hover:bg-gray-100 transition-colors dark:bg-gray-700 p-4 rounded-lg border border-gray-100"
             >
               <div className="flex items-center space-x-4">
-                <Avatar className="h-10 w-10 border-2 border-[#007E61]/20">
+                <Avatar className="h-10 w-10 border-2 border-[#0958d9]/20">
                   <AvatarImage src={i.avatarUrl} />
-                  <AvatarFallback className="bg-[#007E61]/10 text-[#007E61]">
+                  <AvatarFallback className="bg-[#0958d9]/10 text-[#0958d9]">
                     {i.candidateName
                       ?.split(" ")
                       .map((n) => n[0])
@@ -72,7 +72,7 @@ export function UpcomingInterviewsCard({
                     </p>
                     <Badge
                       variant="outline"
-                      className="bg-[#007E61]/10 text-[#007E61] border-none"
+                      className="bg-[#0958d9]/10 text-[#0958d9] border-none"
                     >
                       {i.round}
                     </Badge>
@@ -86,7 +86,7 @@ export function UpcomingInterviewsCard({
                       <span>{i.nickname}</span>
                     </div>
                     <div className="flex items-center text-sm text-gray-500 dark:text-gray-400 space-x-2">
-                      <Calendar className="w-4 h-4 text-[#007E61]" />
+                      <Calendar className="w-4 h-4 text-[#0958d9]" />
                       <span>
                         {format(
                           new Date(`${i.date.split("T")[0]}T${i.time}`),

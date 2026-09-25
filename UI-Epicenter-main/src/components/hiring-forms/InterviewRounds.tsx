@@ -368,7 +368,7 @@ export default function InterviewRoundForm({
                         form.setValue("skipScreening", val)
                       }
                       id="skip-screening"
-                      className="data-[state=checked]:bg-[#01a982] data-[state=checked]:border-[#01a982]"
+                      className="data-[state=checked]:bg-[#1677ff] data-[state=checked]:border-[#1677ff]"
                     />
                     <Label
                       htmlFor="skip-screening"

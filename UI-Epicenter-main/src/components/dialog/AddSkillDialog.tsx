@@ -118,7 +118,7 @@ export function AddSkillDialog({
                 </Button>
                 <Button
                   type="submit"
-                  className="bg-[#00b388] hover:bg-[#009e79]"
+                  className="bg-[#4096ff] hover:bg-[#009e79]"
                   disabled={addSkills.isPending}
                 >
                   {addSkills.isPending ? "Adding..." : "Add Skill"}

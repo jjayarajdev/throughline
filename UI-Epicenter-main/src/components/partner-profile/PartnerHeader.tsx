@@ -7,7 +7,7 @@ interface PartnerHeaderProps {
 export function PartnerHeader({ partner }: PartnerHeaderProps) {
   return (
     <div className="flex items-center gap-4 mb-8">
-      <div className="w-20 h-20 bg-[#00b388] rounded-lg flex items-center justify-center">
+      <div className="w-20 h-20 bg-[#4096ff] rounded-lg flex items-center justify-center">
         <span className="text-white text-2xl font-bold">
           {partner?.partnerDetails?.nickname?.slice(0, 2) || "N/A"}
         </span>
