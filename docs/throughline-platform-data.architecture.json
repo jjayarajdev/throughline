@@ -1,0 +1,313 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Platform data — one PostgreSQL cluster, one core schema",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "lives",
+        "label": "Where data lives",
+        "focus": [
+          "fastalentapi",
+          "throughlineapi",
+          "faschema",
+          "core",
+          "tlschema"
+        ],
+        "note": "Shared truth in core; each product keeps only what it alone needs in its own schema."
+      },
+      {
+        "id": "rules",
+        "label": "One writer, FKs to core",
+        "focus": [
+          "faschema",
+          "core",
+          "tlschema"
+        ],
+        "note": "Product schemas reference core, never each other; every core table has one writing app enforced by grants."
+      },
+      {
+        "id": "edge",
+        "label": "Outside the wall",
+        "focus": [
+          "core",
+          "hub",
+          "adapters",
+          "hris"
+        ],
+        "note": "The hub is no longer the pipe between the two products; it is the partner API for everyone else, fed by the core outbox."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "fastalentapi",
+      "type": "backend",
+      "label": "fastalent API",
+      "sublabel": "Express 5 · Prisma",
+      "pos": [
+        240,
+        40
+      ],
+      "size": [
+        190,
+        62
+      ],
+      "tag": "marketplace"
+    },
+    {
+      "id": "screener",
+      "type": "backend",
+      "label": "Screening Service",
+      "sublabel": "profile-vs-JD · JD crux",
+      "pos": [
+        520,
+        40
+      ],
+      "size": [
+        190,
+        62
+      ],
+      "tag": "fastalent"
+    },
+    {
+      "id": "throughlineapi",
+      "type": "backend",
+      "label": "Throughline API",
+      "sublabel": ".NET 8 · EF Core · Npgsql",
+      "pos": [
+        800,
+        40
+      ],
+      "size": [
+        190,
+        62
+      ],
+      "tag": "hiring ops"
+    },
+    {
+      "id": "faschema",
+      "type": "database",
+      "label": "schema: fastalent",
+      "sublabel": "submissions · wallets · payouts",
+      "pos": [
+        240,
+        230
+      ],
+      "size": [
+        190,
+        62
+      ]
+    },
+    {
+      "id": "core",
+      "type": "database",
+      "label": "schema: core",
+      "sublabel": "taxonomy · orgs · people · jobs",
+      "pos": [
+        520,
+        230
+      ],
+      "size": [
+        190,
+        62
+      ],
+      "tag": "source of truth"
+    },
+    {
+      "id": "tlschema",
+      "type": "database",
+      "label": "schema: throughline",
+      "sublabel": "approvals · panels · SOW/PO",
+      "pos": [
+        800,
+        230
+      ],
+      "size": [
+        190,
+        62
+      ]
+    },
+    {
+      "id": "hub",
+      "type": "messagebus",
+      "label": "Hiring Event Hub",
+      "sublabel": "partner API · outbox relay",
+      "pos": [
+        800,
+        430
+      ],
+      "size": [
+        190,
+        62
+      ],
+      "tag": "to build"
+    },
+    {
+      "id": "hris",
+      "type": "external",
+      "label": "HR System",
+      "sublabel": "Workday · SuccessFactors",
+      "pos": [
+        1120,
+        230
+      ],
+      "size": [
+        160,
+        62
+      ]
+    },
+    {
+      "id": "adapters",
+      "type": "external",
+      "label": "InCruiter · Berribot",
+      "sublabel": "AI interview adapters",
+      "pos": [
+        1120,
+        430
+      ],
+      "size": [
+        160,
+        62
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Platform DB — one PostgreSQL cluster",
+      "wraps": [
+        "faschema",
+        "core",
+        "tlschema"
+      ],
+      "pad": 18
+    }
+  ],
+  "connections": [
+    {
+      "from": "fastalentapi",
+      "to": "faschema",
+      "label": "marketplace tables",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [
+        300,
+        200
+      ]
+    },
+    {
+      "from": "fastalentapi",
+      "to": "core",
+      "label": "roles → jobs · submissions → people",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": -14
+    },
+    {
+      "from": "screener",
+      "to": "core",
+      "label": "JDs · profiles · talent index",
+      "route": "straight",
+      "labelAt": [
+        615,
+        122
+      ]
+    },
+    {
+      "from": "throughlineapi",
+      "to": "tlschema",
+      "label": "hiring-ops tables",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [
+        930,
+        200
+      ]
+    },
+    {
+      "from": "throughlineapi",
+      "to": "core",
+      "label": "HRQs → jobs · vendors · taxonomy",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": -14
+    },
+    {
+      "from": "faschema",
+      "to": "core",
+      "label": "FKs only to core",
+      "variant": "dashed",
+      "route": "straight"
+    },
+    {
+      "from": "tlschema",
+      "to": "core",
+      "label": "FKs only to core",
+      "variant": "dashed",
+      "route": "straight"
+    },
+    {
+      "from": "core",
+      "to": "hub",
+      "label": "outbox → signed events",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "left"
+    },
+    {
+      "from": "hub",
+      "to": "adapters",
+      "label": "AI interviews",
+      "variant": "dashed",
+      "fromSide": "right",
+      "toSide": "left",
+      "labelAt": [
+        1055,
+        487
+      ]
+    },
+    {
+      "from": "hub",
+      "to": "hris",
+      "label": "hire.joined",
+      "variant": "security",
+      "fromSide": "right",
+      "toSide": "left",
+      "labelAt": [
+        1085,
+        360
+      ]
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "What lives in core",
+      "items": [
+        "Taxonomy: skills, domains, sub-domains, locations, job levels — one id set both products store",
+        "Organisations (vendors, agencies, client companies), people (candidates keyed by fingerprint), jobs (HRQ number and Role id on one row)",
+        "Documents as storage keys (JDs, CVs) and the transactional outbox"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Rules that keep it safe",
+      "items": [
+        "Product schemas hold foreign keys to core, never to each other — each app still deploys alone",
+        "One writer per core table, enforced with Postgres roles and grants, not discipline",
+        "Core migrations are additive only, with one owner; events leave through the outbox exactly once"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Migration",
+      "items": [
+        "1 — Create core in fastalent's Postgres; load taxonomy, 39 vendors, 289 jobs, 3,938 people from Throughline",
+        "2 — Port Throughline to Npgsql: 13 procedures, 11 views, 9 raw-SQL sites, 5 computed columns; UI untouched",
+        "3 — Cut fastalent over to core (roles, companies, recruiters, candidate fields); 4 — retire SQL Server and the internal webhooks"
+      ]
+    }
+  ]
+}
