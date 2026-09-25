@@ -21,7 +21,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Partner } from "@/services/api/partner.profile.api";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { Hiring, hiringApi } from "@/services/api/hiring.api";
 import {
   DropdownMenu,

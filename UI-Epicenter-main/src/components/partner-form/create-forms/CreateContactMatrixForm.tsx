@@ -17,7 +17,7 @@ import {
   ContactMatrixPayload,
   partnerApi,
 } from "@/services/api/partner.profile.api";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { StatusBadge } from "@/components/status-badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";

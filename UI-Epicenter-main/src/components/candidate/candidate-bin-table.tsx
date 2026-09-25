@@ -45,7 +45,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { candidateApi } from "@/services/api/candidate.api";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import api from "@/lib/axiosInstance";
 import { FileField } from "../form-fields/FileField";
 import { useForm } from "react-hook-form";

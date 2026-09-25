@@ -38,7 +38,7 @@ import RoundDropdown from "../form-fields/Dropdown";
 import { formatDate, sortData } from "@/helpers/helper";
 import MultiSelectDropdownCheckbox from "../form-fields/MultiDropdownCheckbox";
 import { hiringApi } from "@/services/api/hiring.api";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import api from "@/lib/axiosInstance";
 import MultiSelectDropdown from "../form-fields/MultiDropdownCheckbox";
 

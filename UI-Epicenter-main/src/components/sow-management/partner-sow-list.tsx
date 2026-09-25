@@ -19,7 +19,7 @@ import React, { useState } from "react";
 import { StatusBadge } from "@/components/status-badge";
 import { useQuery } from "@tanstack/react-query";
 import { Partner, partnerApi } from "@/services/api/partner.profile.api";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import TableSkeletonLoader from "@/components/skelton/TableSkelton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SowTable } from "@/components/sow-management/Sow-manament-table";

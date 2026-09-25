@@ -20,7 +20,7 @@ import { MasterTypes } from "@/constants/masterTypes";
 import { dropdownApi } from "@/services/api/master";
 import { useEffect, useState } from "react";
 import { MultiSelectField } from "@/components/form-fields/MultiSelectField";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { candidateApi } from "@/services/api/candidate.api";
 import { Input } from "@/components/ui/input";
 import api from "@/lib/axiosInstance";

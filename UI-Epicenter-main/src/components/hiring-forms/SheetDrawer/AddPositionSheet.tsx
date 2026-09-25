@@ -1,132 +1,72 @@
-import { Button } from "@/components/ui/button";
-import { Form } from "@/components/ui/form";
-import { Loader2 } from "lucide-react";
-import { SheetFooter } from "@/components/ui/sheet";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+"use client";
+import { Button, Form, InputNumber, Space } from "antd";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import * as z from "zod";
-import { toast } from "sonner";
-import { useEffect } from "react";
-import { InputField } from "@/components/form-fields/InputField";
+import { toast } from "@/lib/toast";
+import { validateWithZod, zodRules } from "@/lib/zodRules";
 import { HiringDetailSheet } from "@/components/shared/HiringDetailsSheet";
-import { hiringApi, HiringPageRequest } from "@/services/api/hiring.api";
+import { hiringApi, type Hiring } from "@/services/api/hiring.api";
 
-interface ScreeningSheetProps {
+interface AddPositionSheetProps {
   isOpen: boolean;
   onClose: () => void;
-  isEdit: boolean;
-  selectedCandidate: HiringPageRequest | null;
+  selectedCandidate: Hiring | null;
 }
 
 const formSchema = z.object({
-  positions: z.string().optional(),
+  positions: z.number({ invalid_type_error: "Enter the number of positions" }).int().min(1, "At least one position is required").max(500, "Too many positions"),
 });
-
 type FormValues = z.infer<typeof formSchema>;
 
-export function AddPositionSheet({
-  isOpen,
-  onClose,
-  selectedCandidate,
-}: ScreeningSheetProps) {
-
+/** Add child positions to a parent HRQ, inside the hiring-details drawer. */
+export function AddPositionSheet({ isOpen, onClose, selectedCandidate }: AddPositionSheetProps) {
   const queryClient = useQueryClient();
-
-  const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      positions: "",
-    },
-  });
+  const [form] = Form.useForm<FormValues>();
 
   const { mutate: addHiringPositions, isPending } = useMutation({
     mutationKey: ["addHiringPositions"],
     mutationFn: hiringApi.addHiringPositions,
     onSuccess: (data) => {
-      form.reset();
-      queryClient.invalidateQueries({ queryKey: ["hiringBin"] });
       toast.success(data?.message || "Positions added successfully");
-      handleClose();
+      queryClient.invalidateQueries({ queryKey: ["hiringBin"] });
+      queryClient.invalidateQueries({ queryKey: ["hiringCart"] });
+      form.resetFields();
+      onClose();
     },
-    onError: (error) => {
-      toast.error(error?.message || "something went wrong");
-      console.error("Error:", error);
-    },
+    onError: (error: any) => toast.error(error?.response?.data?.message || error?.message || "Something went wrong"),
   });
 
-
-  const handleClose = () => {
-    form.reset();
-    onClose();
+  const onFinish = (values: FormValues) => {
+    const data = validateWithZod(formSchema, form, values);
+    if (!data || !selectedCandidate?.id) return;
+    addHiringPositions({ parentHiringRequestId: selectedCandidate.id, noOfPositions: data.positions });
   };
-
-  useEffect(() => {
-    if (!isOpen) {
-      handleClose();
-    }
-  }, [isOpen]);
-
-  const handleAction = () => {
-    form.handleSubmit((data) => {
-      const payloadAssign = {
-        parentHiringRequestId: selectedCandidate.id,
-        noOfPositions: data.positions ? parseInt(data.positions) : 0,
-      };
-      addHiringPositions(payloadAssign);
-    })();
-  };
-
 
   return (
     <HiringDetailSheet
       isOpen={isOpen}
-      onClose={handleClose}
+      onClose={() => {
+        form.resetFields();
+        onClose();
+      }}
       candidate={selectedCandidate}
-      title="Hiring Details"
+      title="Add positions"
+      footer={
+        <Space style={{ display: "flex", justifyContent: "flex-end" }}>
+          <Button onClick={onClose} disabled={isPending}>
+            Cancel
+          </Button>
+          <Button type="primary" loading={isPending} onClick={() => form.submit()}>
+            Add positions
+          </Button>
+        </Space>
+      }
     >
-      {selectedCandidate ? (
-        <Form {...form}>
-          <form className="mt-6 space-y-6" onSubmit={(e) => e.preventDefault()}>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="col-span-2">
-                <InputField
-                  control={form.control}
-                  name="positions"
-                  type="number"
-                  label="Number of Positions"
-                  placeholder="Enter your number of positions here..."
-                />
-              </div>
-            </div>
-
-            <SheetFooter className="flex gap-4 pt-6 border-t">
-              <div className="flex w-full gap-4">
-                <Button
-                  type="submit"
-                  variant="hpButton"
-                  disabled={isPending }
-                  onClick={() => handleAction()}
-                  className="w-full h-11"
-                >
-                  {isPending ? (
-                    <div className="flex items-center gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span>Submitting...</span>
-                    </div>
-                  ) : (
-                    <span>Submit</span>
-                  )}
-                </Button>
-              </div>
-            </SheetFooter>
-          </form>
-        </Form>
-      ) : (
-        <div className="mt-6 text-center text-gray-500">
-          No candidate selected
-        </div>
-      )}
+      <Form form={form} layout="vertical" onFinish={onFinish} className="mt-6" initialValues={{ positions: 1 }}>
+        <Form.Item name="positions" label="Number of positions" rules={zodRules(formSchema, "positions")}>
+          <InputNumber min={1} max={500} precision={0} className="w-full" placeholder="How many positions to add" />
+        </Form.Item>
+      </Form>
     </HiringDetailSheet>
   );
 }

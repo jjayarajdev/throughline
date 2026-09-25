@@ -10,7 +10,7 @@ import { SearchableDropdown } from "@/components/form-fields/searchable-dropdown
 import { Button } from "@/components/ui/button";
 import { partnerApi } from "@/services/api/partner.profile.api";
 import api from "@/lib/axiosInstance";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { useState } from "react";
 import {
     Table,

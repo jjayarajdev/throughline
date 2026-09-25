@@ -16,7 +16,7 @@ import { Form } from "@/components/ui/form";
 import { InputField } from "@/components/form-fields/InputField";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { addSkillPayload, hiringApi } from "@/services/api/hiring.api";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import axios from "axios";
 
 const skillSchema = z.object({

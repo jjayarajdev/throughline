@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Upload, Trash2, FileText, Plus } from "lucide-react";
 import { Control } from "react-hook-form";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { ResumePreview } from "../common/ResumePreview";
 import {
   Dialog,

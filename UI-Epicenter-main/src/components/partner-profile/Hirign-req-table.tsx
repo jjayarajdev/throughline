@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from '../ui/button';
 import { Check, ChevronDown, Menu, X } from 'lucide-react';
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import api from "@/lib/axiosInstance";
 
 interface HrqTableProps {

@@ -20,7 +20,7 @@ import { Paperclip } from "lucide-react";
 import { useParams } from "next/navigation";
 import { MultiSelectField } from "../form-fields/MultiSelectField";
 import { hiringApi, HiringReqPayload } from "@/services/api/hiring.api";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { useHiringStore } from "@/store/useHiringStore";
 import SubmitFormLoader from "../common/SubmitFormLoader";
 import { DatePickerField } from "../form-fields/DatePickerField";

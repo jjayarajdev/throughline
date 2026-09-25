@@ -11,7 +11,7 @@ import { InputField } from "@/components/form-fields/InputField";
 import { DatePickerField } from "@/components/form-fields/DatePickerField";
 import { isPartner, useUserStore } from "@/store/userStore";
 import { dropdownApi } from "@/services/api/master";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { MasterTypes } from "@/constants/masterTypes";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { CommentsDialog } from "./CommentsDialog";

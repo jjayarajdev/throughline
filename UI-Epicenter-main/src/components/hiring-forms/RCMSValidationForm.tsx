@@ -9,7 +9,7 @@ import { InputField } from "../form-fields/InputField";
 import { useQuery } from "@tanstack/react-query";
 import { hiringApi } from "../../services/api/hiring.api";
 import { Switch } from "../ui/switch";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { Dispatch, SetStateAction } from "react";
 
 // 1) Discriminated-union schemas

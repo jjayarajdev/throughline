@@ -13,7 +13,7 @@ import { MultiSelectField } from "../form-fields/MultiSelectField";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { MasterTypes } from "@/constants/masterTypes";
 import { dropdownApi } from "@/services/api/master";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { useParams, useRouter } from "next/navigation";
 import { hiringApi, InterviewRoundPayload } from "@/services/api/hiring.api";
 import { PencilIcon } from "lucide-react";

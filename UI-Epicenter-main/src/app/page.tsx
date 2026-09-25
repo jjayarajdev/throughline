@@ -2,7 +2,7 @@
 import { useEffect } from "react";
 import { Alert, Button, Card, Form, Input, Typography } from "antd";
 import { ArrowRightOutlined, LockOutlined, MailOutlined } from "@ant-design/icons";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { useLogin } from "@/lib/useAuth";
 import { redirectBasedOnRole } from "@/components/layout/UserRoles";
 import ThroughlineLogo, { ThroughlineMark } from "@/components/throughline/Logo";

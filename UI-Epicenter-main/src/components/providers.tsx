@@ -5,6 +5,7 @@ import { App as AntdApp, ConfigProvider, theme as antdTheme } from "antd";
 import { useEffect, useMemo, useState } from "react";
 import { SidebarProvider } from "./context/SidebarContext";
 import { baseTheme, darkOverrides } from "./throughline/theme";
+import ToastBridge from "./throughline/ToastBridge";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -39,7 +40,10 @@ function AntdThemeProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <ConfigProvider theme={theme}>
-      <AntdApp>{children}</AntdApp>
+      <AntdApp>
+        <ToastBridge />
+        {children}
+      </AntdApp>
     </ConfigProvider>
   );
 }

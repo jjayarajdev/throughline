@@ -24,7 +24,7 @@ import { Pencil, Trash2, Check, X, Plus } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { dropdownApi } from "@/services/api/master";
 import { Input } from "@/components/ui/input";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import api from "@/lib/axiosInstance";
 import {
   Popover,

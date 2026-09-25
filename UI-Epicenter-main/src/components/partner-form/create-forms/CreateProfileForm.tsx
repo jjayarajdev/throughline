@@ -16,7 +16,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { dropdownApi } from "@/services/api/master";
 import { MasterTypes } from "@/constants/masterTypes";
 import { partnerApi, PartnerPayload } from "@/services/api/partner.profile.api";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { usePartnerStore } from "@/store/userPartnerStore";
 import { DatePickerField } from "@/components/form-fields/DatePickerField";
 import SubmitFormLoader from "@/components/common/SubmitFormLoader";

@@ -16,7 +16,7 @@ const fontFamily =
   "Outfit, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
 
 export const baseTheme: ThemeConfig = {
-  cssVar: true,
+  cssVar: { key: "tl" },
   hashed: false,
   token: {
     colorPrimary: brand.primary,

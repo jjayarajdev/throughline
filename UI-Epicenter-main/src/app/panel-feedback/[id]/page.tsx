@@ -6,7 +6,7 @@ import { useForm, useFieldArray, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useParams, useRouter } from "next/navigation";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { FeedbackPayload, slotApi } from "@/services/api/slot.api";
 import { dropdownApi } from "@/services/api/master";
 import { MasterTypes } from "@/constants/masterTypes";

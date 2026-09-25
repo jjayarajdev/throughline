@@ -276,6 +276,16 @@ export interface HiringPageRequest {
   fyears?: number;
   quarterId?: number;
   hiringStatusId?: number[];
+  // fields the paged endpoint actually accepts (used by the grid)
+  sortColumns?: { column: string; descending: boolean }[];
+  hiringStatusIds?: number[];
+  isBin?: boolean;
+  isAssigned?: boolean;
+  isParent?: boolean;
+  tatDurationId?: number;
+  financialYear?: number;
+  startDate?: string | null;
+  endDate?: string | null;
 }
 interface ApprovalPayload {
   id: number;

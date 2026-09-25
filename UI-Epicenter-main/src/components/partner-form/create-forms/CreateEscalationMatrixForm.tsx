@@ -16,7 +16,7 @@ import {
   partnerApi,
 } from "@/services/api/partner.profile.api";
 import { usePartnerStore } from "@/store/userPartnerStore";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { useParams, useRouter } from "next/navigation";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { StatusBadge } from "@/components/status-badge";

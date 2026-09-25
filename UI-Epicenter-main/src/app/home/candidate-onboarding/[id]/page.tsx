@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { onboarding } from "@/services/api/onboarding.api";
 import api from "@/lib/axiosInstance";
 

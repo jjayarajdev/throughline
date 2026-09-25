@@ -13,7 +13,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { MasterTypes } from "@/constants/masterTypes";
 import { usePartnerStore } from "@/store/userPartnerStore";
 import { ContactMatrixPayload, partnerApi } from "@/services/api/partner.profile.api";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { useSearchParams } from "next/navigation";
 import { StatusBadge } from "../status-badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";

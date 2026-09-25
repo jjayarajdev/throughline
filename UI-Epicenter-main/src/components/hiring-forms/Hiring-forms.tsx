@@ -12,7 +12,7 @@ import { useHiringDropdownData } from "./hooks/useHiringFormData";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Hiring, hiringApi } from "../../services/api/hiring.api";
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { useHiringStore } from "@/store/useHiringStore";
 import { usePathname, useRouter } from "next/navigation";
 import { RCMSValidationForm } from "./RCMSValidationForm";

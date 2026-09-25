@@ -8,7 +8,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import * as z from "zod";
 import { CandidateDetailsSheet } from "@/components/shared/CandidateDetailsSheet";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { useEffect } from "react";
 import { slotApi } from "@/services/api/slot.api";
 import { CandidateDetailsTypes } from "../types";

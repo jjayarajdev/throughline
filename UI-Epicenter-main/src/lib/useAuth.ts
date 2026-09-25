@@ -4,7 +4,7 @@ import axios from "axios";
 import { useUserStore } from "@/store/userStore";
 import api from "./axiosInstance";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 
 interface LoginPayload {
   email: string;

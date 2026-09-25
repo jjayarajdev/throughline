@@ -14,7 +14,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { MultiSelectField } from "../form-fields/MultiSelectField";
 import { TextareaField } from "../form-fields/TextAreaField";
 import { hiringApi, PartnerCategoriesPayload } from "@/services/api/hiring.api";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { useParams } from "next/navigation";
 import axios from "axios";
 import { useEffect } from "react";

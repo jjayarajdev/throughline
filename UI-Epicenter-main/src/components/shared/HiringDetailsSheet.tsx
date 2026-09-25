@@ -1,127 +1,41 @@
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import { CandidateDetailsTypes } from "../slot-management/types";
-import { HiringPageRequest } from "@/services/api/hiring.api";
+"use client";
+import { Descriptions, Drawer, Empty } from "antd";
+import type { Hiring } from "@/services/api/hiring.api";
 import { StatusBadge } from "../status-badge";
 
-interface CandidateDetailsSheetProps {
+interface HiringDetailSheetProps {
   isOpen: boolean;
   onClose: () => void;
-  candidate: HiringPageRequest | null;
+  candidate: Hiring | null;
   children?: React.ReactNode;
   title?: string;
+  /** rendered in the Drawer footer (actions) */
+  footer?: React.ReactNode;
 }
 
-export function HiringDetailSheet({
-  isOpen,
-  onClose,
-  candidate,
-  children,
-  title = "Hiring Details",
-}: CandidateDetailsSheetProps) {
-  const defaultCandidate: CandidateDetailsTypes = {
-    hrqId: "",
-    candidateCode: "",
-    candidateName: "",
-    jobTitle: "",
-    partnerName: "",
-    intakeStatusName: "",
-    interviewModeName: "",
-  };
-
-  const candidateData = candidate || defaultCandidate;
-
-  function formatArray(value?: string | string[] | null) {
-    if (Array.isArray(value)) {
-      return value
-        .map((day) => day.charAt(0).toUpperCase() + day.slice(1))
-        .join(", ");
-    }
-    return value || "-";
-  }
-
+/** Right-hand drawer with the hiring request summary; `children` render below the summary. */
+export function HiringDetailSheet({ isOpen, onClose, candidate, children, title = "Hiring Details", footer }: HiringDetailSheetProps) {
+  const c = candidate as (Hiring & { interviewModeName?: string; panelNames?: string; requestorName?: string }) | null;
   return (
-    <Sheet
-      aria-describedby={undefined}
-      open={isOpen}
-      onOpenChange={(val) => !val && onClose()}
-    >
-      <SheetContent side="right" className="w-[800px] p-4">
-        <SheetHeader className="pb-2 border-b">
-          <SheetTitle className="text-xl font-semibold text-[#0958d9]">
-            {title}
-          </SheetTitle>
-        </SheetHeader>
-        <div className=" space-y-2">
-          {candidate ? (
-            <>
-              <div className="space-y-1 bg-gray-50 p-2 rounded-lg">
-                <div className="grid gap-1">
-                  <DetailRow
-                    label="Hiring Status"
-                    value={
-                      <StatusBadge status={candidateData?.hiringStatusName} />
-                    }
-                  />
-                  <DetailRow label="HRQ ID" value={candidateData?.hrqId} />
-                 
-                  <DetailRow
-                    label="Project Name"
-                    value={candidateData?.projectName}
-                  />
-                  <DetailRow
-                    label="Requestor Name"
-                    value={candidateData?.requestorName}
-                  />
-                   <DetailRow
-                    label="Role Hired For"
-                    value={candidateData?.jobTitle}
-                  />
-
-             
-                  {candidateData?.interviewModeName && (
-                    <DetailRow
-                      label="Mode of Interview"
-                      value={candidateData.interviewModeName}
-                    />
-                  )}
-
-                  {candidateData.panelNames && (
-                    <DetailRow
-                      label="Panel Member"
-                      value={
-                        candidateData.panelNames || "No panel members assigned"
-                      }
-                    />
-                  )}
-               
-
-                
-                </div>
-              </div>
-              {children}
-            </>
-          ) : (
-            <div className="text-center text-gray-500">
-              No candidate selected
-            </div>
-          )}
-        </div>
-      </SheetContent>
-    </Sheet>
-  );
-}
-
-// Helper component for detail rows with null checks
-function DetailRow({ label, value }: { label: string; value?: string | null }) {
-  return (
-    <div className="flex justify-between items-center">
-      <span className="text-sm font-medium text-gray-500">{label}</span>
-      <span className="text-sm font-medium text-gray-500">{value || "-"}</span>
-    </div>
+    <Drawer open={isOpen} onClose={onClose} title={title} size="large" destroyOnHidden footer={footer}>
+      {c ? (
+        <>
+          <Descriptions bordered size="small" column={1} styles={{ label: { width: 180 } }}>
+            <Descriptions.Item label="Hiring status">
+              <StatusBadge status={c.hiringStatusName ?? ""} />
+            </Descriptions.Item>
+            <Descriptions.Item label="HRQ ID">{c.hrqId || "-"}</Descriptions.Item>
+            <Descriptions.Item label="Project">{c.projectName || "-"}</Descriptions.Item>
+            <Descriptions.Item label="Requestor">{c.requestorName || "-"}</Descriptions.Item>
+            <Descriptions.Item label="Role hired for">{c.jobTitle || "-"}</Descriptions.Item>
+            {c.interviewModeName && <Descriptions.Item label="Mode of interview">{c.interviewModeName}</Descriptions.Item>}
+            {c.panelNames && <Descriptions.Item label="Panel members">{c.panelNames}</Descriptions.Item>}
+          </Descriptions>
+          {children}
+        </>
+      ) : (
+        <Empty description="No hiring request selected" />
+      )}
+    </Drawer>
   );
 }

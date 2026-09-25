@@ -14,7 +14,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Button } from "@/components/ui/button";
-import { toast, Toaster } from "sonner";
+import { toast } from "@/lib/toast";
 import { useRouter, useParams } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { hiringApi } from "@/services/api/hiring.api";

@@ -38,7 +38,7 @@ import {
 import Pagination from "@/components/common/Pagination";
 import { onboarding } from "@/services/api/onboarding.api";
 import api from "@/lib/axiosInstance";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { formatDate } from "@/helpers/helper";
 import SearchFilter from "@/components/common/SearchFilter";
 import { FilterTypeEnum } from "@/constants/FilterTypeEnum";

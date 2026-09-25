@@ -16,7 +16,7 @@ import {
 import { FC } from "react";
 import { DropdownMenuItem } from "../ui/dropdown-menu";
 import Link from "next/link";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 export interface MenuItemProps {
   href: string;
   icon: React.ReactNode;

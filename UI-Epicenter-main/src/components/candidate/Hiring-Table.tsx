@@ -38,7 +38,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import api from "@/lib/axiosInstance";
 import { formatDate } from "@/helpers/helper";
 import Link from "next/link";

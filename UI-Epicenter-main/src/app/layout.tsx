@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { AntdRegistry } from "@ant-design/nextjs-registry";
 import "./globals.css";
 import Providers from "@/components/providers";
-import { Toaster } from "sonner";
 
 export const metadata: Metadata = {
   title: "Throughline",
@@ -19,10 +18,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className="antialiased">
         <AntdRegistry>
-          <Providers>
-            {children}
-            <Toaster />
-          </Providers>
+          <Providers>{children}</Providers>
         </AntdRegistry>
       </body>
     </html>

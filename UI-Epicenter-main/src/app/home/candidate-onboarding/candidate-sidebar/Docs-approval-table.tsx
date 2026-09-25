@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import api from "@/lib/axiosInstance";
 import Link from "next/link";
 import { partnerApi } from "@/services/api/partner.profile.api";
